@@ -282,7 +282,7 @@ class DesktopSettings:
             'Chats':[('Default reaction',lambda:self.reaction_picker()),('All chats in this app',lambda:self.choose_wallpaper(True))],
             'Notifications':[('Notifications',self.notification_dialog),('Notification history',lambda:open_history(self))],
             'Cuenta':[('Ver mi perfil',self.show_my_profile),('Editar perfil de Telegram',self.edit_profile),('Sync Telegram contacts',self.sync_contacts),('Device contacts',lambda:open_contact_sync(self)),('Privacy',self.privacy_dialog),('Devices',lambda:open_devices(self)),('+ Cuenta',lambda:self.switch_account()),('Log out this account',self.logout_account)],
-            'Updates':[('Updates',self.update_dialog),('Quit Tg-As',self.close)]}
+            'Updates':[('Updates',self.update_dialog),('Quit TeleGraph',self.close)]}
         from .app_lock import open_lock_settings
         actions['Cuenta'].insert(0,('App lock',lambda:open_lock_settings(self)))
         for section,entries in actions.items():
@@ -293,7 +293,7 @@ class DesktopSettings:
         ttk.Button(logos,text=tr('Official Telegram icons'),command=lambda:open_official_icons(self)).pack(fill='x',pady=5)
         from .custom_icon import choose_icon,reset_icon
         ttk.Button(logos,text=tr('Custom app icon'),command=lambda:choose_icon(self)).pack(fill='x',pady=5)
-        ttk.Button(logos,text=tr('Restore Tg-As icon'),command=lambda:reset_icon(self)).pack(fill='x',pady=5)
+        ttk.Button(logos,text=tr('Restore TeleGraph icon'),command=lambda:reset_icon(self)).pack(fill='x',pady=5)
         self.logo_gallery(logos)
         def save():
             if self.busy:return

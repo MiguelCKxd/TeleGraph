@@ -364,8 +364,8 @@ Default|Predeterminada|По умолчанию|Domyślna|Predeterminada|Типо
 Log out this account|Cerrar sesión de esta cuenta|Выйти из этого аккаунта|Wyloguj to konto|Tanca la sessió d’aquest compte|Вийти з цього облікового запису
 Log out {account}? Other accounts stay connected.|¿Cerrar la sesión de {account}? Las demás cuentas seguirán conectadas.|Выйти из {account}? Остальные аккаунты останутся подключёнными.|Wylogować {account}? Pozostałe konta pozostaną połączone.|Vols tancar la sessió de {account}? Els altres comptes continuaran connectats.|Вийти з {account}? Інші облікові записи залишаться підключеними.
 Logout failed. The account has been kept.|No se pudo cerrar la sesión. Se ha conservado la cuenta.|Не удалось выйти. Аккаунт сохранён.|Nie udało się wylogować. Konto zachowano.|No s’ha pogut tancar la sessió. S’ha conservat el compte.|Не вдалося вийти. Обліковий запис збережено.
-Open Tg-As|Abrir Tg-As|Открыть Tg-As|Otwórz Tg-As|Obre Tg-As|Відкрити Tg-As
-Quit Tg-As|Salir de Tg-As|Завершить Tg-As|Zakończ Tg-As|Surt de Tg-As|Завершити Tg-As
+Open TeleGraph|Abrir TeleGraph|Открыть TeleGraph|Otwórz TeleGraph|Obre TeleGraph|Відкрити TeleGraph
+Quit TeleGraph|Salir de TeleGraph|Завершить TeleGraph|Zakończ TeleGraph|Surt de TeleGraph|Завершити TeleGraph
 Keep connected when closing the window|Mantener la conexión al cerrar la ventana|Оставаться подключённым при закрытии окна|Zachowaj połączenie po zamknięciu okna|Mantén la connexió en tancar la finestra|Зберігати підключення після закриття вікна
 Quit stops notifications. Closing the window keeps the app running.|Salir detiene los avisos. Cerrar la ventana mantiene la app en ejecución.|Выход останавливает уведомления. Закрытие окна оставляет приложение работающим.|Zakończenie zatrzymuje powiadomienia. Zamknięcie okna pozostawia aplikację uruchomioną.|Sortir atura els avisos. Tancar la finestra manté l’aplicació en execució.|Вихід припиняє сповіщення. Після закриття вікна програма працює далі.
 Tray unavailable. The app is minimized and remains connected.|Bandeja no disponible. La app queda minimizada y conectada.|Значок в трее недоступен. Приложение свёрнуто и подключено.|Zasobnik niedostępny. Aplikacja jest zminimalizowana i połączona.|Safata no disponible. L’aplicació queda minimitzada i connectada.|Значок у треї недоступний. Програма згорнута й підключена.
@@ -393,13 +393,13 @@ for _row in _V06.strip().splitlines():
     CATALOGUES['ca-valencia'][_english] = _values[3].replace('aquesta', 'esta').replace('Aquesta', 'Esta').replace('aquest', 'este')
 
 for _code, _value in {
-    'es': 'Tg-As ya está en ejecución. Ábrelo desde la bandeja o la barra de tareas.',
-    'ru': 'Tg-As уже запущен. Откройте его через значок в трее или на панели задач.',
-    'pl': 'Tg-As jest już uruchomiony. Otwórz go z zasobnika lub paska zadań.',
-    'ca': 'Tg-As ja està en execució. Obre’l des de la safata o la barra de tasques.',
-    'ca-valencia': 'Tg-As ja està en execució. Obri’l des de la safata o la barra de tasques.',
-    'uk': 'Tg-As уже запущено. Відкрийте його через значок у треї або на панелі завдань.',
-}.items(): CATALOGUES[_code]['Tg-As is already running. Open it from the tray or taskbar.'] = _value
+    'es': 'TeleGraph ya está en ejecución. Ábrelo desde la bandeja o la barra de tareas.',
+    'ru': 'TeleGraph уже запущен. Откройте его через значок в трее или на панели задач.',
+    'pl': 'TeleGraph jest już uruchomiony. Otwórz go z zasobnika lub paska zadań.',
+    'ca': 'TeleGraph ja està en execució. Obre’l des de la safata o la barra de tasques.',
+    'ca-valencia': 'TeleGraph ja està en execució. Obri’l des de la safata o la barra de tasques.',
+    'uk': 'TeleGraph уже запущено. Відкрийте його через значок у треї або на панелі завдань.',
+}.items(): CATALOGUES[_code]['TeleGraph is already running. Open it from the tray or taskbar.'] = _value
 
 _V07 = '''
 App logos|Logos de la app|Значки приложения|Ikony aplikacji|Logotips de l’aplicació|Значки програми

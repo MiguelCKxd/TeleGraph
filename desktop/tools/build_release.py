@@ -18,7 +18,7 @@ from typing import NamedTuple
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_MODULES = ['recovery.py','ui_work.py','sticker_search.py','translations_search.py','composer.py','message_translation.py','translation_queue.py','mobile_icons.py','sender_identity.py','free_crop.py','official_icons.py','translations_editing.py','animated_emojis.py','animation.py','interface_background.py','telegram_wallpapers.py','custom_icon.py','translations_visual.py','translated_view.py','shared_media.py','appearance.py','desktop_settings.py','attachments.py','translations_customization.py','translations_profiles.py', 'profile_details.py', 'desktop_profile.py', '__init__.py', '__main__.py', 'auth.py', 'backend.py', 'desktop.py', 'typography.py', 'notifications.py', 'translations_v092.py', 'translations_v010.py', 'bot_buttons.py', 'desktop_bot_buttons.py', 'folder_features.py', 'desktop_folders.py', 'rich_preview.py', 'sticker_picker.py', 'image_gestures.py', 'interactions.py',
+SOURCE_MODULES = ['windows_launcher.py','recovery.py','ui_work.py','sticker_search.py','translations_search.py','composer.py','message_translation.py','translation_queue.py','mobile_icons.py','sender_identity.py','free_crop.py','official_icons.py','translations_editing.py','animated_emojis.py','animation.py','interface_background.py','telegram_wallpapers.py','custom_icon.py','translations_visual.py','translated_view.py','shared_media.py','appearance.py','desktop_settings.py','attachments.py','translations_customization.py','translations_profiles.py', 'profile_details.py', 'desktop_profile.py', '__init__.py', '__main__.py', 'auth.py', 'backend.py', 'desktop.py', 'typography.py', 'notifications.py', 'translations_v092.py', 'translations_v010.py', 'bot_buttons.py', 'desktop_bot_buttons.py', 'folder_features.py', 'desktop_folders.py', 'rich_preview.py', 'sticker_picker.py', 'image_gestures.py', 'interactions.py',
                   'desktop_service.py', 'i18n.py', 'preferences.py', 'accounts.py', 'transfers.py',
                   'telegram_features.py', 'desktop_features.py', 'media_viewer.py', 'demo_features.py', 'windows_drop.py', 'app_dialogs.py', 'desktop_plus.py',
                   'telegram_extras.py', 'translations.py', 'local_state.py', 'updater.py', 'themes.py', 'message_tools.py', 'desktop_tools.py', 'audio_engine.py', 'background.py', 'instance.py', 'scrolling.py', 'logos.py', 'desktop_actions.py', 'telegram_actions.py', 'links.py', 'video_metadata.py', 'translations_extra.py', 'messaging_features.py', 'desktop_modern.py', 'bubbles.py', 'image_tools.py', 'native_emoji.py', 'translations_v08.py', 'translations_v09.py']
@@ -161,6 +161,54 @@ def mac_push_signing(profile):
     raise ValueError('No hay una identidad válida del perfil para firmar esta app de macOS.')
 
 
+def prepare_mac_calls_extension(path):
+    """Remap diagnostic __FILE__ paths in the prebuilt calls engine, without moving native data."""
+    from macholib.MachO import MachO
+    import re
+
+    raw = path.read_bytes()
+    homes = list(re.finditer(rb'/Users/[A-Za-z0-9_.-]+/', raw))
+    if not homes:
+        return False
+    spans = []
+    for header in MachO(str(path)).headers:
+        for _, command, sections in header.commands:
+            if not hasattr(command, 'nsects'):
+                continue
+            for section in sections:
+                if section.sectname.rstrip(b'\x00') == b'__cstring':
+                    start = header.offset + section.offset
+                    spans.append((start, start + section.size))
+    clean = bytearray(raw)
+    for match in homes:
+        if not any(start <= match.start() and match.end() <= end for start, end in spans):
+            raise ValueError('Build path outside a native diagnostic string in the calls engine')
+        prefix = b'/build/' + b'_' * (len(match[0]) - 8) + b'/'
+        clean[match.start():match.end()] = prefix
+    path.write_bytes(clean)
+    return True
+
+
+def build_mac_dock_plugin(app, identifier):
+    """The Dock loads this signed plug-in when the main app is closed."""
+    bundle = app / 'Contents/PlugIns/TeleGraph.docktileplugin'
+    contents = bundle / 'Contents'
+    executable = contents / 'MacOS/TeleGraphDockIcon'
+    executable.parent.mkdir(parents=True, exist_ok=True)
+    (contents / 'Info.plist').write_bytes(plistlib.dumps({
+        'CFBundlePackageType': 'BNDL', 'CFBundleExecutable': executable.name,
+        'CFBundleIdentifier': identifier + '.dockicon', 'CFBundleVersion': __version__,
+        'NSPrincipalClass': 'TeleGraphDockIcon',
+    }))
+    binary = app / 'Contents/MacOS/TG-ASCII'
+    architectures = subprocess.check_output(['xcrun', 'lipo', '-archs', str(binary)], text=True).split()
+    flags = [flag for arch in architectures for flag in ('-arch', arch)]
+    subprocess.run(['xcrun', 'clang', '-bundle', '-fobjc-arc', '-Os', '-mmacosx-version-min=11.0',
+                    *flags, '-framework', 'AppKit', '-framework', 'ImageIO', '-framework', 'CoreGraphics',
+                    str(ROOT / 'tools/macos/TeleGraphDockIcon.m'), '-o', str(executable)], check=True)
+    return bundle
+
+
 def configure_mac_bundle(app, signing=None):
     path = app / 'Contents' / 'Info.plist'
     with path.open('rb') as stream: info = plistlib.load(stream)
@@ -172,6 +220,16 @@ def configure_mac_bundle(app, signing=None):
     info['CFBundleDisplayName'] = APP_NAME
     info['CFBundleName'] = APP_NAME
     info['NSUserNotificationAlertStyle'] = 'banner'
+    # Wheels installed from a path may keep the build machine's location in PEP 610 metadata.
+    # Compiled copies of a package's license files are also local build artifacts.
+    for metadata in (app / 'Contents/Resources').glob('*.dist-info'):
+        (metadata / 'direct_url.json').unlink(missing_ok=True)
+        licenses = metadata / 'licenses'
+        if licenses.is_dir():
+            for cache in licenses.rglob('__pycache__'):
+                shutil.rmtree(cache)
+    plugin = build_mac_dock_plugin(app, info['CFBundleIdentifier'])
+    info['NSDockTilePlugIn'] = plugin.name
     # PyInstaller leaves 0.0.0; Finder, notifications and crash reports used it.
     # Apple allows three numbers in the short version; the build keeps all four.
     info['CFBundleShortVersionString'] = '.'.join(__version__.split('.')[:3])
@@ -199,6 +257,10 @@ def configure_mac_bundle(app, signing=None):
     except Exception:
         pass
 
+    for engine in (app / 'Contents/Frameworks').glob('ntgcalls*.so'):
+        if prepare_mac_calls_extension(engine):
+            subprocess.run(['/usr/bin/codesign', '--force', '--sign', identity, *code_options, str(engine)], check=True, capture_output=True)
+    subprocess.run(['/usr/bin/codesign', '--force', '--sign', identity, *code_options, str(plugin)], check=True, capture_output=True)
     # Nested frameworks (SDL2) are signed before the app itself.
     for framework in sorted(app.glob('Contents/**/*.framework'), key=lambda path: len(path.parts), reverse=True):
         subprocess.run(['/usr/bin/codesign', '--force', '--sign', identity, *code_options, str(framework)], check=True, capture_output=True)
@@ -223,10 +285,12 @@ def windows_version_resource(work):
     return path
 
 
-def build(output, credentials=None, demo_only=False, keep_app=False, mac_push_profile=None):
+def build(output, credentials=None, demo_only=False, keep_app=False, mac_push_profile=None, user_api=False):
     if not importlib.util.find_spec('PyInstaller'):
         raise RuntimeError('Falta PyInstaller. El desarrollador debe instalar requirements-build.txt.')
-    if not demo_only and not credentials:
+    if user_api and (demo_only or credentials):
+        raise ValueError('La edición con API propia se compila sin credenciales del editor y sin modo demo.')
+    if not demo_only and not user_api and not credentials:
         raise ValueError('Las compilaciones para usuarios necesitan las credenciales de la aplicacion.')
     system = platform.system().lower()
     architecture = build_architecture()
@@ -246,6 +310,8 @@ def build(output, credentials=None, demo_only=False, keep_app=False, mac_push_pr
     with tempfile.TemporaryDirectory(prefix='tg-ascii-build-', ignore_cleanup_errors=True) as folder:
         work = Path(folder)
         source = stage_source(work / 'source', None if demo_only else credentials)
+        if user_api:
+            (source / 'tg_ascii' / '_user_api.py').write_text('ENABLED = True\n', encoding='utf-8')
         update_url = os.environ.get('TG_UPDATE_URL', '')
         if update_url:
             from urllib.parse import urlsplit
@@ -270,6 +336,8 @@ def build(output, credentials=None, demo_only=False, keep_app=False, mac_push_pr
                    '--copy-metadata', 'pyaes', '--copy-metadata', 'rsa',
                    '--copy-metadata', 'pyasn1',
                    str(source / 'run.py')]
+        if user_api:
+            command[-1:-1] = ['--hidden-import', 'tg_ascii._user_api', '--exclude-module', 'tg_ascii._app_credentials']
         for module in ('cryptg','rlottie_python','av','resvg_py','ntgcalls'):
             if importlib.util.find_spec(module) is not None:
                 command[-1:-1] = ['--collect-all', module]
@@ -398,7 +466,9 @@ def launch_built_app(archive, system=None):
 def main():
     parser = argparse.ArgumentParser(description='Generar TeleGraph para el sistema actual. Solo para el desarrollador.')
     parser.add_argument('--output', type=Path, default=ROOT / 'releases')
-    parser.add_argument('--demo-only', action='store_true', help='Compilar solo la demo; sin acceso a cuentas')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--user-api', action='store_true', help='Pedir a cada usuario su API ID y hash al iniciar la edición pública')
+    mode.add_argument('--demo-only', action='store_true', help='Compilar solo la demo; sin acceso a cuentas')
     parser.add_argument('--mac-push-profile', type=Path,
                         help='Perfil APNs para macOS. Los ZIP con perfil de desarrollo se marcan DEVELOPMENT.')
     parser.add_argument('--launch', action='store_true', help='Conservar y abrir la app verificada al terminar')
@@ -409,7 +479,7 @@ def main():
         print(json.dumps({'system': platform.system(), 'architecture': build_architecture(), 'pyinstaller_available': ready}))
         return 0 if ready else 2
     credentials = None
-    if not args.demo_only:
+    if not args.demo_only and not args.user_api:
         if not sys.stdin.isatty() and not all(os.environ.get(key) for key in
                 ('TG_APP_API_ID', 'TG_APP_API_HASH')):
             print('Faltan TG_APP_API_ID y TG_APP_API_HASH. Usa --demo-only o configura las credenciales de la app.', file=sys.stderr)
@@ -427,7 +497,7 @@ def main():
                 print('Compilacion cancelada. No se ha generado el paquete.')
                 return 1
     try:
-        path = build(args.output, credentials, args.demo_only, keep_app=args.launch, mac_push_profile=args.mac_push_profile)
+        path = build(args.output, credentials, args.demo_only, keep_app=args.launch, mac_push_profile=args.mac_push_profile, user_api=args.user_api)
     except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as exc:
         print(str(exc), file=sys.stderr)
         return 1

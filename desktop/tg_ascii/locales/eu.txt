@@ -254,8 +254,8 @@
 253|Itxi kontu honen saioa
 254|Itxi {account} kontuaren saioa? Gainerako kontuak konektatuta mantenduko dira.
 255|Ezin izan da saioa itxi. Kontua mantendu da.
-256|Ireki Tg-As
-257|Irten Tg-As-etik
+256|Ireki TeleGraph
+257|Irten TeleGraph-etik
 258|Mantendu konexioa leihoa ixtean
 259|Aplikaziotik irteteak jakinarazpenak gelditzen ditu. Leihoa ixtean aplikazioa martxan mantentzen da.
 260|Sistema-erretilua ez dago erabilgarri. Aplikazioa minimizatuta eta konektatuta dago.
@@ -275,7 +275,7 @@
 274|Zirriborroa aldatu da. Emaitza ez da aplikatu.
 275|Zuzendu testua
 276|Gehitu emojiak
-277|Tg-As martxan dago dagoeneko. Ireki erretilutik edo ataza-barratik.
+277|TeleGraph martxan dago dagoeneko. Ireki erretilutik edo ataza-barratik.
 278|Aplikazioaren logotipoak
 279|Hautatuta
 280|Bilatu Telegramen

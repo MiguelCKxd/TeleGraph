@@ -8,7 +8,7 @@ import sys
 from telethon import TelegramClient, errors
 
 from . import APP_NAME, __version__
-from .auth import (SetupError, bundled_credentials, load_credentials,
+from .auth import (USER_API, SetupError, bundled_credentials, load_credentials,
                    normalize_phone, save_credentials, validate_credentials)
 from .backend import DemoBackend, TelegramBackend
 from .i18n import tr
@@ -45,11 +45,11 @@ class DesktopService:
         self.phone = self.code_hash = None
         if credentials is None:
             credentials = bundled_credentials()
-            if credentials is None and getattr(sys, 'frozen', False):
+            if credentials is None and getattr(sys, 'frozen', False) and not USER_API:
                 raise SetupError(tr('Esta compilacion no contiene la configuracion de TG-ASCII. Pide una version completa al desarrollador.'))
             if credentials is None:
                 env_id, env_hash = os.environ.get('TG_API_ID'), os.environ.get('TG_API_HASH')
-                if env_id or env_hash:
+                if not USER_API and (env_id or env_hash):
                     credentials = validate_credentials(env_id, env_hash)
                 elif not configure:
                     try:

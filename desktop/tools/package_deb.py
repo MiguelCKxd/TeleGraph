@@ -2,6 +2,8 @@
 
     python3 tools/package_deb.py releases/TeleGraph-<edition>-linux-<arch>.zip
 
+Writes TeleGraph-<edition>-linux-amd64.deb or TeleGraph-<edition>-linux-arm64.deb.
+APT identifies both packages as tg-ascii for upgrades.
 Installs to /opt/tg-ascii, with /usr/bin/tg-ascii, a menu entry and the icon.
 Each user's data stays in ~/.tg-ascii (removing the package keeps it).
 """
@@ -18,18 +20,10 @@ ROOT = Path(__file__).resolve().parents[1]
 ARCHITECTURES = {'aarch64': 'arm64', 'arm64': 'arm64', 'x86_64': 'amd64', 'amd64': 'amd64'}
 DEPENDS = ('libc6, libportaudio2, libsndfile1, libnotify-bin, xdg-utils, '
            'gir1.2-ayatanaappindicator3-0.1 | gir1.2-appindicator3-0.1, libgtk-3-0t64 | libgtk-3-0')
-DESKTOP = """[Desktop Entry]
-Type=Application
-Name=TeleGraph
-GenericName=Telegram client
-Comment=Unofficial Telegram client with an ASCII look
-Exec=/opt/tg-ascii/TG-ASCII %U
-Icon=tg-ascii
-Terminal=false
-Categories=Network;InstantMessaging;Chat;
-Keywords=telegram;chat;messages;
-StartupWMClass=tg-ascii
-"""
+sys.path.insert(0, str(ROOT))
+from tg_ascii.linux_runtime import DESKTOP_ENTRY, ICON_NAME
+
+DESKTOP = DESKTOP_ENTRY.format(command='/opt/tg-ascii/TG-ASCII', icon=ICON_NAME)
 
 
 def package(archive, output=None):
@@ -65,6 +59,7 @@ def package(archive, output=None):
         icons = tree / 'usr' / 'share' / 'icons' / 'hicolor' / '512x512' / 'apps'
         icons.mkdir(parents=True)
         shutil.copyfile(ROOT / 'tg_ascii' / 'assets' / 'logo-title-short-dark.png', icons / 'tg-ascii.png')
+        (icons / (ICON_NAME + '.png')).symlink_to('tg-ascii.png')
         control = tree / 'DEBIAN'
         control.mkdir()
         # dpkg-deb needs standard modes whatever the builder's umask is.
@@ -82,7 +77,7 @@ def package(archive, output=None):
             f'Depends: {DEPENDS}\nSection: net\nPriority: optional\n'
             'Description: Unofficial Telegram desktop client with an ASCII look\n'
             ' Chats, folders, media, stickers, notifications, offline use and more.\n', encoding='utf-8')
-        destination = output / f'tg-ascii_{version}_{architecture}.deb'
+        destination = output / f'TeleGraph-{version}-linux-{architecture}.deb'
         subprocess.run(['dpkg-deb', '--root-owner-group', '--build', str(tree), str(destination)], check=True)
         return destination
 

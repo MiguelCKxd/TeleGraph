@@ -254,8 +254,8 @@
 253|Pechar sesión desta conta
 254|Pechar sesión de {account}? As outras contas seguirán conectadas.
 255|Non se puido pechar a sesión. A conta conservouse.
-256|Abrir Tg-As
-257|Saír de Tg-As
+256|Abrir TeleGraph
+257|Saír de TeleGraph
 258|Manter a conexión ao pechar a xanela
 259|Saír detén as notificacións. Pechar a xanela mantén a aplicación en execución.
 260|A bandexa non está dispoñible. A aplicación queda minimizada e conectada.
@@ -275,7 +275,7 @@
 274|O borrador cambiou. Non se aplicou o resultado.
 275|Revisar texto
 276|Engadir emojis
-277|Tg-As xa está en execución. Ábreo desde a bandexa ou a barra de tarefas.
+277|TeleGraph xa está en execución. Ábreo desde a bandexa ou a barra de tarefas.
 278|Logotipos da aplicación
 279|Seleccionado
 280|Buscar en Telegram

@@ -2,6 +2,7 @@
 # Publisher-only: Linux build/test inside the Parallels Ubuntu VM (as the normal user).
 #   build_linux_vm.sh SOURCE_DIR [CREDENTIALS_JSON] [--tests-only]
 # Credentials JSON: {"id": <int>, "hash": "<str>"}; never committed, deleted by the caller.
+# Debian output: TeleGraph-<edition>-linux-arm64.deb or TeleGraph-<edition>-linux-amd64.deb.
 # Needs: python3-tk python3-venv build-essential libportaudio2 libsndfile1 libnotify-bin
 #        libgirepository-2.0-dev libcairo2-dev gir1.2-ayatanaappindicator3-0.1 patchelf dpkg-dev
 set -euo pipefail

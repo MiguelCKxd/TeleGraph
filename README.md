@@ -6,11 +6,17 @@ TeleGraph es un cliente independiente de Telegram para Windows, macOS, Linux, An
 
 ## Instalar la versión 3.0
 
+La revisión de escritorio **3.0.0.1** actualiza los accesos fijados de Windows, macOS y Linux. Abre **Ajustes → Logos de la app**, elige un diseño y pulsa **Aplicar** para cambiar el icono. Quienes ya tienen la 3.0 pueden instalar la revisión sobre su copia actual. Si tu copia ya indica 3.0.0.1, cierra la app y usa el nuevo instalador o reemplaza manualmente la aplicación en su ubicación habitual. Los datos de cuenta se guardan aparte.
+
+La descarga pública de escritorio solicita al iniciar el **API ID** y el **API hash** de tu propia aplicación de Telegram. Con la opción de recordar desmarcada, tendrás que introducirlos en cada arranque. Si la activas, las claves se guardan en un archivo privado sin cifrar en tu perfil local al completar el inicio de sesión. [Obtener tu API de Telegram](https://my.telegram.org/apps)
+
+En Windows, la ventana aplica el logo al momento y la barra de tareas puede tardar más de un minuto en mostrarlo. Si aparece el nombre antiguo en la barra de tareas de Windows, desancla ese acceso y ancla **TeleGraph** desde Inicio. Si el Dock de macOS conserva el icono anterior al cerrar la app, retira ese favorito, abre la copia actualizada y elige **Opciones → Mantener en el Dock**.
+
 | Sistema | Archivo o canal | Instalación |
 |---|---|---|
-| Windows x64 | `TeleGraph-3.0.0-Setup.exe` o ZIP portátil | Cierra la app y abre el instalador. En la edición portátil, extrae el ZIP completo y abre `TG-ASCII.exe`. |
-| macOS con Apple Silicon | `TeleGraph-3.0.0-darwin-arm64.zip` | Extrae el ZIP y copia `TG-ASCII.app` a Aplicaciones. Si ya usas la aplicación desde otra carpeta, ciérrala y sustituye esa copia en su ubicación habitual. |
-| Linux ARM64 o x86-64 | Paquete Debian o ZIP de tu arquitectura | En Debian o Ubuntu ejecuta `sudo apt install ./tg-ascii_3.0.0_arm64.deb` o `sudo apt install ./tg-ascii_3.0.0_amd64.deb`. Para la edición portátil, extrae el ZIP y abre `TG-ASCII`. |
+| Windows x64 | `TeleGraph-3.0.0.1-Setup.exe` o ZIP portátil | Cierra la app y abre el instalador. En la edición portátil, extrae el ZIP completo y abre `TG-ASCII.exe`. |
+| macOS con Apple Silicon | `TeleGraph-3.0.0.1-darwin-arm64.zip` | Extrae el ZIP y copia `TG-ASCII.app` a Aplicaciones. Si ya usas la aplicación desde otra carpeta, ciérrala y sustituye esa copia en su ubicación habitual. |
+| Linux ARM64 o x86-64 | Paquete Debian o ZIP de tu arquitectura | En Debian o Ubuntu ejecuta `sudo apt install ./TeleGraph-3.0.0.1-linux-arm64.deb` o `sudo apt install ./TeleGraph-3.0.0.1-linux-amd64.deb`. Para la edición portátil, extrae el ZIP y abre `TG-ASCII`. |
 | Teléfonos y tabletas Android | `TeleGraph-Android-3.0.0-1.apk` | Abre el archivo en el dispositivo y sigue la instalación de Android. |
 | Wear OS | `TeleGraph-WearOS-3.0.0-1.apk` o `TeleGraph-WearOS-Legacy-3.0.0-1.apk` | Instala el APK en el reloj. La edición principal comparte identificador con el teléfono. La edición Legacy permite conservar el acceso de una instalación con el identificador `org.tgas.wear`. |
 | iPhone, iPad y Apple Watch | [TestFlight](https://testflight.apple.com/join/7MPAJP37) y [IPA 3.0.0 (1)](https://github.com/MiguelCKxd/TeleGraph/releases/download/v3.0.0/TeleGraph-iOS-3.0.0-1.ipa) | TestFlight gestiona la instalación de la beta. Para instalar el IPA de GitHub directamente, usa una firma y perfiles de Apple válidos para tus dispositivos. Incluye Apple Watch. Al abrir la app, introduce el API ID y el API hash de tu propia aplicación de Telegram. |
@@ -21,9 +27,9 @@ El paquete de macOS lleva firma ad hoc. El instalador de Windows se distribuye s
 
 El ZIP de código fuente de la etiqueta 3.0 incluye las carpetas de escritorio, Android y Apple para TestFlight. El IPA de GitHub tiene además su propia fuente identificada en la última fila. Las integraciones móviles utilizan el núcleo compartido de escritorio. Para ejecutar el sincronizador del núcleo, sigue las instrucciones de la guía de plataforma desde los clones Git.
 
-| Entrega | Fuentes incluidas | Revisión identificada por la etiqueta |
+| Entrega | Fuentes incluidas | Revisión publicada |
 |---|---|---|
-| Escritorio | [Guía y código de escritorio](desktop/) | [escritorio-v3.0.0](https://github.com/MiguelCKxd/TeleGraph/tree/escritorio-v3.0.0) |
+| Escritorio | [Guía y código de escritorio](desktop/) | [escritorio-v3.0.0.1](https://github.com/MiguelCKxd/TeleGraph/tree/escritorio-v3.0.0.1) |
 | Android y Wear OS | [Guía y código del teléfono y del reloj](android-wear/) | [movil-v3.0.0-build1](https://github.com/MiguelCKxd/TeleGraph/tree/movil-v3.0.0-build1) |
 | iPhone, iPad y Apple Watch | [Guía y código de la compilación para Apple](apple/) | [apple-v3.0.0-build1](https://github.com/MiguelCKxd/TeleGraph/tree/apple-v3.0.0-build1) |
 | IPA de GitHub para iOS y watchOS, con API propia | [Fuentes del IPA](https://github.com/MiguelCKxd/TeleGraph/tree/apple-ipa-v3.0.0) | [Guía de instalación, configuración de Telegram y compilación](https://github.com/MiguelCKxd/TeleGraph/blob/apple-ipa-v3.0.0/docs/IPA-CON-API-PROPIA.md) |

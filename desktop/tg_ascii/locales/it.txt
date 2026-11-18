@@ -254,8 +254,8 @@
 253|Disconnetti questo account
 254|Disconnettere {account}? Gli altri account resteranno connessi.
 255|Disconnessione non riuscita. L’account è stato mantenuto.
-256|Apri Tg-As
-257|Esci da Tg-As
+256|Apri TeleGraph
+257|Esci da TeleGraph
 258|Mantieni la connessione quando chiudi la finestra
 259|Uscire interrompe le notifiche. Chiudere la finestra mantiene l’app in esecuzione.
 260|Area di notifica non disponibile. L’app è ridotta a icona e resta connessa.
@@ -275,7 +275,7 @@
 274|La bozza è cambiata. Il risultato non è stato applicato.
 275|Correggi testo
 276|Aggiungi emoji
-277|Tg-As è già in esecuzione. Aprilo dall’area di notifica o dalla barra delle applicazioni.
+277|TeleGraph è già in esecuzione. Aprilo dall’area di notifica o dalla barra delle applicazioni.
 278|Loghi dell’app
 279|Selezionato
 280|Cerca in Telegram

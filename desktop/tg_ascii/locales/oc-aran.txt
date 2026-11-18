@@ -254,8 +254,8 @@
 253|Barra era session d'aguest compde
 254|Vòs barrar era session de {account}? Es auti compdes demoraràn connectadi.
 255|Non s'a pogut barrar era session. Eth compde s'a conservat.
-256|Daurís Tg-As
-257|Ges de Tg-As
+256|Daurís TeleGraph
+257|Ges de TeleGraph
 258|Mantier era connexion en barrar era hièstra
 259|Gésser arture es notificacions. Barrar era hièstra manten era aplicacion en marcha.
 260|Era zòna de notificacions non ei disponibla. Era aplicacion ei minimizada e demore connectada.
@@ -275,7 +275,7 @@
 274|Eth borrolhon a cambiat. Eth resultat non s'a aplicat.
 275|Revise eth tèxte
 276|Hig emojis
-277|Tg-As ja ei en marcha. Daurís-lo dera zòna de notificacions o dera barra de prètzhèts.
+277|TeleGraph ja ei en marcha. Daurís-lo dera zòna de notificacions o dera barra de prètzhèts.
 278|Logotips dera aplicacion
 279|Seleccionat
 280|Cèrca en Telegram

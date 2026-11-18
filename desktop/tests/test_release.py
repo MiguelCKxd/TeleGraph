@@ -66,6 +66,15 @@ class DistributionTests(unittest.TestCase):
             with self.assertRaises(SetupError):
                 get_credentials(Path('unused'), read=lambda _: self.fail('Unexpected prompt'))
 
+    def test_public_build_accepts_user_api_without_publisher_identity(self):
+        credentials = ('43210', 'c' * 32)
+        with tempfile.TemporaryDirectory() as directory, patch.object(sys, 'frozen', True, create=True), \
+                patch('tg_ascii.auth.USER_API', True), patch.dict(os.environ, {'TG_API_ID': 'invalid'}, clear=True):
+            answers = iter([credentials[0], 'n'])
+            result = get_credentials(Path(directory), read=lambda _: next(answers), secret=lambda _: credentials[1], write=lambda _: None)
+            self.assertEqual(result, ((43210, credentials[1]), False))
+            self.assertFalse((Path(directory) / 'config.json').exists())
+
     def test_runtime_tls_policy_is_included_only_when_present(self):
         import ssl
         with tempfile.TemporaryDirectory() as folder:

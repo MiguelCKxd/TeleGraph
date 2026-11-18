@@ -28,6 +28,22 @@ class DesktopLoginTests(unittest.IsolatedAsyncioTestCase):
         await self.service.close()
         self.directory.cleanup()
 
+    async def test_frozen_public_setup_precedes_network_and_remembers_only_on_opt_in(self):
+        with patch('sys.frozen', True, create=True), patch('tg_ascii.desktop_service.USER_API', True), \
+                patch('tg_ascii.desktop_service.bundled_credentials', return_value=None), patch.dict('os.environ', {'TG_API_HASH': 'invalid'}, clear=True):
+            credentials = (43210, 'c' * 32)
+            self.assertEqual(await self.service.connect(), 'credentials')
+            self.client.connect.assert_not_awaited()
+            with self.assertRaises(ValueError):
+                await self.service.connect(('invalid', 'short'))
+            self.client.connect.assert_not_awaited()
+            self.assertEqual(await self.service.connect(credentials), 'phone')
+            self.assertFalse((Path(self.directory.name) / 'config.json').exists())
+            self.client.is_user_authorized.return_value = True
+            self.assertEqual(await self.service.connect(credentials, remember=True), 'ready')
+            self.assertEqual(await self.service.connect(), 'ready')
+            self.assertEqual(self.service.credentials, credentials)
+
     async def test_saved_session_opens_chats_without_phone(self):
         self.client.is_user_authorized.return_value = True
         self.assertEqual(await self.service.connect((12345, 'a' * 32)), 'ready')
