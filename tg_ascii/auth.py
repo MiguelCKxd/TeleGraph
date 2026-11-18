@@ -10,6 +10,14 @@ from telethon import errors
 from .i18n import tr
 
 
+try:
+    from ._user_api import ENABLED as USER_API
+except ModuleNotFoundError as exc:
+    if exc.name != 'tg_ascii._user_api':
+        raise
+    USER_API = False
+
+
 class SetupError(Exception):
     pass
 
@@ -62,6 +70,8 @@ def save_credentials(root, credentials):
 
 def bundled_credentials():
     """App identity supplied by the publisher at build time, never a user session."""
+    if USER_API:
+        return None
     try:
         from ._app_credentials import API_ID, API_HASH
     except ModuleNotFoundError as exc:
@@ -78,11 +88,11 @@ def get_credentials(root, configure=False, read=input, secret=getpass.getpass, w
     bundled = bundled_credentials()
     if bundled:
         return bundled, False
-    if getattr(__import__('sys'), 'frozen', False):
+    if getattr(__import__('sys'), 'frozen', False) and not USER_API:
         raise SetupError(tr('Esta compilacion no contiene la configuracion de TG-ASCII. Pide una version completa al desarrollador.'))
     cached = None if configure else load_credentials(root)
     env_id, env_hash = os.environ.get('TG_API_ID'), os.environ.get('TG_API_HASH')
-    if env_id or env_hash:
+    if not USER_API and (env_id or env_hash):
         if not (env_id and env_hash):
             raise SetupError('Define TG_API_ID y TG_API_HASH juntas, o elimina ambas variables.')
         try:

@@ -129,6 +129,60 @@ class LinuxRuntimeTests(unittest.TestCase):
             self.assertNotIn('GI_TYPELIB_PATH', os.environ)
 
 
+class LinuxLauncherTests(unittest.TestCase):
+    def test_pinned_id_updates_in_place_and_preserves_unrelated_launchers(self):
+        from tg_ascii.linux_runtime import DESKTOP_ENTRY, DESKTOP_ID, ICON_NAME, sync_launcher_icon
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {'XDG_DATA_HOME': folder}), \
+                patch('tg_ascii.linux_runtime.SYSTEM_DESKTOP', Path(folder) / 'system.desktop'), \
+                patch.object(sys, 'executable', '/opt/tg-ascii/TG-ASCII'), patch.object(sys, 'frozen', True, create=True):
+            base = Path(folder)
+            first, second = base / 'first.png', base / 'second.png'
+            first.write_bytes(b'first')
+            second.write_bytes(b'second')
+            launcher = base / 'applications' / DESKTOP_ID
+            sync_launcher_icon(first)
+            original = launcher.read_bytes()
+            sync_launcher_icon(second)
+            updated = launcher.read_text(encoding='utf-8')
+            self.assertIn('Name=TeleGraph', updated)
+            self.assertIn('StartupWMClass=Tg-ascii', updated)
+            selected = next(line[5:] for line in updated.splitlines() if line.startswith('Icon='))
+            self.assertEqual(selected, ICON_NAME)
+            themed = base / 'icons/hicolor/512x512/apps' / (selected + '.png')
+            self.assertEqual(themed.read_bytes(), b'second')
+            self.assertEqual(original, launcher.read_bytes())
+            self.assertEqual(list(launcher.parent.iterdir()), [launcher])
+            sync_launcher_icon(first)
+            self.assertEqual(launcher.read_bytes(), original)
+            for n in range(5):
+                second.write_bytes(bytes([n]))
+                sync_launcher_icon(second)
+            self.assertEqual(len(list((base / 'telegraph' / 'launcher-icons').glob('*.png'))), 1)
+            launcher.unlink()
+            (base / 'system.desktop').write_text(DESKTOP_ENTRY.format(command='/opt/tg-ascii/TG-ASCII', icon=ICON_NAME), encoding='utf-8')
+            sync_launcher_icon(first)
+            self.assertFalse(launcher.exists())
+            self.assertEqual(themed.read_bytes(), b'first')
+            second.write_bytes(b'second')
+            for malformed in (b'\xffnot UTF-8', b'[invalid', b'[Other]\nName=Other'):
+                launcher.write_bytes(malformed)
+                sync_launcher_icon(first)
+                self.assertEqual(launcher.read_bytes(), malformed)
+            launcher.unlink()
+            launcher.symlink_to(first)
+            sync_launcher_icon(second)
+            self.assertTrue(launcher.is_symlink())
+            self.assertEqual(first.read_bytes(), b'first')
+            launcher.unlink()
+            launcher.write_text(DESKTOP_ENTRY.format(command='/opt/tg-ascii/TG-ASCII',icon='old') + 'X-Extra=keep\n', encoding='utf-8')
+            sync_launcher_icon(second)
+            self.assertIn('X-Extra=keep', launcher.read_text(encoding='utf-8'))
+            self.assertIn('Icon=' + selected, launcher.read_text(encoding='utf-8'))
+            launcher.write_text('[Desktop Entry]\nExec=/bin/true\nName=Other\n', encoding='utf-8')
+            sync_launcher_icon(second)
+            self.assertEqual(launcher.read_text(encoding='utf-8'), '[Desktop Entry]\nExec=/bin/true\nName=Other\n')
+
+
 @unittest.skipUnless(sys.platform.startswith('linux'), 'dpkg-deb runs on Linux')
 class DebPackageTests(unittest.TestCase):
     def test_deb_layout_and_metadata(self):

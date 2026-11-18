@@ -2,9 +2,15 @@
 
 Esta rama contiene el código de escritorio de TeleGraph 3.0. La versión del árbol figura en `pyproject.toml`. Para instalar la aplicación, elige la descarga que corresponda a tu sistema. [Descargas](https://github.com/MiguelCKxd/TeleGraph/releases)
 
+## Primer inicio en las descargas de escritorio de GitHub
+
+En Windows, macOS y Linux, abre TeleGraph e introduce el **API ID** y el **API hash** de tu aplicación de Telegram. El botón **my.telegram.org/apps** abre el sitio de Telegram donde puedes registrar o consultar tu aplicación. A continuación, inicia sesión en tu cuenta por el procedimiento habitual. [Administrar tu aplicación](https://my.telegram.org/apps)
+
+La casilla para recordar las claves es opcional. Si la marcas, TeleGraph guarda la identidad de aplicación en un archivo privado de tu perfil local, sin cifrar, una vez completado el inicio de sesión. Si la dejas desmarcada tendrás que volver a introducir las claves la próxima vez que abras el programa.
+
 ## Compilar la versión 3.0
 
-En macOS, usa un Python con Tk y abre `Crear-Mac.command`. En Windows, usa `Crear-Windows.cmd` y elige la arquitectura del intérprete. El resultado queda en `releases/`. El empaquetador solicita el identificador y el hash de tu propia aplicación de Telegram. Guárdalos fuera de Git. También admite las variables de entorno `TG_APP_API_ID` y `TG_APP_API_HASH`.
+Usa un Python con Tk, instala las dependencias descritas abajo y ejecuta `python tools/build_release.py --user-api --output releases` para construir la edición pública. El empaquetador excluye el módulo con las credenciales del editor. Al iniciar la aplicación, el usuario introduce su propia API. En Windows, la arquitectura del intérprete determina la de la descarga.
 
 Para trabajar con los tres chats de demostración, prepara un entorno virtual con Python 3.12 y Tk.
 

@@ -527,11 +527,16 @@ class Desktop(DesktopFeatures):
                        command=lambda: open_browser('https://telegram.org/apps')).pack(anchor='w', pady=8)
             ttk.Button(card, text=tr('Sign in again'), command=lambda: self.login_stage('phone')).pack(anchor='w', pady=8)
             return
-        titles = {'credentials': tr('Configurar aplicacion (desarrollador)'),
+        from .auth import USER_API
+        titles = {'credentials': 'Telegram API' if USER_API else tr('Configurar aplicacion (desarrollador)'),
                   'phone': tr('Tu numero de telefono'), 'code': tr('Codigo de Telegram'),
                   'password': tr('Contrasena de verificacion en dos pasos')}
         ttk.Label(card, text=titles[stage]).pack(anchor='w', pady=(0, 10))
         if stage == 'credentials':
+            if USER_API:
+                from webbrowser import open as open_browser
+                ttk.Button(card, text='my.telegram.org/apps',
+                           command=lambda: open_browser('https://my.telegram.org/apps')).pack(anchor='w', pady=(0, 8))
             ttk.Label(card, text='API ID').pack(anchor='w')
         entry = ttk.Entry(card, textvariable=self.login_value, show='*' if stage in ('code', 'password') else '')
         entry.pack(fill='x', pady=(0, 12))
@@ -590,6 +595,10 @@ class Desktop(DesktopFeatures):
             errors.PhoneCodeExpiredError: tr('El codigo ha caducado. Solicita uno nuevo.'),
             errors.ApiIdInvalidError: tr('La configuracion incluida en la app no es valida. Contacta con el desarrollador.'),
         }
+        from .auth import USER_API
+        if USER_API and isinstance(exc, errors.ApiIdInvalidError):
+            self.login_stage('credentials')
+            messages[errors.ApiIdInvalidError] = tr('API ID o hash incorrectos. Revisa las claves de la app.')
         text = messages.get(type(exc), error_message(exc))
         from .pending_actions import transport_failure
         if transport_failure(exc) and getattr(self, 'stage', None) == 'ready':
@@ -1748,6 +1757,9 @@ def _start_instance_server(root, data_dir):
 
 def run_desktop(demo=False, configure=False):
     # Linux: a stable window class, so docks group the window with tg-ascii.desktop.
+    if sys.platform == 'win32':
+        from .windows_launcher import identify_process
+        identify_process()
     root = tk.Tk(className='tg-ascii') if sys.platform.startswith('linux') else tk.Tk()
     from .instance import InstanceLock
     from .preferences import data_root
@@ -1757,7 +1769,7 @@ def run_desktop(demo=False, configure=False):
             root.destroy()
             return
         root.withdraw()
-        message = tr('Tg-As is already running. Open it from the tray or taskbar.').replace('Tg-As', APP_NAME)
+        message = tr('TeleGraph is already running. Open it from the tray or taskbar.')
         messagebox.showinfo(APP_NAME, message, parent=root)
         root.destroy()
         return

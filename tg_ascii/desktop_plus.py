@@ -690,7 +690,12 @@ class DesktopPlus(DesktopModern):
         if asset.exists() and getattr(self, '_icon_theme', None) != icon_key:
             try:
                 from .themes import set_app_icon
-                set_app_icon(self.root, asset)
+                set_app_icon(self.root, asset, windows_shortcuts=not self.demo)
+                if sys.platform.startswith('linux') and not self.demo and not getattr(self, '_linked_owner', None):
+                    from .saved_windows import is_independent
+                    from .linux_runtime import sync_launcher_icon
+                    if not is_independent(self.preferences.path.parent):
+                        sync_launcher_icon(asset)
                 self._icon_theme = icon_key
                 if getattr(self, 'background', None): self.background.update_icon(asset)
             except (OSError, AttributeError, tk.TclError): pass

@@ -254,8 +254,8 @@
 253|Terminar sessão desta conta
 254|Terminar sessão de {account}? As outras contas mantêm-se ligadas.
 255|Não foi possível terminar a sessão. A conta foi mantida.
-256|Abrir Tg-As
-257|Sair do Tg-As
+256|Abrir TeleGraph
+257|Sair do TeleGraph
 258|Manter a ligação ao fechar a janela
 259|Sair interrompe as notificações. Fechar a janela mantém a aplicação em execução.
 260|Área de notificação indisponível. A aplicação está minimizada e mantém-se ligada.
@@ -275,7 +275,7 @@
 274|O rascunho foi alterado. O resultado não foi aplicado.
 275|Rever texto
 276|Adicionar emojis
-277|O Tg-As já está em execução. Abra-o na área de notificação ou na barra de tarefas.
+277|O TeleGraph já está em execução. Abra-o na área de notificação ou na barra de tarefas.
 278|Logótipos da aplicação
 279|Selecionado
 280|Pesquisar no Telegram

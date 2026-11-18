@@ -108,7 +108,6 @@ def choose_icon(app):
         ttk.Label(frame,text=tr(label)).pack(anchor='w')
         control=ttk.Scale(frame,from_=low,to=high,variable=values[key],command=draw,state='disabled')
         control.pack(fill='x');controls.append(control)
-    ttk.Label(frame,text=tr('Changes the running app icon. The installer and shortcuts keep the bundled icon.'),wraplength=400).pack(fill='x',pady=8)
     def enable(value):
         for control in controls:control.configure(state='normal' if value else 'disabled')
     def failed(error):

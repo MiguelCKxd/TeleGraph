@@ -23,8 +23,8 @@ class Background:
             def reopen(icon, item): dispatch(show)
             def quit_now(icon, item): dispatch(quit_app)
             self.icon = pystray.Icon('TG-ASCII', picture, APP_NAME,
-                menu=pystray.Menu(pystray.MenuItem(tr('Open Tg-As'), reopen, default=True),
-                                  pystray.MenuItem(tr('Quit Tg-As'), quit_now)), **options)
+                menu=pystray.Menu(pystray.MenuItem(tr('Open TeleGraph'), reopen, default=True),
+                                  pystray.MenuItem(tr('Quit TeleGraph'), quit_now)), **options)
             if sys.platform.startswith('linux') and type(self.icon).__module__ in ('pystray._appindicator', 'pystray._gtk'):
                 from gi.repository import GLib
                 self._gtk_context = GLib.MainContext.default()

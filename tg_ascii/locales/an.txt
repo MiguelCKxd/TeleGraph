@@ -254,8 +254,8 @@
 253|Zarra a sesión d'ista cuenta
 254|Quiers zarrar a sesión de {account}? As atras cuentas seguirán connectadas.
 255|No s'ha puesto zarrar a sesión. A cuenta s'ha conservau.
-256|Ubre Tg-As
-257|Sale de Tg-As
+256|Ubre TeleGraph
+257|Sale de TeleGraph
 258|Mantener a connexión en zarrar a finestra
 259|Salir atura as notificacions. Zarrar a finestra mantiene l'aplicación en marcha.
 260|A servilla d'o sistema no ye disponible. L'aplicación ye minimizada y sigue connectada.
@@ -275,7 +275,7 @@
 274|O borrador ha cambiau. O resultau no s'ha aplicau.
 275|Revisa o texto
 276|Anyade emojis
-277|Tg-As ya ye en marcha. Ubre-lo dende a servilla u a barra de fayenas.
+277|TeleGraph ya ye en marcha. Ubre-lo dende a servilla u a barra de fayenas.
 278|Logotipos de l'aplicación
 279|Seleccionau
 280|Busca en Telegram

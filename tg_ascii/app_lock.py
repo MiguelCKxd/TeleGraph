@@ -119,7 +119,7 @@ class UnlockPanel:
             if self.record['biometric']:self.bio.pack(fill='x',pady=8)
         except InvalidLock as error:
             self.record=None;self.status.configure(text=str(error));self.submit.configure(state='disabled');self.entry.configure(state='disabled')
-        ttk.Button(self.body,text=tr('Quit Tg-As'),command=quit_app).pack(fill='x',pady=8)
+        ttk.Button(self.body,text=tr('Quit TeleGraph'),command=quit_app).pack(fill='x',pady=8)
         window.protocol('WM_DELETE_WINDOW',quit_app)
         window.bind('<Destroy>',self.destroyed,add='+')
         self.entry.bind('<Return>',lambda _:self.attempt());self.entry.focus_set()

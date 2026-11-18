@@ -154,8 +154,12 @@ def apply_widget(widget):
     except tk.TclError: pass
 
 
-def set_app_icon(root, path):
+def set_app_icon(root, path, *, windows_shortcuts=True):
     """Window icon on Windows; application Dock icon on macOS."""
+    if sys.platform == 'win32':
+        from .windows_launcher import set_window_icon
+        set_window_icon(root, path, windows_shortcuts)
+        return
     if sys.platform != 'darwin':
         image = tk.PhotoImage(master=root, file=str(path))
         scale = max(1, image.width() // 256)
@@ -186,3 +190,38 @@ def set_app_icon(root, path):
     application = send(objc.objc_getClass(b'NSApplication'), b'sharedApplication')
     send(application, b'setApplicationIconImage:', image, returns=False)
     send(image, b'release', returns=False)
+    if not any(flag in sys.argv for flag in ('--demo', '--self-test')):
+        _save_dock_image(path)
+
+
+def _save_dock_image(path):
+    # Only the packaged app owns a Dock tile. An isolated test bundle gets its own cache.
+    from pathlib import Path
+    import os
+    import tempfile
+    import Foundation
+    from PIL import Image
+    bundle = Foundation.NSBundle.mainBundle()
+    if not bundle.objectForInfoDictionaryKey_('NSDockTilePlugIn'):
+        return
+    identifier = str(bundle.bundleIdentifier())
+    base = Path.home() / 'Library/Application Support' / identifier
+    base.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # The plug-in needs only this bounded PNG, independent of Telegram profiles.
+    with Image.open(path) as source:
+        if source.width > 2048 or source.height > 2048:
+            return
+        source.thumbnail((1024, 1024))
+        icon = source.convert('RGBA')
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=base, delete=False) as stream:
+            temporary = Path(stream.name)
+            icon.save(stream, 'PNG')
+        os.replace(temporary, base / 'DockIcon.png')
+    finally:
+        icon.close()
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    Foundation.NSDistributedNotificationCenter.defaultCenter().postNotificationName_object_userInfo_deliverImmediately_(
+        identifier + '.dock-icon-changed', None, None, True)
