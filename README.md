@@ -6,12 +6,6 @@ TeleGraph es un cliente independiente de Telegram para Windows, macOS, Linux, An
 
 ## Instalar la versión 3.0
 
-La revisión de escritorio **3.0.0.1** actualiza los accesos fijados de Windows, macOS y Linux. Abre **Ajustes → Logos de la app**, elige un diseño y pulsa **Aplicar** para cambiar el icono. Quienes ya tienen la 3.0 pueden instalar la revisión sobre su copia actual. Si tu copia ya indica 3.0.0.1, cierra la app y usa el nuevo instalador o reemplaza manualmente la aplicación en su ubicación habitual. Los datos de cuenta se guardan aparte.
-
-La descarga pública de escritorio solicita al iniciar el **API ID** y el **API hash** de tu propia aplicación de Telegram. Con la opción de recordar desmarcada, tendrás que introducirlos en cada arranque. Si la activas, las claves se guardan en un archivo privado sin cifrar en tu perfil local al completar el inicio de sesión. [Obtener tu API de Telegram](https://my.telegram.org/apps)
-
-En Windows, la ventana aplica el logo al momento y la barra de tareas puede tardar más de un minuto en mostrarlo. Si aparece el nombre antiguo en la barra de tareas de Windows, desancla ese acceso y ancla **TeleGraph** desde Inicio. Si el Dock de macOS conserva el icono anterior al cerrar la app, retira ese favorito, abre la copia actualizada y elige **Opciones → Mantener en el Dock**.
-
 | Sistema | Archivo o canal | Instalación |
 |---|---|---|
 | Windows x64 | `TeleGraph-3.0.0.1-Setup.exe` o ZIP portátil | Cierra la app y abre el instalador. En la edición portátil, extrae el ZIP completo y abre `TG-ASCII.exe`. |
