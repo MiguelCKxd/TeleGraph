@@ -1,0 +1,26 @@
+TeleGraph / Tg-Gr
+
+Este ZIP de código fuente se prepara con Crear-Windows.cmd o Crear-Mac.command.
+Las aplicaciones compiladas se encuentran en releases; conserva todo su contenido.
+Para una app compilada: Windows abre TG-ASCII.exe junto a _internal; Mac abre la .app.
+
+Inicia sesión con tu propia cuenta. Las sesiones se conservan. Si hay varias
+cuentas, el selector inicial se puede desactivar en Ajustes. El menú de un chat
+permite abrirlo en otra ventana vinculada que sólo muestra la conversación;
+comparte sesiones y diseño, con historial y borradores independientes. Desde
+la principal puedes abrir varias del mismo chat; sus herramientas permiten
+cerrarlas.
+
+La apariencia clásica es la predeterminada. Ajustes permite guardar diseños,
+restaurarlos y activar las Funciones complejas. Se ocultan las acciones que no
+corresponden a los permisos conocidos de tu cuenta o conversación.
+
+El bloqueo por contraseña y autenticación del dispositivo se activa en Ajustes.
+Protege la interfaz; no cifra los archivos de sesión. Nunca compartas .session
+ni tu carpeta de datos. Las notificaciones requieren que el proceso esté activo.
+Las llamadas de voz/vídeo y las conferencias se activan en Funciones complejas y
+requieren un motor compatible. Las herramientas de llamada permiten elegir dispositivos
+y compartir pantalla o una ventana mediante el selector del sistema. El push WNS es experimental; no se ha completado
+la recepción con la app completamente terminada.
+
+Consulta README.md en el proyecto para ver las instrucciones de la aplicación.

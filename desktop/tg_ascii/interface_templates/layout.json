@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "name": "Default",
+  "enabled": false,
+  "columns": 12,
+  "rows": 12,
+  "snap": true,
+  "overlap": true,
+  "gap": 4,
+  "overrides": {},
+  "items": [],
+  "appearance": {}
+}

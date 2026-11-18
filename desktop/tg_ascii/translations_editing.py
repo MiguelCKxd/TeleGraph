@@ -1,0 +1,26 @@
+KEYS="Undo crop|Choose an icon|Official Telegram icons|Free crop|Apply crop|Could not download official icons. Check your connection and try again.|Tg-As is an unofficial client. The ASCII icon remains the default.|Free crop: drag over the image, then apply. Escape cancels the selection.".split('|')
+ROWS={
+  "es": "Deshacer recorte|Elige un icono|Iconos oficiales de Telegram|Recorte libre|Aplicar recorte|No se pudieron descargar los iconos oficiales. Comprueba la conexión y vuelve a intentarlo.|Tg-As es un cliente no oficial. El icono ASCII sigue siendo el predeterminado.|Recorte libre: arrastra sobre la imagen y aplica. Escape cancela la selección.",
+  "ru": "Отменить обрезку|Выберите значок|Официальные значки Telegram|Свободная обрезка|Применить обрезку|Не удалось скачать официальные значки. Проверьте соединение и повторите попытку.|Tg-As — неофициальный клиент. Значок ASCII остаётся по умолчанию.|Свободная обрезка: выделите область на изображении и примените. Escape отменяет выделение.",
+  "pl": "Cofnij przycięcie|Wybierz ikonę|Oficjalne ikony Telegrama|Dowolne przycięcie|Zastosuj przycięcie|Nie udało się pobrać oficjalnych ikon. Sprawdź połączenie i spróbuj ponownie.|Tg-As jest nieoficjalnym klientem. Ikona ASCII pozostaje domyślna.|Dowolne przycięcie: przeciągnij po obrazie i zastosuj. Escape anuluje zaznaczenie.",
+  "ca": "Desfés el retall|Tria una icona|Icones oficials de Telegram|Retall lliure|Aplica el retall|No s’han pogut descarregar les icones oficials. Comprova la connexió i torna-ho a provar.|Tg-As és un client no oficial. La icona ASCII continua sent la predeterminada.|Retall lliure: arrossega sobre la imatge i aplica. Escape cancel·la la selecció.",
+  "uk": "Скасувати обрізання|Виберіть значок|Офіційні значки Telegram|Довільне обрізання|Застосувати обрізання|Не вдалося завантажити офіційні значки. Перевірте з’єднання та спробуйте ще раз.|Tg-As — неофіційний клієнт. Значок ASCII залишається типовим.|Довільне обрізання: виділіть область на зображенні та застосуйте. Escape скасовує виділення.",
+  "zh-Hans": "撤销裁剪|选择图标|Telegram 官方图标|自由裁剪|应用裁剪|无法下载官方图标。请检查网络连接后重试。|Tg-As 是非官方客户端。默认仍使用 ASCII 图标。|自由裁剪：在图片上拖动选区，然后应用。按 Escape 取消选择。",
+  "ko": "자르기 실행 취소|아이콘 선택|Telegram 공식 아이콘|자유 자르기|자르기 적용|공식 아이콘을 다운로드할 수 없습니다. 연결을 확인하고 다시 시도하세요.|Tg-As는 비공식 클라이언트입니다. ASCII 아이콘이 기본값으로 유지됩니다.|자유 자르기: 이미지 위에서 드래그한 다음 적용하세요. Escape를 누르면 선택이 취소됩니다.",
+  "ja": "切り抜きを元に戻す|アイコンを選択|Telegram 公式アイコン|自由切り抜き|切り抜きを適用|公式アイコンをダウンロードできませんでした。接続を確認して再試行してください。|Tg-As は非公式クライアントです。既定のアイコンは ASCII のままです。|自由切り抜き：画像上をドラッグして適用します。Escape で選択を解除します。",
+  "it": "Annulla ritaglio|Scegli un’icona|Icone ufficiali di Telegram|Ritaglio libero|Applica ritaglio|Impossibile scaricare le icone ufficiali. Controlla la connessione e riprova.|Tg-As è un client non ufficiale. L’icona ASCII resta quella predefinita.|Ritaglio libero: trascina sull’immagine, poi applica. Escape annulla la selezione.",
+  "pt": "Desfazer recorte|Escolha um ícone|Ícones oficiais do Telegram|Recorte livre|Aplicar recorte|Não foi possível transferir os ícones oficiais. Verifique a ligação e tente novamente.|Tg-As é um cliente não oficial. O ícone ASCII continua a ser o predefinido.|Recorte livre: arraste sobre a imagem e aplique. Escape cancela a seleção.",
+  "el": "Αναίρεση περικοπής|Επιλέξτε εικονίδιο|Επίσημα εικονίδια Telegram|Ελεύθερη περικοπή|Εφαρμογή περικοπής|Δεν ήταν δυνατή η λήψη των επίσημων εικονιδίων. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.|Το Tg-As είναι ανεπίσημος πελάτης. Το εικονίδιο ASCII παραμένει προεπιλεγμένο.|Ελεύθερη περικοπή: σύρετε πάνω στην εικόνα και εφαρμόστε. Το Escape ακυρώνει την επιλογή.",
+  "eu": "Desegin mozketa|Aukeratu ikono bat|Telegramen ikono ofizialak|Mozketa librea|Aplikatu mozketa|Ezin izan dira ikono ofizialak deskargatu. Egiaztatu konexioa eta saiatu berriro.|Tg-As bezero ez-ofiziala da. ASCII ikonoak lehenetsia izaten jarraitzen du.|Mozketa librea: arrastatu irudiaren gainean eta aplikatu. Escape teklak hautapena bertan behera uzten du.",
+  "gl": "Desfacer recorte|Escolle unha icona|Iconas oficiais de Telegram|Recorte libre|Aplicar recorte|Non se puideron descargar as iconas oficiais. Comproba a conexión e téntao de novo.|Tg-As é un cliente non oficial. A icona ASCII segue sendo a predeterminada.|Recorte libre: arrastra sobre a imaxe e aplica. Escape cancela a selección.",
+  "oc-aran": "Deshè eth retalh|Triga ua icòna|Icònes oficiaus de Telegram|Retalh liure|Aplica eth retalh|Non s’an podut descargar es icònes oficiaus. Verifica era connexion e torna a provar.|Tg-As ei un client non oficiau. Era icòna ASCII contunhe d’èster era predeterminada.|Retalh liure: arrossèga sus era imatge e aplica. Escape anulle era seleccion.",
+  "an": "Desfer retalle|Triga un icono|Iconos oficials de Telegram|Retalle libre|Aplicar retalle|No s’han puesto descargar los iconos oficials. Compreba la connexión y torna-lo a intentar.|Tg-As ye un client no oficial. Lo icono ASCII sigue estando lo predeterminau.|Retalle libre: arrastra sobre a imachen y aplica. Escape cancela la selección."
+}
+ROWS['ca-valencia']=ROWS['ca']
+
+def extend(catalogues):
+    for language,row in ROWS.items():
+        values=row.split('|')
+        if len(values)!=len(KEYS):raise ValueError(language)
+        catalogues.setdefault(language,{}).update(zip(KEYS,values))
+

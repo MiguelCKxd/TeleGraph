@@ -1,0 +1,666 @@
+0|+ Conta
+1|Conta
+2|Conta descoñecida
+3|Nova conta
+4|Iniciar sesión de novo
+5|Sen conexión
+6|Volver a outra conta
+7|Sesión gardada automaticamente
+8|As contas seguen conectadas ao alternar. Pechar a aplicación conserva as sesións.
+9|Esta conta xa está engadida. Volve atrás e selecciónaa.
+10|Conversas
+11|Historias
+12|Configuración
+13|Aparencia
+14|Tamaño do texto
+15|Amosar texto en ASCII (agocha os emojis)
+16|Intro envía mensaxes
+17|Lista de conversas compacta
+18|Gardar configuración
+19|Configuración gardada.
+20|O meu perfil
+21|Editar perfil de Telegram
+22|Nome
+23|Apelidos
+24|Biografía
+25|Nome de usuario
+26|Gardar nome e biografía
+27|Cambiar nome de usuario
+28|Cambiar foto
+29|Perfil actualizado.
+30|O nome é obrigatorio.
+31|O nome de usuario debe ter entre 5 e 32 letras, números ou guións baixos.
+32|Escolle unha imaxe PNG ou JPEG.
+33|Imaxes
+34|Contactos
+35|Engadir contacto
+36|Teléfono con prefixo internacional
+37|Gardar contacto
+38|Contacto gardado.
+39|Telegram pide que o intentes máis tarde.
+40|Non se atopou unha conta accesible con ese número.
+41|Nova conversa
+42|Abrir conversa
+43|Usuario (@nome) ou teléfono (+prefixo):
+44|Introduce un @usuario ou teléfono con prefixo internacional.
+45|Novo grupo
+46|Novo grupo cos contactos seleccionados
+47|Nome do grupo:
+48|Selecciona os participantes na lista.
+49|Escribe un título e selecciona os participantes.
+50|Creando grupo…
+51|Grupo creado; non foi posible convidar algúns usuarios.
+52|Telegram non devolveu o grupo. Actualiza antes de tentalo de novo.
+53|Información
+54|Fixar / Desafixar
+55|Cartafoles
+56|Todas as conversas
+57|Novo cartafol
+58|Novo cartafol con esta conversa
+59|Nome do cartafol (máx. 12):
+60|O nome do cartafol debe ter entre 1 e 12 caracteres.
+61|Non hai identificadores de cartafol dispoñibles.
+62|Selecciona polo menos unha conversa.
+63|Renomear
+64|Engadir conversa actual
+65|Quitar conversa actual
+66|Eliminar cartafol
+67|Eliminar este cartafol de Telegram? As conversas conservaranse.
+68|Non se pode eliminar este cartafol.
+69|Arrastra un ficheiro á conversa para anexalo.
+70|Non se pode arrastrar neste equipo; usa Anexar.
+71|Escolle primeiro unha conversa e agarda a que remate a operación actual.
+72|Arrastra un ficheiro por mensaxe.
+73|Emojis
+74|[Ver / gardar ficheiro]
+75|Visor de ficheiros
+76|Ver imaxe / vista previa
+77|Gardar ficheiro como…
+78|Ficheiro gardado.
+79|Descargando…
+80|Este ficheiro xa non está dispoñible.
+81|Non hai vista previa dispoñible. Podes gardar o ficheiro.
+82|O ficheiro é demasiado grande para a vista previa. Gárdao primeiro.
+83|A imaxe é demasiado grande para a vista previa.
+84|Vista previa estática do adhesivo ou vídeo.
+85|Actualizar historias
+86|Historia
+87|Fai dobre clic para abrir unha historia.
+88|Historia aberta.
+89|Chamadas
+90|Abrir Telegram
+91|Abrir este contacto en Telegram?
+92|Cargando…
+93|Gardando…
+94|Demostración local
+95|Mensaxes gardadas
+96|Ideas de deseño
+97|O teu Telegram. Só o esencial.
+98|Configurar aplicación (desenvolvedor)
+99|O teu número de teléfono
+100|Código de Telegram
+101|Contrasinal de verificación en dous pasos
+102|Lembrar as claves da aplicación neste equipo (sen cifrar)
+103|Inclúe + e o prefixo do país. Exemplo: +34 612 345 678
+104|Introduce o código que che enviou Telegram.
+105|Introduce o código de Telegram.
+106|Continuar
+107|Cambiar número
+108|Inicia sesión coa túa conta.
+109|O código caducou. Solicita un novo.
+110|Tentar de novo
+111|CONVERSAS
+112|Buscar conversas
+113|Actualizar
+114|Escolle unha conversa
+115|Quitar ficheiro
+116|[+] Anexar
+117|Enviar >
+118|Intro: enviar / Maiús+Intro: nova liña
+119|Preme nunha conversa para abrila.
+120|Conversa aberta. Escribe unha mensaxe ou anexa un ficheiro.
+121|Cargando mensaxes…
+122|Escolle primeiro unha conversa.
+123|Escoller ficheiro
+124|Ficheiro preparado. Preme Enviar para envialo á conversa indicada arriba.
+125|[Ficheiro]
+126|Anexo
+127|Subindo ficheiro:
+128|Texto demasiado longo. Límite:
+129|Escolle un ficheiro normal, non un cartafol.
+130|Hai unha operación en curso. Pechar a aplicación?
+131|Pechando…
+132|Cargando conversas…
+133|Non hai mensaxes nesta conversa.
+134|Enviando…
+135|Enviado.
+136|Borrador conservado; comproba a conversa antes de tentalo de novo.
+137|Ti
+138|[Anexo / mensaxe de servizo]
+139|Conectando con Telegram…
+140|Telegram pide agardar {seconds} segundos antes de tentalo de novo.
+141|Non se puido completar a operación ({error}).
+142|O API ID debe ser un número enteiro positivo.
+143|O API hash debe ter 32 caracteres hexadecimais. Cópiao enteiro.
+144|API ID ou hash incorrecto. Comproba as credenciais da aplicación.
+145|Telegram non recoñece este número. Comproba o número e o prefixo.
+146|Código incorrecto. Téntao de novo.
+147|O código caducou. Reinicia para solicitar un novo.
+148|Contrasinal incorrecto. Téntao de novo.
+149|Non podes escribir nesta conversa.
+150|A mensaxe supera o límite de Telegram.
+151|Fallou a conexión ou o acceso local. Comproba a rede e os permisos.
+152|A sesión caducou ou foi revogada. Reinicia para entrar de novo.
+153|Telegram invalidou esta sesión. Revisa Configuración > Dispositivos en Telegram.
+154|Esta versión non contén a configuración de TG-ASCII. Pídelle unha versión completa ao desenvolvedor.
+155|A configuración incluída na aplicación non é válida. Contacta co desenvolvedor.
+156|Cancelar
+157|Pechar
+158|Seleccionar
+159|Ficheiros
+160|Substituír este ficheiro?
+161|Gardar
+162|Abrir
+163|Adhesivos
+164|Emojis personalizados
+165|Conecta unha conta para cargar os paquetes de Telegram.
+166|Recentes
+167|Algúns emojis requiren Telegram Premium.
+168|Inserir emoji
+169|Enviar adhesivo
+170|O emoji personalizado cambiou. Insíreo de novo.
+171|Amosar vistas previas multimedia nas conversas
+172|Conversas fixadas locais ilimitadas (non sincronizadas)
+173|Fixar localmente / Desafixar localmente
+174|As fixacións locais só afectan a esta aplicación. Desactivalas restaura a orde de Telegram.
+175|Sincronizar contactos de Telegram
+176|Sincronizando contactos de Telegram…
+177|Contactos sincronizados: {count}
+178|Notificacións
+179|Neste equipo
+180|Amosar notificacións mentres a aplicación está en execución
+181|Amosar vistas previas das mensaxes
+182|Reproducir un son
+183|Notificar sobre a conversa aberta
+184|Configuración de Telegram (sincronizada)
+185|Conversas privadas
+186|Grupos
+187|Canles
+188|Activado
+189|Vista previa
+190|Son
+191|Silenciar historias
+192|Respéctanse as excepcións por conversa definidas en Telegram. As notificacións paran ao saír da aplicación.
+193|Nova mensaxe
+194|Tema da interface
+195|Tema do logotipo
+196|Escuro
+197|Claro
+198|Sistema
+199|Actualizacións
+200|Escolle un ZIP da versión ou consulta a canle do editor.
+201|Instalar {version} e reiniciar? Conservaranse as contas e a configuración.
+202|Preparando actualización…
+203|Escoller ZIP de actualización
+204|Xa tes a última versión.
+205|Versión dispoñible: {version}
+206|Descargar e instalar
+207|Buscando actualizacións…
+208|Buscar actualizacións
+209|Instalar ZIP da versión
+210|Versión de actualización non válida.
+211|As actualizacións requiren HTTPS.
+212|A actualización supera o límite de tamaño.
+213|O editor aínda non configurou unha canle de actualización. Podes instalar un ZIP da versión.
+214|Manifesto de actualización non válido.
+215|A suma de comprobación da actualización non coincide.
+216|Arquivo de actualización inseguro.
+217|Esta versión é para outro sistema ou arquitectura.
+218|Esta versión non é máis recente ca a instalada.
+219|As actualizacións instálanse na aplicación empaquetada, non no modo de código fonte.
+220|Non se pode escribir no cartafol da aplicación. Móvea a un cartafol teu.
+221|A nova aplicación non superou a comprobación de inicio. A aplicación instalada non se modificou.
+222|Esta versión non admite chamadas nativas. Primeiro cómpre integrar e probar un motor de son para esta plataforma.
+223|DEMONSTRACIÓN LOCAL
+224|Formato
+225|Negra
+226|Cursiva
+227|Subliñado
+228|Riscado
+229|Spoiler
+230|Monoespazado
+231|Ligazón
+232|Limpar formato
+233|Selecciona primeiro o texto.
+234|Formato de texto non válido.
+235|Usa unha ligazón https://, http:// ou tg://.
+236|Quita primeiro o formato superposto.
+237|Son
+238|Gravar mensaxe de voz
+239|Enviar ficheiro de son
+240|Gravando…
+241|Reproducindo…
+242|Preparado
+243|Deter
+244|Reproducir
+245|Gravación máxima: 10 minutos. Detén, escoita e envía.
+246|Os compoñentes de son non están dispoñibles nesta versión.
+247|Esta versión non pode codificar mensaxes de voz Opus.
+248|Perda de datos do micrófono. Grava a mensaxe de novo.
+249|A gravación está baleira.
+250|Formato de son non compatible. Garda o ficheiro para abrilo externamente.
+251|Tipo de letra da aplicación
+252|Predeterminado
+253|Pechar sesión desta conta
+254|Pechar sesión de {account}? As outras contas seguirán conectadas.
+255|Non se puido pechar a sesión. A conta conservouse.
+256|Abrir Tg-As
+257|Saír de Tg-As
+258|Manter a conexión ao pechar a xanela
+259|Saír detén as notificacións. Pechar a xanela mantén a aplicación en execución.
+260|A bandexa non está dispoñible. A aplicación queda minimizada e conectada.
+261|Traducir conversa
+262|Tradución
+263|Tradución automática (Premium)
+264|A tradución automática de conversas require Telegram Premium.
+265|Traduce as mensaxes cargadas e as novas. Conserva os orixinais.
+266|Tradución incompleta. Téntao de novo.
+267|IA de Telegram
+268|Ferramentas da mensaxe
+269|Resumir coa IA de Telegram
+270|Transcribir son
+271|Transcrición pendente. Abre esta opción máis tarde.
+272|Telegram procesa este texto. A dispoñibilidade e as cotas dependen da túa conta.
+273|Usar no borrador
+274|O borrador cambiou. Non se aplicou o resultado.
+275|Revisar texto
+276|Engadir emojis
+277|Tg-As xa está en execución. Ábreo desde a bandexa ou a barra de tarefas.
+278|Logotipos da aplicación
+279|Seleccionado
+280|Buscar en Telegram
+281|Buscar na conversa
+282|Contido compartido
+283|Ordes do bot
+284|Accións da conversa
+285|Silenciar
+286|Activar son
+287|Arquivar
+288|Desarquivar
+289|Engadir a cartafol
+290|Eliminar conversa
+291|Eliminar esta conversa da túa conta? Nos grupos e canles tamén sairás da conversa.
+292|Aínda non hai cartafoles. Crea un en Cartafoles.
+293|Foto de perfil
+294|Aniversario
+295|Estado emoji
+296|Editar contacto
+297|Engadir por nome de usuario
+298|Escolle unha persoa, non unha canle nin un grupo.
+299|Esta mensaxe xa non está dispoñible nesta conversa.
+300|En liña
+301|Última conexión
+302|Última vez recentemente
+303|Última vez esta semana
+304|Última vez este mes
+305|Fotos
+306|Mensaxes de voz
+307|Ligazóns
+308|Mensaxes
+309|Buscar
+310|Máis
+311|Este bot non publicou ordes.
+312|Responder
+313|Resposta á mensaxe
+314|Cancelar resposta
+315|Reenviar mensaxe
+316|Reenviar a {name}?
+317|Editar mensaxe
+318|Eliminar mensaxe
+319|Eliminar para min
+320|Eliminar para todos
+321|Eliminar esta mensaxe para todos?
+322|Eliminar esta mensaxe para ti?
+323|Hora de lectura
+324|Tradución / IA
+325|Substituír anexo
+326|Telegram determina se podes editar esta mensaxe ou anexo.
+327|Burbullas de mensaxes
+328|Iniciar sesión con QR
+329|Esta versión non inclúe compatibilidade con QR.
+330|Telegram no móbil: Configuración → Dispositivos → Vincular dispositivo de escritorio.
+331|Conversas / Conversa actual
+332|Fondo da conversa
+333|Publicar historia
+334|Texto da historia
+335|Só contactos
+336|Todo o mundo
+337|Amigos próximos
+338|Visible durante 24 horas. Telegram aplica os límites de publicación da túa conta.
+339|Publicar {file} para {audience}?
+340|Historia publicada.
+341|Escolle un ficheiro JPEG, PNG ou MP4.
+342|Abrir Mini App
+343|Escolle primeiro un bot.
+344|Este bot non ten un menú de Mini App.
+345|Abrir a Mini App deste bot no navegador coa túa conta de Telegram? Algunhas funcións nativas de Telegram poderían non estar dispoñibles.
+346|Non se puido abrir o navegador predeterminado.
+347| · Poxa
+348| · Esgotado
+349|Un cuestionario non pode permitir que os participantes engadan respostas.
+350|Engade contas desde a xanela principal.
+351|Engadir resposta
+352|Engadir parágrafo
+353|Engadir tarefa
+354|Engadir este número aos teus contactos de Telegram?
+355|Enderezo (opcional)
+356|Funcións avanzadas
+357|Permitir cambiar o voto
+358|Códigos dos países permitidos, separados por comas (opcional)
+359|Un artigo debe conter entre 1 e 32768 caracteres.
+360|Votos anónimos
+361|Resposta
+362|Bloqueo da aplicación
+363|O bloqueo da aplicación está desactivado.
+364|O bloqueo da aplicación actívase en cada inicio.
+365|Os axustes de bloqueo están danados. Restaura a copia de app-lock.json antes de abrir a aplicación.
+366|Contrasinal da aplicación
+367|Aplicar cambio do campo
+368|Artigo
+369|Artigos
+370|A autenticación cancelouse ou fallou.
+371|Autor non dispoñible
+372|Dispoñibles
+373|Ver agasallos coleccionables en revenda
+374|Mercar estrelas / Premium · Telegram
+375|Mercar ou regalar estrelas · Fragment
+376|Rexistro de chamadas
+377|O rexistro de chamadas está desactivado. Podes activalo en Funcións avanzadas.
+378|Catálogo, agasallos, reaccións de pago e ligazóns oficiais de compra.
+379|Cambiar contrasinal da aplicación
+380|Tradución de conversas
+381|Consultar saldo de estrelas
+382|Lista de tarefas
+383|Os identificadores das tarefas deben ser números positivos únicos.
+384|Listas de tarefas
+385|Escolle 3, 6 ou 12 meses.
+386|Escolle Markdown ou HTML.
+387|Escolle unha data de peche ou unha duración, non ambas.
+388|Escolle unha resposta.
+389|Escolle entre 1 e {maximum} estrelas.
+390|Escolle entre 2 e {maximum} respostas.
+391|Escoller dos contactos
+392|Escoller lapela
+393|Escolle os datos de contacto que se enviarán.
+394|Escolle respostas correctas válidas.
+395|Escolle respostas válidas para a enquisa.
+396|Pechar despois deste número de segundos (opcional)
+397|Pechar enquisa
+398|Pechar esta enquisa definitivamente?
+399|Enquisa pechada
+400|Texto despregable
+401|Agasallo coleccionable
+402|Agasallos coleccionables en revenda
+403|Confirmar
+404|Confirmar pago con estrelas
+405|Confirma o importe exacto que mostra Telegram.
+406|Converter agasallo en estrelas
+407|As coordenadas introdúcense manualmente. A localización en tempo real só cambia cando a actualizas aquí expresamente; esta aplicación non rastrexa o dispositivo.
+408|Crear / editar en Telegraph
+409|Crear e editar listas compartidas; cómpre Premium para crealas.
+410|Crear e abrir publicacións longas.
+411|Crear, votar e consultar resultados.
+412|Crear listas de tarefas require Telegram Premium.
+413|Contrasinal actual da aplicación
+414|Duración personalizada…
+415|Días
+416|A autenticación do dispositivo non está dispoñible. Usa o contrasinal da aplicación.
+417|Desactivar todas
+418|Desactivar bloqueo da aplicación
+419|Desactivar ligazóns automáticas
+420|Documento
+421|Editar artigo
+422|Editar lista de tarefas
+423|Edita os campos de texto sen eliminar o formato, as táboas, as ligazóns nin os ficheiros do artigo orixinal.
+424|Activa Tradución de conversas en Axustes → Funcións avanzadas.
+425|Activar bloqueo da aplicación
+426|Activa estas funcións en Axustes → Funcións avanzadas.
+427|Activa esta función en Axustes → Funcións avanzadas para usar este botón.
+428|Introduce unha latitude e lonxitude válidas.
+429|Introduce un número enteiro.
+430|Introduce unha ligazón de artigo de https://telegra.ph/.
+431|As explicacións están dispoñibles para os cuestionarios.
+432|Nun cuestionario, marca os números das respostas correctas. Preme co botón dereito no texto para darlle formato ou inserir emojis personalizados.
+433|Agasallo
+434|Regalar Premium con estrelas
+435|Mensaxe do agasallo
+436|Grupo ou canle
+437|Ocultar do meu perfil
+438|Ocultar o meu nome na clasificación
+439|Ocultar o meu nome no perfil do destinatario
+440|Ocultar resultados ata que peche a enquisa
+441|Horas
+442|Incluír unha mellora cando estea dispoñible
+443|Contrasinal da aplicación incorrecto.
+444|Contido do artigo non válido.
+445|Data de peche non válida.
+446|Ligazón de agasallo coleccionable non válida.
+447|Duración non válida.
+448|Ligazón de convite non válida.
+449|Duración da localización en tempo real non válida.
+450|Duración da enquisa non válida.
+451|Lapela non válida.
+452|Unirse
+453|Unirse ao grupo ou canle
+454|Conservar remitente, destinatario e mensaxe orixinais
+455|Latitude
+456|A latitude debe estar entre −90 e 90; a lonxitude entre −180 e 180.
+457|Ligazóns, mencións e etiquetas
+458|Localización en tempo real
+459|En tempo real · 1 hora
+460|En tempo real · 15 minutos
+461|En tempo real · 8 horas
+462|En tempo real · ata detela
+463|Cargar o rexistro de chamadas ao abrir a súa lapela.
+464|Cargar máis
+465|Carga o artigo completo antes de editalo.
+466|Localización
+467|A precisión da localización debe estar entre 0 e 1500 metros.
+468|Localizacións
+469|Bloquear agora
+470|Bloquear ao ocultar a aplicación
+471|Pecha sesións desde a xanela principal.
+472|Lonxitude
+473|Lapela principal do perfil
+474|Mensaxe
+475|Minutos
+476|Perdida
+477|Só perdidas
+478|Máis opcións
+479|Respostas múltiples
+480|Os meus agasallos
+481|Novo contrasinal da aplicación
+482|Nova lista de tarefas
+483|Nova enquisa / cuestionario
+484|Páxina seguinte
+485|Só poden votar os subscritores da canle que cumpran os requisitos.
+486|Só poden votar os subscritores que cumpran os requisitos
+487|Só o autor da lista pode editar a súa estrutura.
+488|Só podes editar os teus propios artigos.
+489|Só podes cambiar a túa propia localización en tempo real.
+490|Abrir ligazóns de Telegram, perfís e buscas de etiquetas.
+491|Abrir a páxina de verificación do pago de Telegram?
+492|Abrir conversa nunha xanela nova
+493|Abrir ligazón
+494|Abrir mapa
+495|Abrir mensaxe
+496|Abrir poxa oficial do agasallo
+497|Outros poden engadir tarefas
+498|Outros poden completar tarefas
+499|Fóra da aplicación: notificacións do sistema. Dentro: un aviso na xanela activa.
+500|Os participantes poden engadir respostas
+501|Converter este agasallo en {amount} estrelas de forma permanente?
+502|Foto
+503|Nome do lugar (opcional)
+504|Agarda antes de volver tentalo.
+505|Enquisa / cuestionario
+506|Votantes da enquisa
+507|Enquisas e cuestionarios
+508|Premium · Fragment
+509|Previsualizar agasallo
+510|Páxina anterior
+511|Agasallo do perfil
+512|As compras son opcionais. Móstranse o destinatario e o prezo exactos antes de gastar estrelas.
+513|Pregunta
+514|Cuestionario
+515|Explicación do cuestionario
+516|O modo cuestionario require polo menos unha resposta correcta.
+517|Cita
+518|Ler artigo
+519|Actualizar catálogo
+520|Restantes para esta conta
+521|Lembra este contrasinal. É distinto do de Telegram e non se pode recuperar.
+522|Eliminar resposta
+523|Eliminar bloque
+524|Retirar do perfil
+525|Eliminar última resposta
+526|Eliminar bloque seleccionado
+527|Eliminar todo o bloque seleccionado deste artigo?
+528|Eliminar esta resposta? Telegram comproba se podes eliminala.
+529|Retirar este elemento do teu perfil?
+530|Repite o contrasinal da aplicación
+531|Solicitude enviada. Un administrador debe aprobala.
+532|Solicitar unirse
+533|Retirar voto
+534|Revisar reacción con estrelas
+535|Revisar compra do agasallo
+536|Revisa primeiro o prezo de transferencia deste agasallo.
+537|Revisa primeiro o prezo de mellora deste agasallo.
+538|Revisar transferencia
+539|Artigo de dereita a esquerda
+540|Gardar artigo
+541|Gardado.
+542|Enviar reacción con estrelas
+543|Envía un artigo nativo de Telegram a esta conversa ou canle. Telegram interpreta Markdown e HTML.
+544|Enviar artigo
+545|Enviar lista de tarefas
+546|Enviar enquisa
+547|Mensaxe de servizo
+548|Compartir artigo de Telegraph
+549|Compartir contacto
+550|Compartir contactos
+551|Compartir coordenadas e lugares que escollas expresamente.
+552|Compartir localización
+553|Compartir estas coordenadas con esta conversa?
+554|Compartir este nome, número de teléfono e tarxeta de contacto coa conversa?
+555|Compartir o teu número de teléfono con este bot?
+556|Mostrar menos
+557|Mostrar máis
+558|Mostrar no meu perfil
+559|Mesturar a orde das respostas
+560|Reacción con estrelas
+561|As reaccións con estrelas están dispoñibles nas publicacións de canles.
+562|Estrelas e agasallos
+563|Estrelas, agasallos e Premium
+564|Localización estática
+565|Deter localización en tempo real
+566|Deixar de compartir esta localización en tempo real?
+567|Historias e publicacións do perfil
+568|As historias están desactivadas. Podes activalas en Funcións avanzadas.
+569|Os axustes do sistema controlan os banners e o permiso. Mantén TG-ASCII aberto en segundo plano para recibir mensaxes novas; esta versión non ten configurado push co proceso detido.
+570|Tarefa
+571|Telegram Premium · {months} meses
+572|Estrelas de Telegram
+573|Rexistro de chamadas de Telegram. As chamadas de voz e vídeo requiren un motor de chamadas compatible.
+574|Telegram confirmou o pago.
+575|Telegram non devolveu o artigo completo. Proba a actualizalo.
+576|Guía de formato de Telegram
+577|Agasallo de Telegram
+578|Telegram desactivou a compra de agasallos para esta conta.
+579|Ligazón de Telegram
+580|Telegram require un paso de verificación adicional.
+581|Telegram devolveu un importe de pago non válido.
+582|Ligazón do artigo de Telegraph
+583|Os artigos de Telegraph son páxinas web públicas, separadas dos artigos nativos de Telegram. Créaos ou edítaos no editor web oficial e comparte aquí a súa ligazón.
+584|O autor da lista non permite que outros engadan tarefas.
+585|O autor da lista non permite que outros completen tarefas.
+586|A lista ten moi poucas ou demasiadas tarefas.
+587|Os contrasinais non coinciden.
+588|A explicación do cuestionario admite 200 caracteres e dous saltos de liña.
+589|Estas funcións están desactivadas de forma predeterminada. Actívaas para usalas; os datos cárganse ao abrir cada función.
+590|Esta resposta xa non existe.
+591|Este artigo cambiou noutro dispositivo. Volve abrir o editor.
+592|Este campo do artigo xa non está dispoñible.
+593|Este campo do artigo é demasiado longo.
+594|Esta canle desactivou as reaccións con estrelas.
+595|Esta lista cambiou noutro dispositivo. Volve abrir o editor.
+596|Esta tarxeta de contacto é demasiado longa.
+597|Esta conversa xa non está dispoñible.
+598|Esta ligazón de conversa non contén unha publicación da canle.
+599|Este agasallo non ten unha poxa activa.
+600|Este agasallo non ten unha referencia de canle.
+601|Este agasallo non ten unha referencia de mensaxe.
+602|Este agasallo non está dispoñible para compra directa.
+603|Este agasallo require Telegram Premium.
+604|A versión actual da aplicación non admite esta ligazón.
+605|Este bloqueo protexe o acceso á interface. Non cifra os ficheiros de sesión de Telegram. Mantén protexidos a conta do dispositivo e o disco.
+606|Esta mensaxe xa non está dispoñible desta forma.
+607|Esta mensaxe non é un artigo.
+608|Esta confirmación de pago caducou. Revisa o prezo de novo.
+609|Este pago debe completarse na páxina oficial de compra de Telegram.
+610|Esta enquisa non admite cambios nas respostas.
+611|Esta enquisa non admite respostas novas.
+612|Esta enquisa non permite cambiar nin retirar o voto.
+613|Esta enquisa alcanzou o límite de respostas.
+614|Esta enquisa é anónima.
+615|Esta enquisa está pechada.
+616|Esta publicación xa non está dispoñible.
+617|Esta tarefa xa non existe.
+618|Título
+619|Total
+620|Touch ID non está dispoñible ou configurado
+621|Transferir agasallo
+622|Transferir este agasallo coleccionable a {recipient}? Isto cambia o propietario.
+623|Transferir a @usuario
+624|Traducir o historial da conversa seleccionada con Telegram Premium.
+625|Localización non dispoñible
+626|Desbloquear
+627|Desbloquea a aplicación para continuar.
+628|Desbloquea as túas mensaxes
+629|Actualizar localización
+630|Estrelas para mellorar
+631|Mellorar agasallo
+632|Usa polo menos 8 caracteres.
+633|Usar autenticación do dispositivo
+634|Usar a mellora prepagada para este agasallo?
+635|Usa códigos de país de dúas letras separados por comas.
+636|Usuario
+637|Verificación
+638|Vídeo
+639|Consultar e publicar historias só ao abrir a súa sección.
+640|Ver coleccionable en Telegram
+641|Ver o meu perfil e contido público
+642|Ver votantes
+643|Votar
+644|A votación está limitada aos países escollidos polo creador da enquisa.
+645|Windows Hello está ocupado
+646|Windows Hello está desactivado pola política do sistema
+647|Windows Hello non está configurado
+648|Windows Hello non está dispoñible
+649|Windows Hello: non hai ningún dispositivo dispoñible
+650|Xa pertences a este grupo ou canle.
+651|Non podes pechar esta enquisa.
+652|Alcanzaches o límite de compra deste agasallo.
+653|Debes terte unido polo menos 24 horas antes da publicación desta enquisa.
+654|Para un grupo privado precisas a súa ligazón de convite.
+655|O teu número de teléfono non está dispoñible.
+656|[Artigo]
+657|[Audio]
+658|[Documento]
+659|[Foto]
+660|[Vídeo]
+661|vCard (opcional)
+662|{count} estrelas de Telegram
+663|{count} votos
+664|{field}: usa entre 1 e {maximum} caracteres.
+665|{title}\nDestinatario: {recipient}\nTotal: {amount} estrelas de Telegram\n\nConfirmar esta compra?

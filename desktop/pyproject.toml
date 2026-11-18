@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tg-ascii"
+version = "3.0.0"
+description = "Lightweight green-on-black Telegram desktop client"
+requires-python = ">=3.11"
+dependencies = ["Telethon>=1.45,<2", "prompt-toolkit>=3.0.52,<4", "Pillow==13.0.0", "tkinterdnd2==0.6.4", "sounddevice==0.5.6", "soundfile==0.14.0", "pystray==0.19.5", "qrcode==8.2", "pyphen==0.18.1", "pyobjc-framework-UserNotifications>=10; sys_platform == 'darwin'", "pyobjc-framework-LocalAuthentication>=10; sys_platform == 'darwin'", "winrt-Windows.UI.Notifications>=2,<4; sys_platform == 'win32'", "winrt-Windows.Data.Xml.Dom>=2,<4; sys_platform == 'win32'", "winrt-Windows.Foundation>=2,<4; sys_platform == 'win32'", "winrt-Windows.Foundation.Collections>=2,<4; sys_platform == 'win32'"]
+
+[project.optional-dependencies]
+contacts = ["pyobjc-framework-Contacts>=10; sys_platform == 'darwin'", "winrt-Windows.ApplicationModel.Contacts>=2,<4; sys_platform == 'win32'"]
+calls = ["ntgcalls==3.0.5; python_version < '3.15' and sys_platform != 'linux'", "ntgcalls==3.0.7; python_version < '3.15' and sys_platform == 'linux'", "py-tgcalls==3.0.0; python_version < '3.15'", "av>=16,<20", "pyobjc-framework-AVFoundation>=10; sys_platform == 'darwin'"]
+push = ["winrt-Windows.Networking.PushNotifications>=2,<4; sys_platform == 'win32'"]
+animation = ["rlottie-python>=1.3.8,<2", "av>=16,<20", "resvg-py>=0.5,<1"]
+speed = ["cryptg>=0.6,<0.7"]
+
+[project.scripts]
+tg-ascii = "tg_ascii.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["tg_ascii*"]
+
+[tool.setuptools.package-data]
+tg_ascii = ["assets/*.png", "locales/*.json", "locales/*.txt", "interface_templates/*.json", "interface_templates/*.md", "interface_templates/resources/*/*.md"]

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "enabled": true,
+  "events": {
+    "swipe_reply": {
+      "enabled": true,
+      "gesture_enabled": true,
+      "duration_ms": 96,
+      "distance": 80,
+      "threshold": 65,
+      "easing": "linear",
+      "asset": ""
+    }
+  }
+}

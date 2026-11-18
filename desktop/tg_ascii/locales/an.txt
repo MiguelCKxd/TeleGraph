@@ -1,0 +1,666 @@
+0|+ Cuenta
+1|Cuenta
+2|Cuenta desconoixida
+3|Cuenta nueva
+4|Encieta a sesión de nuevo
+5|Sin connexión
+6|Torna ta atra cuenta
+7|Sesión alzada automaticament
+8|As cuentas siguen connectadas en cambiar. Zarrar l'aplicación conserva as sesions.
+9|Ista cuenta ya ye anyadida. Torna y selecciona-la.
+10|Chats
+11|Historias
+12|Achustes
+13|Apariencia
+14|Grandaria d'o texto
+15|Amostrar o texto en ASCII (amaga os emojis)
+16|Enter ninvia mensaches
+17|Lista de chats compacta
+18|Alza os achustes
+19|Achustes alzaus.
+20|O mío perfil
+21|Edita o perfil de Telegram
+22|Nombre
+23|Apellius
+24|Biografía
+25|Nombre d'usuario
+26|Alza o nombre y a biografía
+27|Cambia o nombre d'usuario
+28|Cambia a foto
+29|Perfil actualizau.
+30|O nombre ye obligatorio.
+31|O nombre d'usuario ha de tener 5–32 letras, numeros u guions baixos.
+32|Tría una imachen PNG u JPEG.
+33|Imachens
+34|Contactos
+35|Anyade un contacto
+36|Telefono con prefixo d'o país
+37|Alza o contacto
+38|Contacto alzau.
+39|Telegram pide que tornes a intentar-lo mas tardi.
+40|No s'ha trobau garra cuenta accesible con ixe numero.
+41|Chat nuevo
+42|Ubre o chat
+43|Usuario (@nombre) u telefono (+prefixo):
+44|Introduz un @usuario u telefono con prefixo d'o país.
+45|Grupo nuevo
+46|Grupo nuevo con os contactos seleccionaus
+47|Nombre d'o grupo:
+48|Selecciona os participants en a lista.
+49|Escribe un titol y selecciona os participants.
+50|Creyando o grupo...
+51|Grupo creyau; no s'ha puesto convidar a bels usuarios.
+52|Telegram no ha tornau o grupo. Actualiza antes de tornar a intentar-lo.
+53|Información
+54|Fixa / Desfixa
+55|Carpetas
+56|Totz os chats
+57|Carpeta nueva
+58|Carpeta nueva con iste chat
+59|Nombre d'a carpeta (max. 12):
+60|O nombre d'a carpeta ha de tener 1–12 caracters.
+61|No bi ha identificadors de carpeta disponibles.
+62|Selecciona a lo menos un chat.
+63|Cambia o nombre
+64|Anyade o chat actual
+65|Saca o chat actual
+66|Borra a carpeta
+67|Quiers borrar ista carpeta de Telegram? Os chats se conservarán.
+68|Ista carpeta no se puede borrar.
+69|Arrociega un fichero t'o chat ta adchuntar-lo.
+70|Arrocigar no ye disponible en iste ordinador; emplega Adchunta.
+71|Tría primero un chat y asper a que remate a operación actual.
+72|Arrociega un solo fichero por mensache.
+73|Emojis
+74|[Veyer / alzar o fichero]
+75|Visor de fichers
+76|Veyer a imachen / vista previa
+77|Alza o fichero como...
+78|Fichero alzau.
+79|Descargando...
+80|Iste fichero ya no ye disponible.
+81|No bi ha vista previa. Puetz alzar o fichero.
+82|O fichero ye masiau gran ta la vista previa. Alza-lo primero.
+83|A imachen ye masiau gran ta la vista previa.
+84|Vista previa estatica d'o adhesivo u d'o video.
+85|Actualiza as historias
+86|Historia
+87|Fe doble clic ta ubrir una historia.
+88|Historia ubierta.
+89|Clamadas
+90|Ubre Telegram
+91|Quiers ubrir iste contacto en Telegram?
+92|Cargando...
+93|Alzando...
+94|Demostración local
+95|Mensaches alzaus
+96|Ideyas de disenyo
+97|O tuyo Telegram. Nomás o esencial.
+98|Configura l'aplicación (desembolicador)
+99|O tuyo numero de telefono
+100|Codigo de Telegram
+101|Clau de verificación en dos pasos
+102|Remerar as claus de l'aplicación en iste ordinador (sin cifrar)
+103|Incluye + y o prefixo d'o tuyo país. Eixemplo: +34 612 345 678
+104|Introduz o codigo que t'ha ninviau Telegram.
+105|Introduz o tuyo codigo de Telegram.
+106|Contina
+107|Cambia o numero
+108|Encieta a sesión con a tuya propia cuenta.
+109|O codigo ha caducau. Demanda-ne un de nuevo.
+110|Torna a intentar-lo
+111|CONVERSACIONS
+112|Busca chats
+113|Actualiza
+114|Tría un chat
+115|Saca o fichero
+116|[+] Adchunta
+117|Ninvia >
+118|Enter: ninviar / Shift+Enter: linia nueva
+119|Fe clic en un chat ta ubrir-lo.
+120|Chat ubierto. Escribe un mensache u adchunta un fichero.
+121|Cargando os mensaches...
+122|Tría primero un chat.
+123|Tría un fichero
+124|Fichero presto. Preta Ninvia ta ninviar-lo t'o chat indicau alto.
+125|[Fichero]
+126|Fichero adchunto
+127|Puyando o fichero:
+128|Texto masiau largo. Limite:
+129|Tría un fichero normal, no pas una carpeta.
+130|Bi ha una operación en marcha. Quiers zarrar l'aplicación?
+131|Zarrando...
+132|Cargando os chats...
+133|No bi ha mensaches en iste chat.
+134|Ninviando...
+135|Ninviau.
+136|Borrador conservau; revisa o chat antes de tornar a intentar-lo.
+137|Tu
+138|[Adchunto / mensache de servicio]
+139|Connectando con Telegram...
+140|Telegram pide asperar {seconds} segundos antes de tornar a intentar-lo.
+141|No s'ha puesto completar a operación ({error}).
+142|L'API ID ha d'estar un numero entero positivo.
+143|L'API hash ha de tener 32 caracters hexadecimals. Copia-lo entero.
+144|API ID u hash incorrecto. Revisa as credencials de l'aplicación.
+145|Telegram no reconoixe iste numero. Revisa o numero y o prefixo d'o país.
+146|Codigo incorrecto. Torna a intentar-lo.
+147|O codigo ha caducau. Reinicia ta demandar-ne un de nuevo.
+148|Clau incorrecta. Torna a intentar-lo.
+149|No puetz escribir en iste chat.
+150|O mensache supera o limite de Telegram.
+151|Ha fallau a connexión u l'acceso local. Revisa o ret y os permisos.
+152|A sesión ha caducau u s'ha revocau. Reinicia ta encetar-la de nuevo.
+153|Telegram ha invalidau ista sesión. Revisa Achustes > Dispositivos en Telegram.
+154|En ista versión falta a configuración de TG-ASCII. Demanda una versión completa a lo desembolicador.
+155|A configuración incluida en l'aplicación no ye valida. Contacta con o desembolicador.
+156|Cancela
+157|Zarra
+158|Selecciona
+159|Fichers
+160|Quiers substituir iste fichero?
+161|Alza
+162|Ubre
+163|Adhesivos
+164|Emojis personalizaus
+165|Connecta una cuenta ta cargar os paquetz de Telegram.
+166|Recients
+167|Bels emojis requieren Telegram Premium.
+168|Inserta un emoji
+169|Ninvia un adhesivo
+170|L'emoji personalizau ha cambiau. Inserta-lo de nuevo.
+171|Amostrar as vistas previas multimedia en os chats
+172|Chats fixaus locals sin limite (no sincronizaus)
+173|Fixa localment / Desfixa localment
+174|As fixacions locals afectan nomás a ista aplicación. En desactivar-las se restaura l'orden de Telegram.
+175|Sincroniza os contactos de Telegram
+176|Sincronizando os contactos de Telegram...
+177|Contactos sincronizaus: {count}
+178|Notificacions
+179|En iste ordinador
+180|Amostrar notificacions mientres l'aplicación siga en marcha
+181|Amostrar vistas previas d'os mensaches
+182|Reproducir un son
+183|Notificar o chat ubierto
+184|Achustes de Telegram (sincronizaus)
+185|Chats privaus
+186|Grupos
+187|Canals
+188|Activau
+189|Vista previa
+190|Son
+191|Silenciar as historias
+192|Se respectan as excepcions de cada chat configuradas en Telegram. As notificacions se aturan en zarrar l'aplicación.
+193|Mensache nuevo
+194|Tema d'a interficie
+195|Tema d'o logotipo
+196|Fosco
+197|Claro
+198|Sistema
+199|Actualizacions
+200|Tría o ZIP d'una versión u consulta a canal d'o publicador.
+201|Quiers instalar {version} y reiniciar? Se conservarán as cuentas y os achustes.
+202|Preparando l'actualización...
+203|Tría o ZIP d'actualización
+204|Ya tiens a zaguera versión.
+205|Versión disponible: {version}
+206|Descarga y instala
+207|Buscando actualizacions...
+208|Busca actualizacions
+209|Instala o ZIP d'a versión
+210|Versión d'actualización no valida.
+211|As actualizacions requieren HTTPS.
+212|L'actualización supera o limite de grandaria.
+213|O publicador encara no ha configurau una canal d'actualización. Puetz instalar o ZIP d'una versión.
+214|Manifiesto d'actualización no valido.
+215|A suma de comprebación de l'actualización no coincide.
+216|Fichero d'actualización inseguro.
+217|Ista versión ye ta unatro sistema u arquitectura.
+218|Ista versión no ye mas nueva que a instalada.
+219|As actualizacions se pueden instalar en l'aplicación empaquetada, no pas en modo codigo fuent.
+220|No se puede escribir en a carpeta de l'aplicación. Mueve l'aplicación ta una carpeta tuya.
+221|L'aplicación nueva no ha superau a preba d'inicio. L'aplicación instalada no s'ha modificau.
+222|As clamadas nativas no son disponibles en ista versión. Cal integrar y prebar primero un motor d'audio ta ista plataforma.
+223|DEMOSTRACIÓN LOCAL
+224|Formato
+225|Negreta
+226|Cursiva
+227|Subrayau
+228|Rayau
+229|Texto amagau
+230|Monoespacio
+231|Vinclo
+232|Borra o formato
+233|Selecciona primero o texto.
+234|Formato de texto no valido.
+235|Emplega un vinclo https://, http:// u tg://.
+236|Borra primero o formato superposau.
+237|Audio
+238|Grava un mensache de voz
+239|Ninvia un fichero d'audio
+240|Gravando...
+241|Reproducindo...
+242|Presto
+243|Atura
+244|Reproduz
+245|Gravación maxima: 10 minutos. Atura, escuita y dimpués ninvia.
+246|Os components d'audio no son disponibles en ista versión.
+247|Ista versión no puede codificar mensaches de voz Opus.
+248|Desbordamiento d'o microfono. Torna a gravar o mensache.
+249|A gravación ye vueda.
+250|Formato d'audio no compatible. Alza o fichero ta ubrir-lo externament.
+251|Tipo de letra de l'aplicación
+252|Predeterminau
+253|Zarra a sesión d'ista cuenta
+254|Quiers zarrar a sesión de {account}? As atras cuentas seguirán connectadas.
+255|No s'ha puesto zarrar a sesión. A cuenta s'ha conservau.
+256|Ubre Tg-As
+257|Sale de Tg-As
+258|Mantener a connexión en zarrar a finestra
+259|Salir atura as notificacions. Zarrar a finestra mantiene l'aplicación en marcha.
+260|A servilla d'o sistema no ye disponible. L'aplicación ye minimizada y sigue connectada.
+261|Traduz o chat
+262|Traducción
+263|Traducción automatica (Premium)
+264|A traducción automatica d'os chats requiere Telegram Premium.
+265|Traduz os mensaches cargaus y os que plegan. Os orichinals se conservan.
+266|Traducción incompleta. Torna a intentar-lo.
+267|IA de Telegram
+268|Ferramientas de mensache
+269|Resume con a IA de Telegram
+270|Transcribe l'audio
+271|Transcripción pendient. Torna a ubrir ista acción mas tardi.
+272|Telegram procesa iste texto. A disponibilidat y as cuotas dependen d'a tuya cuenta.
+273|Emplega en o borrador
+274|O borrador ha cambiau. O resultau no s'ha aplicau.
+275|Revisa o texto
+276|Anyade emojis
+277|Tg-As ya ye en marcha. Ubre-lo dende a servilla u a barra de fayenas.
+278|Logotipos de l'aplicación
+279|Seleccionau
+280|Busca en Telegram
+281|Busca en o chat
+282|Multimedia compartida
+283|Ordens d'o bot
+284|Accions d'o chat
+285|Silencia
+286|Reactiva o son
+287|Archiva
+288|Saca de l'archivo
+289|Anyade a una carpeta
+290|Borra o chat
+291|Quiers borrar iste chat d'a tuya cuenta? En grupos y canals abandonarás a conversación.
+292|Encara no bi ha carpetas. Creya-ne una en Carpetas.
+293|Foto de perfil
+294|Cabo d'anyo
+295|Estau con emoji
+296|Edita o contacto
+297|Anyade por nombre d'usuario
+298|Tría una persona, no pas una canal u un grupo.
+299|Iste mensache ya no ye disponible en iste chat.
+300|En linia
+301|Zaguera connexión
+302|Connexión recient
+303|Connexión en a zaguera semana
+304|Connexión en o zaguer mes
+305|Fotos
+306|Mensaches de voz
+307|Vinclos
+308|Mensaches
+309|Busca
+310|Mas
+311|Iste bot no ha publicau garra orden.
+312|Responde
+313|Responde a lo mensache
+314|Cancela a respuesta
+315|Reninvia o mensache
+316|Quiers reninviar a {name}?
+317|Edita o mensache
+318|Borra o mensache
+319|Borra ta yo
+320|Borra ta totz
+321|Quiers borrar iste mensache ta totz?
+322|Quiers borrar iste mensache ta tu?
+323|Hora de lectura
+324|Traducción / IA
+325|Substituye l'adchunto
+326|Telegram decide si iste mensache u adchunto se puede editar.
+327|Burbullas de mensache
+328|Encieta a sesión con QR
+329|Ista versión no incluye suporte QR.
+330|Telegram en o tuyo telefono: Achustes → Dispositivos → Vincula un dispositivo d'escritorio.
+331|Chats / Conversación
+332|Fundo d'o chat
+333|Publica una historia
+334|Leyenda
+335|Nomás contactos
+336|Totz
+337|Amigos prochetos
+338|Visible entre 24 horas. Telegram aplica os limites de publicación d'a tuya cuenta.
+339|Quiers publicar {file} ta {audience}?
+340|Historia publicada.
+341|Tría un fichero JPEG, PNG u MP4.
+342|Ubre a miniaplicación
+343|Tría primero un bot.
+344|Iste bot no tiene menú de miniaplicación.
+345|Quiers ubrir a miniaplicación d'iste bot en o navegador con a tuya cuenta de Telegram? Belunas funcions nativas de Telegram podrían no estar disponibles.
+346|No s'ha puesto ubrir o navegador predeterminau.
+347| · Subasta
+348| · Agotau
+349|Un qüestionario no puede permitir que os participants i anyadan respuestas.
+350|Anyade cuentas dende a finestra principal.
+351|Anyadir respuesta
+352|Anyadir paragrafo
+353|Anyadir fayena
+354|Anyadir iste numero de telefono a os tuyos contactos de Telegram?
+355|Adreza (opcional)
+356|Funcions abanzadas
+357|Permitir cambiar o voto
+358|Codigos de países permitius, deseparaus por comas (opcional)
+359|Un articlo ha de tener entre 1 y 32768 caracters.
+360|Votos anonimos
+361|Respuesta
+362|Bloqueyo d'a aplicación
+363|O bloqueyo d'a aplicación ye desactivau.
+364|O bloqueyo d'a aplicación ye activau cada vegada que s'inicia.
+365|A configuración d'o bloqueyo d'a aplicación ye danyada. Restaura a copia de seguranza de app-lock.json antes d'ubrir l'aplicación.
+366|Clau d'a aplicación
+367|Aplicar o cambio d'o campo
+368|Articlo
+369|Articlos
+370|L'autenticación s'ha cancelau u ha fallau.
+371|Autor no disponible
+372|Disponible
+373|Explorar os regalos de colección en reventa
+374|Mercar Stars / Premium · Telegram
+375|Mercar u regalar Stars · Fragment
+376|Historial de clamadas
+377|O historial de clamadas ye desactivau. Puetz activar-lo en Funcions abanzadas.
+378|Catalogo, regalos, reaccions de pago y vinclos oficials de compra.
+379|Cambiar a clau d'a aplicación
+380|Traducción d'o chat
+381|Consultar o saldo de Stars
+382|Lista de fayenas
+383|Os identificadors d'as fayenas d'a lista han d'estar numeros positivos unicos.
+384|Listas de fayenas
+385|Tría 3, 6 u 12 meses.
+386|Tría Markdown u HTML.
+387|Tría una calendata de zarramiento u una duración, no as dos.
+388|Tría una respuesta.
+389|Tría entre 1 y {maximum} Stars.
+390|Tría entre 2 y {maximum} respuestas.
+391|Triar d'os contactos
+392|Triar pestanya
+393|Tría os datos d'o contacto que quiers ninviar.
+394|Tría respuestas correctas validas.
+395|Tría respuestas validas d'a enquesta.
+396|Zarrar dimpués d'ista cantidat de segundos (opcional)
+397|Zarrar enquesta
+398|Zarrar ista enquesta definitivament?
+399|Enquesta zarrada
+400|Texto plegable
+401|Regalo de colección
+402|Regalos de colección en reventa
+403|Confirmar
+404|Confirmar o pago con Stars
+405|Confirma l'importe exacto que amuestra Telegram.
+406|Convertir o regalo en Stars
+407|As coordenadas s'introducen a man. Una ubicación en directo nomás cambia quan l'actualizas explicitament aquí; ista aplicación no sigue o tuyo dispositivo.
+408|Crear / editar en Telegraph
+409|Crear y editar listas de fayenas compartidas; cal Premium pa crear-las.
+410|Crear y ubrir publicacions largas.
+411|Crear, votar y veyer os resultaus.
+412|Pa crear listas de fayenas cal Telegram Premium.
+413|Clau actual d'a aplicación
+414|Duración personalizada…
+415|Días
+416|L'autenticación d'o dispositivo no ye disponible. Emplega a clau d'a aplicación.
+417|Desactivar tot
+418|Desactivar o bloqueyo d'a aplicación
+419|Desactivar os vinclos automaticos
+420|Documento
+421|Editar articlo
+422|Editar lista de fayenas
+423|Editar os campos de texto sin eliminar o formato, as tablas, os vinclos u os medios de l'articlo orichinal.
+424|Activa Traducción d'o chat en Achustes → Funcions abanzadas.
+425|Activar o bloqueyo d'a aplicación
+426|Activa istas funcions en Achustes → Funcions abanzadas.
+427|Activa ista función en Achustes → Funcions abanzadas pa emplegar iste botón.
+428|Introduz una latitut y una longitut validas.
+429|Introduz un numero entero.
+430|Introduz o vinclo d'un articlo de https://telegra.ph/.
+431|As explicacions son disponibles pa os qüestionarios.
+432|Pa un qüestionario, marca os numeros d'as respuestas correctas. Fe clic con o botón dreito en o texto pa dar-le formato u insertar emojis personalizaus.
+433|Regalo
+434|Regalar Premium con Stars
+435|Mensache d'o regalo
+436|Grupo u canal
+437|Amagar d'o mío perfil
+438|Amagar o mío nombre en a clasificación
+439|Amagar o mío nombre en o perfil d'o destinatario
+440|Amagar os resultaus dica que se zarre a enquesta
+441|Horas
+442|Incluyir una millora quan sía disponible
+443|Clau d'a aplicación incorrecta.
+444|Conteniu de l'articlo invalido.
+445|Calendata de zarramiento invalida.
+446|Vinclo de regalo de colección invalido.
+447|Duración invalida.
+448|Vinclo d'invitación invalido.
+449|Duración d'a ubicación en directo invalida.
+450|Duración d'a enquesta invalida.
+451|Pestanya invalida.
+452|Unir-se
+453|Unir-se a o grupo u canal
+454|Mantener o remitente, o destinatario y o mensache orichinals
+455|Latitut
+456|A latitut ha d'estar entre −90 y 90; a longitut, entre −180 y 180.
+457|Vinclos, mencions y etiquetas
+458|Ubicación en directo
+459|En directo · 1 hora
+460|En directo · 15 menutos
+461|En directo · 8 horas
+462|En directo · dica aturar-la
+463|Cargar o historial de clamadas quan ubras a suya pestanya.
+464|Cargar-ne mas
+465|Carga l'articlo completo antes d'editar-lo.
+466|Ubicación
+467|A precisión d'a ubicación ha d'estar entre 0 y 1500 metros.
+468|Ubicacions
+469|Bloqueyar agora
+470|Bloqueyar quan s'amague l'aplicación
+471|Zarrar a sesión dende a finestra principal.
+472|Longitut
+473|Pestanya principal d'o perfil
+474|Mensache
+475|Menutos
+476|Perdidas
+477|Nomás perdidas
+478|Mas opcions
+479|Respuestas multiples
+480|Os míos regalos
+481|Nueva clau d'a aplicación
+482|Nueva lista de fayenas
+483|Nueva enquesta / qüestionario
+484|Pachina siguient
+485|Nomás pueden votar os suscriptors d'o canal que cumplen os requisitos.
+486|Nomás pueden votar os suscriptors que cumplen os requisitos
+487|Nomás l'autor d'a lista de fayenas puede editar a suya estructura.
+488|Nomás puetz editar os tuyos propios articlos.
+489|Nomás puetz cambiar a tuya propia ubicación en directo.
+490|Ubrir vinclos de Telegram, perfils y buscas d'etiquetas.
+491|Ubrir a pachina de verificación d'o pago de Telegram?
+492|Ubrir o chat en una finestra nueva
+493|Ubrir vinclo
+494|Ubrir mapa
+495|Ubrir mensache
+496|Ubrir a subasta oficial d'o regalo
+497|Atros pueden anyadir fayenas
+498|Atros pueden completar fayenas
+499|Difora de l'aplicación: notificacions d'o sistema. Dintro: un aviso en a finestra activa.
+500|Os participants pueden anyadir respuestas
+501|Convertir definitivament iste regalo en {amount} Stars?
+502|Foto
+503|Nombre d'o puesto (opcional)
+504|Aspera antes de tornar a intentar-lo.
+505|Enquesta / qüestionario
+506|Votants d'a enquesta
+507|Enquestas y qüestionarios
+508|Premium · Fragment
+509|Previsualizar o regalo
+510|Pachina anterior
+511|Regalo d'o perfil
+512|As compras son opcionals. O destinatario y o pre se amuestran exactament antes de gastar garra Star.
+513|Pregunta
+514|Qüestionario
+515|Explicación d'o qüestionario
+516|O modo qüestionario requiere a lo menos una respuesta correcta.
+517|Cita
+518|Leyer articlo
+519|Esviellar o catalogo
+520|Restants pa ista cuenta
+521|Recuerda ista clau. Ye independient d'a tuya clau de Telegram y no se puede recuperar.
+522|Eliminar respuesta
+523|Eliminar bloque
+524|Eliminar d'o perfil
+525|Eliminar a zaguera respuesta
+526|Eliminar o bloque triau
+527|Eliminar tot o bloque triau d'iste articlo?
+528|Eliminar ista respuesta? Telegram compreba si puetz eliminar-la.
+529|Eliminar iste elemento d'o tuyo perfil?
+530|Repetir a clau d'a aplicación
+531|Solicitut ninviada. Un administrador l'ha d'aprebar.
+532|Solicitar unir-se
+533|Retirar o voto
+534|Revisar a reacción con Stars
+535|Revisar a compra d'o regalo
+536|Revisa primero o pre d'a transferencia d'iste regalo.
+537|Revisa primero o pre d'a millora d'iste regalo.
+538|Revisar a transferencia
+539|Articlo de dreita a cucha
+540|Alzar articlo
+541|Alzau.
+542|Ninviar reacción con Stars
+543|Ninvia un articlo nativo de Telegram a iste chat u canal. Telegram interpreta o Markdown y l'HTML.
+544|Ninviar articlo
+545|Ninviar lista de fayenas
+546|Ninviar enquesta
+547|Mensache de servicio
+548|Compartir articlo de Telegraph
+549|Compartir contacto
+550|Compartir contactos
+551|Compartir as coordenadas y os puestos que tríes explicitament.
+552|Compartir ubicación
+553|Compartir istas coordenadas con iste chat?
+554|Compartir iste nombre, numero de telefono y tarcheta de contacto con o chat?
+555|Compartir o tuyo numero de telefono con iste bot?
+556|Amostrar-ne menos
+557|Amostrar-ne mas
+558|Amostrar en o mío perfil
+559|Mezclar l'orden d'as respuestas
+560|Reacción con Stars
+561|As reaccions con Stars son disponibles en as publicacions d'os canals.
+562|Stars y regalos
+563|Stars, regalos y Premium
+564|Ubicación fixa
+565|Aturar a ubicación en directo
+566|Deixar de compartir ista ubicación en directo?
+567|Historias y publicacions d'o perfil
+568|As historias son desactivadas. Puetz activar-las en Funcions abanzadas.
+569|Os achustes d'o sistema controlan as bandas de notificación y o permiso. Mantién TG-ASCII funcionando en segundo plano pa recibir nuevos mensaches; as notificacions push con o proceso aturau no son configuradas en ista versión.
+570|Fayena
+571|Telegram Premium · {months} meses
+572|Telegram Stars
+573|Historial de clamadas de Telegram. As clamadas de voz y video requieren un motor de clamadas compatible.
+574|Telegram ha confirmau o pago.
+575|Telegram no ha tornau l'articlo completo. Intenta esviellar-lo.
+576|Guida de formato de Telegram
+577|Regalo de Telegram
+578|Telegram ha desactivau a compra de regalos pa ista cuenta.
+579|Vinclo de Telegram
+580|Telegram requiere un paso adicional de verificación.
+581|Telegram ha tornau un importe de pago invalido.
+582|Vinclo de l'articlo de Telegraph
+583|Os articlos de Telegraph son pachinas web publicas, deseparadas d'os articlos nativos de Telegram. Crea-los u edita-los en l'editor web oficial y dimpués comparte o suyo vinclo aquí.
+584|L'autor d'a lista no permite que atros i anyadan fayenas.
+585|L'autor d'a lista no permite que atros i completen fayenas.
+586|A lista tiene masiau pocas u masiau muitas fayenas.
+587|As claus no coinciden.
+588|A explicación d'o qüestionario permite 200 caracters y dos saltos de linia.
+589|Istas funcions son desactivadas por defecto. Activa-las pa emplegar-las; os datos se cargan quan ubras cada función.
+590|Ista respuesta ya no existe.
+591|Iste articlo ha cambiau en unatro dispositivo. Torna a ubrir l'editor.
+592|Iste campo de l'articlo ya no ye disponible.
+593|Iste campo de l'articlo ye masiau largo.
+594|Iste canal ha desactivau as reaccions con Stars.
+595|Ista lista de fayenas ha cambiau en unatro dispositivo. Torna a ubrir l'editor.
+596|Ista tarcheta de contacto ye masiau larga.
+597|Ista discusión ya no ye disponible.
+598|Iste vinclo de discusión no tiene garra publicación de canal.
+599|Iste regalo no tiene garra subasta activa.
+600|Iste regalo no tiene garra referencia de canal.
+601|Iste regalo no tiene garra referencia de mensache.
+602|Iste regalo no ye disponible pa una compra directa.
+603|Iste regalo requiere Telegram Premium.
+604|L'aplicación actual no admite iste vinclo.
+605|Iste bloqueyo proteche l'acceso a la interficie. No cifra os fichers de sesión de Telegram. Mantién protechius a cuenta d'o tuyo dispositivo y o disco.
+606|Iste mensache ya no ye disponible d'ista forma.
+607|Iste mensache no ye un articlo.
+608|Ista confirmación de pago ha caducau. Torna a revisar o pre.
+609|Iste pago s'ha de completar en a pachina oficial de compra de Telegram.
+610|Ista enquesta no admite cambios en as suyas respuestas.
+611|Ista enquesta no admite nuevas respuestas.
+612|Ista enquesta no permite cambiar ni retirar o tuyo voto.
+613|Ista enquesta ha plegau a o suyo limite de respuestas.
+614|Ista enquesta ye anonima.
+615|Ista enquesta ye zarrada.
+616|Ista publicación ya no ye disponible.
+617|Ista fayena ya no existe.
+618|Titol
+619|Total
+620|Touch ID no ye disponible u no ye configurau
+621|Transferir o regalo
+622|Transferir iste regalo de colección a {recipient}? Isto cambia o suyo propietario.
+623|Transferir a @username
+624|Traducir o historial d'o chat triau con Telegram Premium.
+625|Ubicación no disponible
+626|Desbloqueyar
+627|Desbloqueya l'aplicación pa continar.
+628|Desbloqueyar os tuyos mensaches
+629|Esviellar a ubicación
+630|Stars d'a millora
+631|Millorar o regalo
+632|Emplega a lo menos 8 caracters.
+633|Emplegar l'autenticación d'o dispositivo
+634|Emplegar a millora prepagada pa iste regalo?
+635|Emplega codigos de país de dos letras deseparaus por comas.
+636|Usuario
+637|Verificación
+638|Video
+639|Veyer y publicar historias nomás quan ubras a suya sección.
+640|Veyer o regalo de colección en Telegram
+641|Veyer o mío perfil y o conteniu publico
+642|Veyer os votants
+643|Votar
+644|A votación ye restrinchida a os países triaus por o creador d'a enquesta.
+645|Windows Hello ye ocupau
+646|Windows Hello ye desactivau por a politica d'o sistema
+647|Windows Hello no ye configurau
+648|Windows Hello no ye disponible
+649|Windows Hello: no i hai garra dispositivo disponible
+650|Ya perteneixes a iste grupo u canal.
+651|No puetz zarrar ista enquesta.
+652|Has plegau a o limite de compra d'iste regalo.
+653|Has d'haber-te uniu 24 horas antes de publicar-se ista enquesta.
+654|Te cal un vinclo d'invitación pa un grupo privau.
+655|O tuyo numero de telefono no ye disponible.
+656|[Articlo]
+657|[Audio]
+658|[Documento]
+659|[Foto]
+660|[Video]
+661|vCard (opcional)
+662|{count} Telegram Stars
+663|{count} votos
+664|{field}: emplega entre 1 y {maximum} caracters.
+665|{title}\nDestinatario: {recipient}\nTotal: {amount} Telegram Stars\n\nConfirmar ista compra?

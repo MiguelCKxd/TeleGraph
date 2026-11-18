@@ -1,0 +1,67 @@
+[tool.briefcase]
+project_name = "TG-ASCII"
+bundle = "org.tgas"
+version = "3.0.0"
+url = "https://github.com/MiguelCKxd/TeleGraph"
+license.file = "LICENSE"
+author = "TeleGraph"
+author_email = "build@telegraph.invalid"
+
+[tool.briefcase.app.tg_ascii_mobile]
+formal_name = "TG-ASCII"
+description = "TeleGraph, a lightweight Telegram client for phones and tablets"
+long_description = "TeleGraph for Android and iOS shares its messaging core with the desktop app."
+icon = "icons/tg-ascii"
+sources = ["src/tg_ascii_mobile", "src/tg_ascii", "src/pytgcalls"]
+requires = ["Telethon==1.45.0", "Pillow", "qrcode==8.2", "pyphen==0.18.1"]
+requirement_installer_args = ["--find-links", "wheels"]
+
+[tool.briefcase.app.tg_ascii_mobile.macOS]
+requires = ["toga-cocoa~=0.5.7"]
+
+[tool.briefcase.app.tg_ascii_mobile.iOS]
+requires = ["toga-iOS~=0.5.7"]
+info."NSAppTransportSecurity" = { NSAllowsLocalNetworking = true }
+info."UIStatusBarStyle" = "UIStatusBarStyleLightContent"
+splash_background_color = "#08100c"
+
+[tool.briefcase.app.tg_ascii_mobile.android]
+requires = ["toga-android~=0.5.7"]
+base_theme = "Theme.MaterialComponents.NoActionBar"
+primary_color = "#0e1b13"
+primary_color_dark = "#08100c"
+accent_color = "#8cf5a6"
+splash_background_color = "#08100c"
+build_gradle_dependencies = [
+    "com.google.android.material:material:1.12.0",
+    "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
+    "androidx.webkit:webkit:1.12.1",
+    "com.google.android.gms:play-services-code-scanner:16.1.0",
+    "com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1",
+    "com.google.android.gms:play-services-wearable:20.0.1",
+    "io.github.pytgcalls:ntgcalls:3.0.5",
+]
+
+# Wear OS: a standalone watch app with the same core and a native (Toga) interface;
+# watches have no WebView.
+[tool.briefcase.app.tg_ascii_watch]
+formal_name = "TG-ASCII Watch"
+description = "TeleGraph, a Telegram client for Wear OS"
+long_description = "Read chats, send messages and reply from your watch with TeleGraph."
+icon = "icons/tg-ascii"
+sources = ["src/tg_ascii_watch", "src/tg_ascii_mobile", "src/tg_ascii"]
+requires = ["Telethon==1.45.0", "Pillow", "qrcode==8.2", "pyphen==0.18.1"]
+requirement_installer_args = ["--find-links", "wheels"]
+
+[tool.briefcase.app.tg_ascii_watch.android]
+requires = ["toga-android~=0.5.7"]
+base_theme = "Theme.MaterialComponents.NoActionBar"
+primary_color = "#0e1b13"
+primary_color_dark = "#08100c"
+accent_color = "#8cf5a6"
+splash_background_color = "#08100c"
+min_os_version = "30"
+build_gradle_dependencies = [
+    "com.google.android.material:material:1.12.0",
+    "com.google.android.gms:play-services-wearable:20.0.1",
+]

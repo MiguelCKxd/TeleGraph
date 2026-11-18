@@ -1,0 +1,15 @@
+{
+  "version": "3.0.5+tgascii.volume1",
+  "upstream_tag": "v3.0.5",
+  "upstream_commit": "e8ab467185017827625f664d024824947b5c5d5f",
+  "wheels": {
+    "ntgcalls-3.0.5+tgascii.volume1-cp312-cp312-macosx_14_0_arm64.whl": {
+      "sha256": "b8204c90f90938502960d9f58209c768e4e30772ea0498fea7fb267f745eb330",
+      "bytes": 10863175
+    },
+    "ntgcalls-3.0.5+tgascii.volume1-cp313-cp313-win_amd64.whl": {
+      "sha256": "8932dc7534a1e6ab711884598c5c11144108518624a36572d0c90345e0d44614",
+      "bytes": 11004048
+    }
+  }
+}

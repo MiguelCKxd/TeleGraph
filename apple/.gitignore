@@ -1,0 +1,12 @@
+build/
+logs/
+dist/
+src/tg_ascii/
+src/pytgcalls/
+__pycache__/
+*.pyc
+.DS_Store
+dist/
+src/tg_ascii_mobile/__pycache__/
+.briefcase/
+google-services.json
