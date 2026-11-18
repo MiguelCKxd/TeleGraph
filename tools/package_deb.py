@@ -2,6 +2,8 @@
 
     python3 tools/package_deb.py releases/TeleGraph-<edition>-linux-<arch>.zip
 
+Writes TeleGraph-<edition>-linux-amd64.deb or TeleGraph-<edition>-linux-arm64.deb.
+APT identifies both packages as tg-ascii for upgrades.
 Installs to /opt/tg-ascii, with /usr/bin/tg-ascii, a menu entry and the icon.
 Each user's data stays in ~/.tg-ascii (removing the package keeps it).
 """
@@ -75,7 +77,7 @@ def package(archive, output=None):
             f'Depends: {DEPENDS}\nSection: net\nPriority: optional\n'
             'Description: Unofficial Telegram desktop client with an ASCII look\n'
             ' Chats, folders, media, stickers, notifications, offline use and more.\n', encoding='utf-8')
-        destination = output / f'tg-ascii_{version}_{architecture}.deb'
+        destination = output / f'TeleGraph-{version}-linux-{architecture}.deb'
         subprocess.run(['dpkg-deb', '--root-owner-group', '--build', str(tree), str(destination)], check=True)
         return destination
 

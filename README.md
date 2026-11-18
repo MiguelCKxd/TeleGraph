@@ -8,6 +8,8 @@ En Windows, macOS y Linux, abre TeleGraph e introduce el **API ID** y el **API h
 
 La casilla para recordar las claves es opcional. Si la marcas, TeleGraph guarda la identidad de aplicación en un archivo privado de tu perfil local, sin cifrar, una vez completado el inicio de sesión. Si la dejas desmarcada tendrás que volver a introducir las claves la próxima vez que abras el programa.
 
+En Debian o Ubuntu, instala el archivo de tu arquitectura con `sudo apt install ./TeleGraph-3.0.0.1-linux-amd64.deb` para un PC Intel/AMD o `sudo apt install ./TeleGraph-3.0.0.1-linux-arm64.deb` para ARM64. APT conserva las actualizaciones de instalaciones existentes.
+
 ## Compilar la versión 3.0
 
 Usa un Python con Tk, instala las dependencias descritas abajo y ejecuta `python tools/build_release.py --user-api --output releases` para construir la edición pública. El empaquetador excluye el módulo con las credenciales del editor. Al iniciar la aplicación, el usuario introduce su propia API. En Windows, la arquitectura del intérprete determina la de la descarga.

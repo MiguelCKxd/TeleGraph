@@ -190,21 +190,23 @@ class DebPackageTests(unittest.TestCase):
         from package_deb import package
         import subprocess
         with tempfile.TemporaryDirectory() as folder:
-            archive = Path(folder) / 'TeleGraph-9.9.9-linux-aarch64.zip'
-            with zipfile.ZipFile(archive, 'w') as bundle:
-                info = zipfile.ZipInfo('TeleGraph-9.9.9-linux-aarch64/TG-ASCII')
-                info.external_attr = 0o755 << 16
-                bundle.writestr(info, '#!/bin/sh\n')
-            deb = package(archive)
-            listing = subprocess.run(['dpkg-deb', '-c', str(deb)], capture_output=True, text=True, check=True).stdout
-            for path in ('./opt/tg-ascii/TG-ASCII', './usr/bin/tg-ascii', './usr/share/applications/tg-ascii.desktop',
-                         './usr/share/icons/hicolor/512x512/apps/tg-ascii.png'):
-                self.assertIn(path, listing)
-            fields = subprocess.run(['dpkg-deb', '-f', str(deb), 'Package', 'Version', 'Architecture'],
-                                    capture_output=True, text=True, check=True).stdout
-            self.assertIn('tg-ascii', fields)
-            self.assertIn('9.9.9', fields)
-            self.assertIn('arm64', fields)
+            for machine, architecture in (('aarch64', 'arm64'), ('x86_64', 'amd64')):
+                with self.subTest(machine=machine):
+                    archive = Path(folder) / f'TeleGraph-9.9.9-linux-{machine}.zip'
+                    with zipfile.ZipFile(archive, 'w') as bundle:
+                        info = zipfile.ZipInfo(f'{archive.stem}/TG-ASCII')
+                        info.external_attr = 0o755 << 16
+                        bundle.writestr(info, '#!/bin/sh\n')
+                    deb = package(archive)
+                    self.assertEqual(deb.name, f'TeleGraph-9.9.9-linux-{architecture}.deb')
+                    listing = subprocess.run(['dpkg-deb', '-c', str(deb)], capture_output=True, text=True, check=True).stdout
+                    for path in ('./opt/tg-ascii/TG-ASCII', './usr/bin/tg-ascii', './usr/share/applications/tg-ascii.desktop',
+                                 './usr/share/icons/hicolor/512x512/apps/tg-ascii.png'):
+                        self.assertIn(path, listing)
+                    fields = subprocess.run(['dpkg-deb', '-f', str(deb), 'Package', 'Version', 'Architecture'],
+                                            capture_output=True, text=True, check=True).stdout
+                    self.assertEqual(dict(line.split(': ', 1) for line in fields.splitlines()),
+                                     {'Package': 'tg-ascii', 'Version': '9.9.9', 'Architecture': architecture})
 
 
 if __name__ == '__main__':
