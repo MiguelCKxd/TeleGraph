@@ -10,6 +10,12 @@ from functools import lru_cache
 import unicodedata
 
 MOBILE = {
+    'No se pudo acceder al llavero del dispositivo.': 'Could not access the device keychain.',
+    'Credenciales de Telegram': 'Telegram API credentials',
+    'Obtén el API ID y el API hash de tu aplicación en my.telegram.org.':
+        'Get your application’s API ID and API hash from my.telegram.org.',
+    'Guardar en este dispositivo': 'Save on this device',
+    'Editar credenciales': 'Edit credentials',
     'Iniciar sesion': 'Sign in',
     'Entrar con codigo QR': 'Sign in with QR code',
     'Te hemos enviado el codigo a Telegram o por SMS.': 'The code was sent to your Telegram app or by SMS.',
@@ -120,7 +126,7 @@ def install():
         index.setdefault(_norm(spanish), english)
     for spanish, english in i18n.TRANSLATIONS.items():
         index.setdefault(_norm(spanish), english)
-    for key in web_keys():
+    for key in dict.fromkeys((*web_keys(), *MOBILE)):
         if key in i18n.TRANSLATIONS:
             continue
         english = MOBILE.get(key) or index.get(_norm(key))

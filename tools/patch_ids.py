@@ -459,17 +459,23 @@ elif platform == 'ios':
     import shutil
 
     credentials = build / 'ios' / 'xcode' / 'TGASCII' / 'app' / 'tg_ascii' / '_app_credentials.py'
-    override = os.environ.get('TELEGRAPH_IOS_API_CONFIG')
-    local = Path(override).expanduser() if override else Path.home() / '.tg-ascii-lite' / 'api-ios.json'
-    if override or local.is_file():
-        settings = json.loads(local.read_text())
-        number, secret = int(settings['id']), settings['hash']
-        if number <= 0 or not isinstance(secret, str) or not re.fullmatch('[0-9a-fA-F]{32}', secret):
-            raise ValueError('Invalid Telegram credentials in the iOS API configuration')
-        credentials.chmod(0o600)
-        credentials.write_text(f'API_ID = {number}\nAPI_HASH = {secret!r}\n')
+    if os.environ.get('TG_ASCII_PUBLIC_API') == '1':
+        credentials.unlink(missing_ok=True)
+        credentials.with_suffix('.pyc').unlink(missing_ok=True)
+        for cache in credentials.parent.glob('__pycache__/_app_credentials.*'):
+            cache.unlink()
     else:
-        shutil.copyfile(Path(__file__).resolve().parents[1] / 'src/tg_ascii/_app_credentials.py', credentials)
+        override = os.environ.get('TELEGRAPH_IOS_API_CONFIG')
+        local = Path(override).expanduser() if override else Path.home() / '.tg-ascii-lite' / 'api-ios.json'
+        if override or local.is_file():
+            settings = json.loads(local.read_text())
+            number, secret = int(settings['id']), settings['hash']
+            if number <= 0 or not isinstance(secret, str) or not re.fullmatch('[0-9a-fA-F]{32}', secret):
+                raise ValueError('Invalid Telegram credentials in the iOS API configuration')
+            credentials.chmod(0o600)
+            credentials.write_text(f'API_ID = {number}\nAPI_HASH = {secret!r}\n')
+        else:
+            shutil.copyfile(Path(__file__).resolve().parents[1] / 'src/tg_ascii/_app_credentials.py', credentials)
 
     for project in (build / 'ios' / 'xcode').glob('*.xcodeproj/project.pbxproj'):
         text = project.read_text()

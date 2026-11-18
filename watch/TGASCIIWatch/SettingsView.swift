@@ -9,6 +9,9 @@ struct SettingsView: View {
     @State private var needsPassword = false
     @State private var password = ""
     @State private var matrix: [[Bool]]?
+    @State private var apiID = ""
+    @State private var apiHash = ""
+    @State private var editingCredentials = false
 
     var body: some View {
         ScrollViewReader { reader in
@@ -44,6 +47,26 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(busy)
+                } else if engine.needsCredentials || editingCredentials {
+                    Text(L("Credenciales de Telegram", "Telegram API credentials")).font(Theme.mono(13, bold: true))
+                    Text(L("Obtén el API ID y el API hash de tu aplicación en my.telegram.org.",
+                           "Get your application’s API ID and API hash from my.telegram.org.")).font(Theme.mono(10))
+                    TextField("API ID", text: $apiID)
+                    SecureField("API hash", text: $apiHash)
+                    Button(L("Guardar en este dispositivo", "Save on this device")) {
+                        busy = true
+                        problem = nil
+                        Task {
+                            defer { busy = false }
+                            do {
+                                try await engine.saveCredentials(id: apiID, hash: apiHash)
+                                apiHash = ""
+                                apiID = ""
+                                editingCredentials = false
+                            } catch { problem = error.localizedDescription }
+                        }
+                    }
+                    .disabled(busy || apiID.isEmpty || apiHash.isEmpty)
                 } else if needsPassword {
                     SecureField(L("Contraseña", "Password"), text: $password).font(Theme.mono(13))
                     Button(L("Continuar", "Continue")) {
@@ -80,6 +103,13 @@ struct SettingsView: View {
                                "In Telegram, open Settings, Devices, and Link Desktop Device to scan the code."))
                             .font(Theme.mono(10))
                     }
+                    if engine.personalAPI == true {
+                        Button(L("Editar credenciales", "Edit credentials")) {
+                            editingCredentials = true
+                            problem = nil
+                        }
+                        .disabled(busy)
+                    }
                     Button(L("Mostrar código QR", "Show QR code")) { beginLink(scannable: true) }
                         .disabled(busy)
                     Button(L("Vincular con el iPhone", "Link with the iPhone")) { beginLink(scannable: false) }
@@ -91,6 +121,7 @@ struct SettingsView: View {
                 Text(problem).font(Theme.mono(10)).foregroundStyle(Theme.muted)
             }
         }
+        .onDisappear { apiHash = ""; apiID = "" }
         .navigationTitle(L("Ajustes", "Settings"))
         .task { await engine.refresh() }
     }

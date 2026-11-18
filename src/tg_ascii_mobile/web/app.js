@@ -524,7 +524,7 @@ function adopt(snapshot) {
     state.view = 'chats';
   }
   Object.assign(state, {
-    stage: snapshot.stage, error: snapshot.error, connection: snapshot.connection,
+    stage: snapshot.stage, error: snapshot.error, connection: snapshot.connection, personal_api: snapshot.personal_api === true,
     accounts: snapshot.accounts, settings: snapshot.settings, version: snapshot.version,
     language: snapshot.language, rtl: snapshot.rtl, locked: snapshot.locked, lock_enabled: snapshot.lock_enabled,
     appearance: snapshot.appearance || {}, lock: snapshot.lock || {},
@@ -725,6 +725,25 @@ function loginView() {
   };
   if (state.busy || state.stage === 'loading') {
     wrap.append(h('div', { class: 'spinner' }, t('Conectando...') + ' '));
+  } else if (state.stage === 'credentials') {
+    const id = h('input', {type: 'text', inputmode: 'numeric', autocomplete: 'off', required: true,
+      pattern: '[0-9]+', 'aria-label': 'API ID'});
+    const hash = h('input', {type: 'password', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false',
+      required: true, pattern: '[0-9a-fA-F]{32}', 'aria-label': 'API hash'});
+    const save = h('button', {type: 'submit', class: 'btn primary'}, t('Guardar en este dispositivo'));
+    const message = h('p', {class: 'error', role: 'alert'});
+    wrap.append(h('h2', {}, t('Credenciales de Telegram')),
+      h('p', {}, t('Obtén el API ID y el API hash de tu aplicación en my.telegram.org.')),
+      button('my.telegram.org', () => openUrl('https://my.telegram.org/apps')),
+      h('form', {class: 'field', onsubmit: async (event) => {
+        event.preventDefault();
+        if (save.disabled) return;
+        save.disabled = true;
+        message.textContent = '';
+        try { await api('login.credentials', {api_id: id.value.trim(), api_hash: hash.value.trim()}); }
+        catch (error) { message.textContent = error.message; }
+        finally { save.disabled = false; }
+      }}, labelled('API ID', id), labelled('API hash', hash), save, message));
   } else if (state.stage === 'phone') {
     wrap.append(h('h2', {}, t('Iniciar sesion')), ...form('phone', t('Numero de telefono'), 'tel', 'login.phone',
       t('Include + and your country calling code. Example: +1 202 555 0123'), 'tel'),
@@ -745,6 +764,9 @@ function loginView() {
       button(t('Volver'), () => { api('login.qr_cancel'); state.stage = 'phone'; render(); }));
   } else {
     wrap.append(h('p', { class: 'error' }, state.error || t('Error')), button(t('Reintentar'), () => api('retry'), 'primary'));
+  }
+  if (state.personal_api && ['phone', 'error'].includes(state.stage) && !state.busy) {
+    wrap.append(button(t('Editar credenciales'), () => attempt(() => api('login.edit_credentials'))));
   }
   if (state.error && state.stage !== 'error' && !state.busy) wrap.append(h('p', { class: 'error' }, state.error));
   const accounts = state.accounts.filter((item) => item.label && !item.current);

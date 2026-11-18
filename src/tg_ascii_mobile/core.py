@@ -147,6 +147,7 @@ class Core:
         self.token = secrets.token_urlsafe(32)
         self.subscribers = set()
         self.stage, self.error = 'loading', ''
+        self.personal_api = False
         self.connection = 'connecting'
         self.accounts = self.prefs = self.outbox = None
         self.chats, self.previews, self.histories = [], {}, {}
@@ -363,6 +364,14 @@ class Core:
     def make_accounts(self):
         from tg_ascii.accounts import Accounts
         from tg_ascii.desktop_service import DesktopService
+        from importlib import import_module
+        try:
+            app = import_module('tg_ascii._app_credentials')
+        except ModuleNotFoundError as exc:
+            if exc.name != 'tg_ascii._app_credentials':
+                raise
+            app = None
+        self.personal_api = not (getattr(app, 'API_ID', None) or getattr(app, 'API_HASH', None))
         self.accounts = Accounts(root=self.root, factory=partial(DesktopService, client_factory=self.client_factory))
         self.accounts.on_message = self.on_message
         self.accounts.on_change = self.on_change
@@ -445,6 +454,23 @@ class Core:
 
     async def connect(self):
         from tg_ascii.auth import error_message
+        if self.personal_api and self.accounts.credentials is None:
+            if self.system == 'iOS':
+                from . import ios_credentials
+                try:
+                    self.accounts.credentials = ios_credentials.load()
+                except ValueError as exc:
+                    self.set_stage('error', str(exc))
+                    return
+            else:
+                from tg_ascii.auth import SetupError, load_credentials
+                try:
+                    self.accounts.credentials = load_credentials(self.root)
+                except SetupError:
+                    pass
+            if self.accounts.credentials is None:
+                self.set_stage('credentials')
+                return
         self.set_stage('loading')
         try:
             state = await self.accounts.connect()
@@ -646,7 +672,8 @@ class Core:
         if self.locked or (window_account is not None and window_account != self.account):
             theme = self.prefs.values.get('theme') if self.prefs else None
             return {**snapshot, 'error': '', 'account': None, 'accounts': [], 'settings': {'theme': theme}, 'appearance': {}}
-        return {**snapshot, 'error': self.error, 'account': self.account, 'accounts': self.account_list(),
+        return {**snapshot, 'error': self.error, 'personal_api': self.personal_api,
+                'account': self.account, 'accounts': self.account_list(),
                 'settings': self.settings_snapshot(), 'appearance': self.appearance() if self.prefs else {}}
 
     def settings_snapshot(self):
@@ -1743,6 +1770,26 @@ class Core:
         return [[code, name] for code, name in LANGUAGES.items()]
 
     # sign-in
+    async def api_login_edit_credentials(self):
+        if self.personal_api and self.stage in ('phone', 'error'):
+            self.set_stage('credentials')
+            return True
+        return False
+
+    async def api_login_credentials(self, api_id, api_hash):
+        from tg_ascii.auth import save_credentials, validate_credentials
+        if not self.personal_api or self.stage != 'credentials':
+            return False
+        credentials = validate_credentials(api_id, api_hash)
+        if self.system == 'iOS':
+            from . import ios_credentials
+            ios_credentials.save(credentials)
+        else:
+            save_credentials(self.root, credentials)
+        self.accounts.credentials = credentials
+        await self.connect()
+        return True
+
     async def api_login_phone(self, phone):
         state = await self.accounts.request_code(phone)
         self.set_stage(state)
@@ -4878,6 +4925,9 @@ class Core:
                 pass
         await self.accounts.close()
         if safe_to_wipe(self.root):
+            if self.personal_api and self.system == 'iOS':
+                from . import ios_credentials
+                ios_credentials.delete()
             await asyncio.to_thread(wipe, self.root)
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.loop.create_task(self.boot())

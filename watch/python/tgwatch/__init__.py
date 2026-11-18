@@ -13,11 +13,24 @@ queue (PythonBridge.c).
 import asyncio
 import json
 import os
+import re
 import threading
 import time
 
 _loop = _client = _qr = _secret_mgr = None
 _root = ''
+_personal_credentials = None
+
+
+def _bundled_credentials():
+    try:
+        import _app_credentials as app
+    except ModuleNotFoundError as exc:
+        if exc.name != '_app_credentials':
+            raise
+        return None
+    keys = getattr(app, 'API_ID', None), getattr(app, 'API_HASH', None)
+    return keys if any(keys) else None
 
 
 def start(root):
@@ -215,7 +228,6 @@ async def _login_wait_locked(client, timeout):
     'token accepted' update can arrive late or never, so also ask Telegram
     every few seconds (exporting the token again returns success once accepted)."""
     from telethon import errors, functions, types
-    from _app_credentials import API_ID, API_HASH
     deadline = time.monotonic() + timeout
     while True:
         try:
@@ -226,7 +238,7 @@ async def _login_wait_locked(client, timeout):
         except asyncio.TimeoutError:
             pass
         try:
-            result = await client(functions.auth.ExportLoginTokenRequest(API_ID, API_HASH, except_ids=[]))
+            result = await client(functions.auth.ExportLoginTokenRequest(client.api_id, client.api_hash, except_ids=[]))
             if isinstance(result, types.auth.LoginTokenMigrateTo):
                 await client._switch_dc(result.dc_id)
                 result = await client(functions.auth.ImportLoginTokenRequest(result.token))
@@ -243,14 +255,16 @@ async def _ensure_client():
     global _client, _secret_mgr
     if _client is None:
         from telethon import TelegramClient
-        from _app_credentials import API_ID, API_HASH
+        credentials = _bundled_credentials() or _personal_credentials
+        if credentials is None:
+            raise ValueError('API credentials required')
         options = {}
         transport = os.environ.get('TGW_TRANSPORT', '')
         if transport == 'websocket':
             options['connection'] = _websocket_connection()
         elif transport == 'http':
             options['connection'] = _url_session_connection()
-        _client = TelegramClient(os.path.join(_root, 'watch'), API_ID, API_HASH, device_model='TG-ASCII Apple Watch',
+        _client = TelegramClient(os.path.join(_root, 'watch'), *credentials, device_model='TG-ASCII Apple Watch',
                                  system_version='watchOS', app_version='3.0.0', **options)
     if not _client.is_connected():
         await asyncio.wait_for(_client.connect(), 40)
@@ -278,9 +292,24 @@ def _text(message):
 
 
 async def _handle(body):
-    global _client, _qr, _secret_mgr
-    from telethon import errors
+    global _client, _qr, _secret_mgr, _personal_credentials
     op = body.get('op')
+    if op == 'uses_personal_api':
+        return _bundled_credentials() is None
+    if op == 'configure_api':
+        if _bundled_credentials() is not None:
+            return False
+        number, secret = body.get('api_id'), body.get('api_hash')
+        if (type(number) is not int or not 0 < number < 2**31 or not isinstance(secret, str)
+                or not re.fullmatch(r'[0-9a-fA-F]{32}', secret)):
+            raise ValueError('Invalid API credentials')
+        if _personal_credentials != (number, secret):
+            if _client is not None:
+                await _client.disconnect()
+                _client = _qr = _secret_mgr = None
+            _personal_credentials = number, secret
+        return True
+    from telethon import errors
     client = await _ensure_client()
     if op == 'status':
         authorized = await client.is_user_authorized()

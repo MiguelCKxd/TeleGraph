@@ -10,6 +10,7 @@ rm -rf "$here/src/tg_ascii"
 git -C "$desktop" archive "$ref" tg_ascii | tar -x -C "$here/src"
 git -C "$desktop" rev-parse --short "$ref" > "$here/src/tg_ascii/CORE_REVISION"
 umask 077
+if [[ ${TG_ASCII_PUBLIC_API:-0} != 1 ]]; then
 /usr/bin/python3 - "$here/src/tg_ascii/_app_credentials.py" <<'PY'
 import json, pathlib, sys
 data = json.loads((pathlib.Path.home() / '.tg-ascii-lite' / 'api.json').read_text())
@@ -17,6 +18,9 @@ api_id, api_hash = int(data['id']), str(data['hash'])
 assert api_id > 0 and len(api_hash) == 32
 pathlib.Path(sys.argv[1]).write_text(f'API_ID = {api_id}\nAPI_HASH = {api_hash!r}\n')
 PY
+else
+    rm -f "$here/src/tg_ascii/_app_credentials.py"
+fi
 # PyTgCalls 3.0.0 (LGPL-3.0, pure Python) for group calls and conferences, the
 # exact copy the desktop build tests. Its native engine (ntgcalls) has no
 # Android wheel: tg_ascii_mobile.ntgcalls_android provides it from the AAR.

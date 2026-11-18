@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Security
 
 /// Texts in Spanish or English (the watch follows the device language).
 func L(_ es: String, _ en: String) -> String {
@@ -52,6 +53,45 @@ final class Local: @unchecked Sendable {
     }
 }
 
+/// Application credentials stay in this watch's keychain and are available while unlocked.
+private struct WatchCredentials: Codable {
+    let id: Int
+    let hash: String
+    private static var query: [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: "TeleGraph.watch.telegram-api",
+         kSecAttrAccount as String: "application"]
+    }
+
+    private static var storageError: PhoneError {
+        .failed(L("No se pudo acceder al llavero del reloj.", "Could not access the watch keychain."))
+    }
+
+    static func read() throws -> Self? {
+        var query = Self.query
+        query[kSecReturnData as String] = true
+        var value: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &value)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = value as? Data,
+              let credentials = try? JSONDecoder().decode(Self.self, from: data) else { throw storageError }
+        return credentials
+    }
+
+    func save() throws {
+        let changes: [String: Any] = [
+            kSecValueData as String: try JSONEncoder().encode(self),
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+        let query = Self.query
+        var status = SecItemUpdate(query as CFDictionary, changes as CFDictionary)
+        if status == errSecItemNotFound {
+            status = SecItemAdd(query.merging(changes) { _, new in new } as CFDictionary, nil)
+        }
+        guard status == errSecSuccess else { throw Self.storageError }
+    }
+}
+
 struct LocalStatus: Decodable { let authorized: Bool; let name: String }
 struct LoginStart: Decodable { let url: String; let authorized: Bool?; let matrix: [[Bool]]? }
 struct LoginState: Decodable { let state: String }
@@ -67,6 +107,8 @@ final class Engine: ObservableObject {
     }
     @Published var linked = false        // own connection signed in
     @Published var account = ""
+    @Published var personalAPI: Bool?
+    @Published var needsCredentials = false
 
     func request<T: Decodable>(_ body: [String: Any], as type: T.Type) async throws -> T {
         let local = own
@@ -105,8 +147,38 @@ final class Engine: ObservableObject {
         await refreshLocal()
     }
 
+    private func prepareAPI() async throws -> Bool {
+        let personal = try await Local.shared.request(["op": "uses_personal_api"], as: Bool.self)
+        personalAPI = personal
+        if personal {
+            guard let credentials = try WatchCredentials.read() else {
+                needsCredentials = true
+                return false
+            }
+            _ = try await Local.shared.request(["op": "configure_api", "api_id": credentials.id,
+                                                "api_hash": credentials.hash], as: Bool.self)
+        }
+        needsCredentials = false
+        return true
+    }
+
+    func saveCredentials(id: String, hash: String) async throws {
+        let rawID = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        let secret = hash.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let number = Int32(rawID), number > 0 else {
+            throw PhoneError.failed(L("El API ID debe ser un entero positivo.", "The API ID must be a positive integer."))
+        }
+        guard secret.utf8.count == 32, secret.allSatisfy({ $0.isASCII && $0.isHexDigit }) else {
+            throw PhoneError.failed(L("El API hash debe tener 32 caracteres hexadecimales.", "The API hash must have 32 hexadecimal characters."))
+        }
+        let credentials = WatchCredentials(id: Int(number), hash: secret)
+        try credentials.save()
+        _ = try await prepareAPI()
+    }
+
     private func refreshLocal() async {
         guard own, Local.available else { linked = false; account = ""; return }
+        guard (try? await prepareAPI()) == true else { linked = false; account = ""; return }
         if let status = try? await Local.shared.request(["op": "status"], as: LocalStatus.self), own {
             linked = status.authorized
             account = status.name
@@ -121,6 +193,7 @@ final class Engine: ObservableObject {
         if linking { return "busy" }
         linking = true
         defer { linking = false }
+        guard try await prepareAPI() else { return "credentials" }
         let start = try await Local.shared.request(["op": "login_start", "matrix": showCode != nil], as: LoginStart.self)
         if start.authorized == true { await refreshLocal(); return "ready" }
         if let showCode {

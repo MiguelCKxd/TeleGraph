@@ -12,6 +12,9 @@
 set -euo pipefail
 here=${0:A:h:h}
 platform=${1:?android or iOS}
+if [[ $platform == iOS ]]; then
+  export TG_ASCII_PUBLIC_API=1
+fi
 mode=${2:-debug}
 app=${APP:-tg_ascii_mobile}   # tg_ascii_watch: Wear OS
 cd "$here"
