@@ -19,13 +19,14 @@ El paquete de macOS lleva firma ad hoc. El instalador de Windows se distribuye s
 
 ## Código fuente
 
-El ZIP de código fuente de esta publicación incluye las tres carpetas de la tabla. Las integraciones móviles utilizan el núcleo compartido de escritorio. Para ejecutar el sincronizador del núcleo, sigue las instrucciones de la guía de plataforma desde los clones Git.
+El ZIP de código fuente de la etiqueta 3.0 incluye las carpetas de escritorio, Android y Apple para TestFlight. El IPA de GitHub tiene además su propia fuente identificada en la última fila. Las integraciones móviles utilizan el núcleo compartido de escritorio. Para ejecutar el sincronizador del núcleo, sigue las instrucciones de la guía de plataforma desde los clones Git.
 
 | Entrega | Fuentes incluidas | Revisión identificada por la etiqueta |
 |---|---|---|
 | Escritorio | [Guía y código de escritorio](desktop/) | [escritorio-v3.0.0](https://github.com/MiguelCKxd/TeleGraph/tree/escritorio-v3.0.0) |
 | Android y Wear OS | [Guía y código del teléfono y del reloj](android-wear/) | [movil-v3.0.0-build1](https://github.com/MiguelCKxd/TeleGraph/tree/movil-v3.0.0-build1) |
 | iPhone, iPad y Apple Watch | [Guía y código de la compilación para Apple](apple/) | [apple-v3.0.0-build1](https://github.com/MiguelCKxd/TeleGraph/tree/apple-v3.0.0-build1) |
+| IPA de GitHub para iOS y watchOS, con API propia | [Fuentes del IPA](https://github.com/MiguelCKxd/TeleGraph/tree/apple-ipa-v3.0.0) | [Guía de instalación, configuración de Telegram y compilación](https://github.com/MiguelCKxd/TeleGraph/blob/apple-ipa-v3.0.0/docs/IPA-CON-API-PROPIA.md) |
 
 Para preparar la demo de escritorio con datos de muestra, usa Python con Tk y sigue el README de escritorio. Para iniciar sesión en una compilación propia, configura el identificador y el hash de tu aplicación de Telegram. La guía móvil detalla los requisitos de Briefcase, las herramientas de Android y Apple y los componentes de llamadas.
 
