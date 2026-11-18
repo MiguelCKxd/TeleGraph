@@ -12,7 +12,7 @@ final class Local: @unchecked Sendable {
     static let shared = Local()
     /// The Python sources are only embedded in some builds (WATCH_PYTHON=1).
     static var available: Bool {
-        FileManager.default.fileExists(atPath: (Bundle.main.resourcePath ?? "") + "/app/tgwatch")
+        FileManager.default.fileExists(atPath: (Bundle.main.resourcePath ?? "") + "/app.zip")
     }
     private let queue = DispatchQueue(label: "tgwatch", qos: .userInitiated)
     private var started = false  // Accessed only on queue.

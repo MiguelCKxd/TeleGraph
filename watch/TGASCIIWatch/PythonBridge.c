@@ -38,10 +38,10 @@ static int initialize_python(const char *resources) {
     int length = snprintf(home, sizeof home, "%s/python", resources);
     if (length < 0 || (size_t)length >= sizeof home ||
         PyStatus_Exception(PyConfig_SetBytesString(&config, &config.home, home)) ||
-        !add_path(&config, "%s/python/lib/python3.12", resources) ||
+        !add_path(&config, "%s/python-stdlib.zip", resources) ||
         !add_path(&config, "%s/python/lib/python3.12/lib-dynload", resources) ||
-        !add_path(&config, "%s/app", resources) ||
-        !add_path(&config, "%s/app_packages", resources)) {
+        !add_path(&config, "%s/app.zip", resources) ||
+        !add_path(&config, "%s/app_packages.zip", resources)) {
         PyConfig_Clear(&config);
         return 0;
     }

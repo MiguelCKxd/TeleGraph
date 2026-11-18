@@ -29,8 +29,8 @@ xcodebuild archive -project TG-ASCII.xcodeproj -scheme TG-ASCII -configuration R
 phone="$archive/Products/Applications/TG-ASCII.app"
 watch="$phone/Watch/TGASCIIWatch.app"
 calls="$phone/Frameworks/TeleGraphCalls.framework"
-for file in "$phone/PrivacyInfo.xcprivacy" "$watch/PrivacyInfo.xcprivacy" "$watch/Frameworks/Python.framework/Python" "$watch/app/tgwatch/__init__.py" \
-  "$watch/app_packages/telethon/__init__.py" "$calls/TeleGraphCalls" \
+for file in "$phone/PrivacyInfo.xcprivacy" "$watch/PrivacyInfo.xcprivacy" "$watch/Frameworks/Python.framework/Python" "$watch/app.zip" \
+  "$watch/app_packages.zip" "$watch/python-stdlib.zip" "$calls/TeleGraphCalls" \
   "$calls/PrivacyInfo.xcprivacy" "$phone/Frameworks/_ssl.framework/PrivacyInfo.xcprivacy" \
   "$phone/Frameworks/_hashlib.framework/PrivacyInfo.xcprivacy"; do
   if [[ ! -f "$file" ]]; then
@@ -38,6 +38,13 @@ for file in "$phone/PrivacyInfo.xcprivacy" "$watch/PrivacyInfo.xcprivacy" "$watc
     exit 1
   fi
 done
+/usr/bin/unzip -p "$watch/app.zip" tgwatch/__init__.py >/dev/null
+/usr/bin/unzip -p "$watch/app_packages.zip" telethon/__init__.py >/dev/null
+/usr/bin/unzip -p "$watch/python-stdlib.zip" encodings/__init__.py >/dev/null
+if [[ -n "$(find "$watch" -type f -name '*.py' -print -quit)" ]]; then
+  echo "Loose Python modules in the watch archive" >&2
+  exit 1
+fi
 archs=$(xcrun lipo -archs "$watch/Frameworks/Python.framework/Python")
 for arch in arm64 arm64_32; do
   if [[ " $archs " != *" $arch "* ]]; then
