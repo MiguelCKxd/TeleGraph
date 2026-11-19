@@ -20,11 +20,13 @@ FEATURE = 'process_decoding'
 _enabled = False
 _pool = None
 _broken = False
+_stopping = False
 _lock = threading.Lock()
 
 
 def configure(values):
-    global _enabled
+    global _enabled, _stopping
+    _stopping = False
     features = (values or {}).get('advanced_features') or {}
     _enabled = isinstance(features, dict) and features.get(FEATURE, False) is True
 
@@ -45,6 +47,8 @@ def parallelism(default=2):
 def _get_pool():
     global _pool
     with _lock:
+        if _stopping:
+            raise asyncio.CancelledError
         if _pool is None:
             _pool = ProcessPoolExecutor(max_workers=workers(), mp_context=multiprocessing.get_context('spawn'))
         return _pool
@@ -61,6 +65,8 @@ async def run(function, *args):
         # Something that cannot cross to another process: do this one in a thread.
         return await asyncio.to_thread(function, *args)
     except (BrokenProcessPool, OSError, RuntimeError) as error:
+        if _stopping:
+            raise asyncio.CancelledError from error
         _broken = True
         try:
             from .preferences import data_root
@@ -89,8 +95,21 @@ async def decode_frames(path, size, animated=True):
 
 
 def shutdown():
-    global _pool
+    global _pool, _stopping
     with _lock:
+        _stopping = True
         pool, _pool = _pool, None
-    if pool is not None:
-        pool.shutdown(wait=False, cancel_futures=True)
+    if pool is None:
+        return
+    if hasattr(pool, 'kill_workers'):  # Python 3.14+
+        pool.kill_workers()
+        return
+    # Python 3.11–3.13 have no public API to interrupt a running decoder.
+    # Take just this executor's workers while submissions are excluded.
+    with pool._shutdown_lock:
+        for process in (pool._processes or {}).copy().values():
+            try:
+                process.kill()
+            except (ProcessLookupError, ValueError):
+                pass  # Already exited or reaped by the executor.
+    pool.shutdown(wait=True, cancel_futures=True)

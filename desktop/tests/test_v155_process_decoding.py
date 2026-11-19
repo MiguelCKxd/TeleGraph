@@ -4,6 +4,7 @@ import glob
 import os
 from pathlib import Path
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -50,6 +51,22 @@ class ProcessDecodingTests(unittest.TestCase):
             frames, got_durations = asyncio.run(decode_pool.decode_frames(path, (48, 48), True))
             self.assertEqual(got_durations, durations)
             self.assertEqual([frame.tobytes() for frame in frames], [frame.tobytes() for frame in expected])
+
+    def test_shutdown_reaps_a_running_decoder(self):
+        pool = decode_pool._get_pool()
+        # The first result proves the spawned worker is ready for the next job.
+        pool.submit(os.getpid).result(timeout=10)
+        future = pool.submit(time.sleep, 30)
+        worker = next(iter(pool._processes.values()))
+        pid = worker.pid
+        deadline = time.monotonic() + 5
+        while not future.running() and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertTrue(future.running())
+        started = time.monotonic()
+        decode_pool.shutdown()
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertNotIn(pid, [child.pid for child in decode_pool.multiprocessing.active_children()])
 
     def test_falls_back_to_threads_when_the_pool_breaks(self):
         from concurrent.futures.process import BrokenProcessPool
