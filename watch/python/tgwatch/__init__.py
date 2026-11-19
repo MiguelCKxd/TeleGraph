@@ -313,8 +313,12 @@ async def _handle(body):
             _secret_mgr.purge_all()
         _client = _qr = _secret_mgr = None
         return {'ok': True}
+    if op == 'move_pin':
+        from .pin_order import move_pinned
+        await move_pinned(client, int(body['peer']), int(body['direction']))
+        return {'ok': True}
     if op == 'chats':
-        dialogs = await client.get_dialogs(limit=40)
+        dialogs = await client.get_dialogs(limit=40, folder=0)
         items = []
         if _secret_mgr:
             for sc in _secret_mgr.list_chats():
@@ -323,9 +327,9 @@ async def _handle(body):
                               'preview': hist[-1].text if hist else '', 'kind': 'secret'})
         for dialog in dialogs:
             kind = 'channel' if dialog.is_channel and not dialog.is_group else ('group' if dialog.is_group else 'user')
-            items.append({'id': dialog.id, 'name': dialog.name or '', 'unread': dialog.unread_count or 0,
+            items.append({'pinned': bool(dialog.pinned), 'id': dialog.id, 'name': dialog.name or '', 'unread': dialog.unread_count or 0,
                           'preview': _text(dialog.message) if dialog.message else '', 'kind': kind})
-        return items
+        return sorted(items, key=lambda chat: not chat.get('pinned', False))
     if op == 'messages':
         peer = int(body['peer'])
         if _secret_mgr and peer < -2_000_000_000_000:

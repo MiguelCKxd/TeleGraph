@@ -33,6 +33,16 @@ struct ChatListView: View {
                         }
                     }
                 }
+                .swipeActions {
+                    if chat.pinned == true && chat.kind != "secret" {
+                        Button { Task { await move(chat, -1) } } label: {
+                            Label(L("Subir", "Move up"), systemImage: "arrow.up")
+                        }
+                        Button { Task { await move(chat, 1) } } label: {
+                            Label(L("Bajar", "Move down"), systemImage: "arrow.down")
+                        }
+                    }
+                }
                 .listRowBackground(Theme.panel)
             }
         }
@@ -56,6 +66,15 @@ struct ChatListView: View {
             chats = []
             problem = nil
             Task { await load() }
+        }
+    }
+
+    private func move(_ chat: ChatItem, _ direction: Int) async {
+        do {
+            _ = try await engine.request(["op": "move_pin", "peer": chat.id, "direction": direction], as: [String: Bool].self)
+            await load()
+        } catch {
+            problem = error.localizedDescription
         }
     }
 
