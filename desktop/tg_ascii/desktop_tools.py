@@ -1,5 +1,6 @@
 """Composer formatting, audio dialogs, Telegram translation/AI and background mode."""
 from pathlib import Path
+import sys
 import tempfile
 import tkinter as tk
 from tkinter import ttk, font as tkfont
@@ -532,6 +533,7 @@ class DesktopTools:
         # silently and reopening the app (Dock, Finder, Desktop icon) showed
         # nothing while the window was hidden. Tk calls this documented hook.
         try:
+            self.root.createcommand('::tk::mac::Quit', self.mac_quit)
             self.root.createcommand('::tk::mac::ReopenApplication', lambda *_: self.root.after(0, self.reopen_window))
         except tk.TclError:
             pass
@@ -585,13 +587,15 @@ class DesktopTools:
                 self.background = Background(lambda action: self.worker.events.put((lambda _: action(), None)), self.reopen_window, self.close, icon_path=icon)
             # run_detached signals visibility asynchronously on some platforms.
             self.root.after(300, self.hide_if_tray_ready)
+        elif sys.platform == 'darwin':
+            self.hide_if_tray_ready()
         else: self.close()
 
     def hide_if_tray_ready(self):
         if self.closed or self.closing: return
         from .app_lock import lock_on_hide,is_locked
         lock_on_hide(self)
-        if self.background and self.background.ready:
+        if sys.platform == 'darwin' or (self.background and self.background.ready):
             # 1.5.0.1: keep dialogs and chat windows as they were; hide them
             # with the main window and bring them back on reopen.
             hidden=[]

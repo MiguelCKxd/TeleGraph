@@ -2,6 +2,9 @@
 import asyncio
 import glob
 import os
+import signal
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import time
@@ -67,6 +70,28 @@ class ProcessDecodingTests(unittest.TestCase):
         decode_pool.shutdown()
         self.assertLess(time.monotonic() - started, 5)
         self.assertNotIn(pid, [child.pid for child in decode_pool.multiprocessing.active_children()])
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS worker lifetime')
+    def test_worker_exits_when_gui_dies_before_shutdown(self):
+        owner = (
+            "import os, sys, time; from pathlib import Path; "
+            "from tg_ascii.decode_pool import _get_pool; pool = _get_pool(); "
+            "pid = pool.submit(os.getpid).result(timeout=15); "
+            "pool.submit(time.sleep, 30); Path(sys.argv[1]).write_text(str(pid), encoding='ascii'); os._exit(0)"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'worker'
+            subprocess.run([sys.executable, '-c', owner, str(path)], check=True, timeout=20,
+                           cwd=Path(__file__).resolve().parents[1], stderr=subprocess.DEVNULL)
+            worker = int(path.read_text(encoding='ascii'))
+            for _ in range(50):
+                try:
+                    os.kill(worker, 0)
+                except ProcessLookupError:
+                    return
+                time.sleep(.1)
+            os.kill(worker, signal.SIGKILL)
+            self.fail('Decoder survived the GUI process')
 
     def test_falls_back_to_threads_when_the_pool_breaks(self):
         from concurrent.futures.process import BrokenProcessPool
