@@ -5,6 +5,7 @@ import SwiftUI
 
 @main
 struct TGASCIIWatchApp: App {
+    @AppStorage("watchAccent") private var accent = ""
     @StateObject private var phone = Phone.shared
     @StateObject private var engine = Engine.shared
     @StateObject private var appearance = Appearance.shared
@@ -17,8 +18,15 @@ struct TGASCIIWatchApp: App {
             .environmentObject(phone)
             .environmentObject(engine)
             .environmentObject(appearance)
-            .tint(Theme.text)
+            .tint(accent.isEmpty ? Theme.strong : Color(hex: accent))
             .id(appearance.style)  // redraw when the phone's theme changes
+            // The phone's «Disable all animations»: screens change without motion.
+            .transaction { transaction in
+                if appearance.look.reduce_animations == true {
+                    transaction.animation = nil
+                    transaction.disablesAnimations = true
+                }
+            }
             .task { await appearance.refresh() }
         }
     }
@@ -30,6 +38,7 @@ struct Look: Codable, Hashable {
     var bg = "#08100c", panel = "#0e1b13", text = "#8cf5a6", muted = "#80a98c", strong = "#bdffcd"
     var brand_logo: LogoChoice?
     var scale = 1.0, bold = false, italic = false, font = "", bubbles = false
+    var reduce_animations: Bool?  // absent when the phone app is older
 }
 
 @MainActor final class Appearance: ObservableObject {
@@ -71,7 +80,7 @@ enum Theme {
     @MainActor static var panel: Color { Color(hex: look.panel) }
     @MainActor static var text: Color { Color(hex: look.text) }
     @MainActor static var muted: Color { Color(hex: look.muted) }
-    @MainActor static var strong: Color { Color(hex: look.strong) }
+    @MainActor static var strong: Color { Color(hex: UserDefaults.standard.string(forKey: "watchAccent").flatMap { $0.isEmpty ? nil : $0 } ?? look.strong) }
     @MainActor static func mono(_ size: CGFloat, bold: Bool = false) -> Font {
         let design: Font.Design = look.font == "serif" ? .serif : look.font == "sans" ? .default : .monospaced
         var font = Font.system(size: size * CGFloat(look.scale), weight: bold || look.bold ? .bold : .regular, design: design)

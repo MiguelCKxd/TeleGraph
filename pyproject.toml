@@ -13,7 +13,7 @@ description = "TeleGraph, a lightweight Telegram client for phones and tablets"
 long_description = "TeleGraph for Android and iOS shares its messaging core with the desktop app."
 icon = "icons/tg-ascii"
 sources = ["src/tg_ascii_mobile", "src/tg_ascii", "src/pytgcalls"]
-requires = ["Telethon==1.45.0", "Pillow", "qrcode==8.2", "pyphen==0.18.1"]
+requires = ["Telethon==1.45.0", "Pillow", "qrcode==8.2"]
 requirement_installer_args = ["--find-links", "wheels"]
 
 [tool.briefcase.app.tg_ascii_mobile.macOS]
@@ -50,7 +50,7 @@ description = "TeleGraph, a Telegram client for Wear OS"
 long_description = "Read chats, send messages and reply from your watch with TeleGraph."
 icon = "icons/tg-ascii"
 sources = ["src/tg_ascii_watch", "src/tg_ascii_mobile", "src/tg_ascii"]
-requires = ["Telethon==1.45.0", "Pillow", "qrcode==8.2", "pyphen==0.18.1"]
+requires = ["Telethon==1.45.0", "Pillow", "qrcode==8.2"]
 requirement_installer_args = ["--find-links", "wheels"]
 
 [tool.briefcase.app.tg_ascii_watch.android]

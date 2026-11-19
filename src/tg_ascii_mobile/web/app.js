@@ -58,6 +58,7 @@ const KEYS = [
   'Contactos', 'Nuevo chat', 'Carpetas', 'Todos los chats', 'Saved Messages', 'Search in Telegram', 'Profile',
   'Phone number', 'Username', 'Bio', 'Members', 'Member', 'Owner', 'Administrator', 'Open chat', 'Open', 'Play', 'Typing…', 'Draft',
   'Send without sound', 'Schedule message', 'Open link', 'Copy link', 'Introduce un @usuario o telefono internacional.', 'Join',
+  'Accent color', 'Unlimited local pins (device only)', 'Move pin up', 'Move pin down', 'Monochrome', 'Audio',
   'Select', 'Clear history', 'Delete chat', 'Leave', 'Vote', 'Retract vote', 'Pinned messages', 'App lock', 'Lock now',
   'Unlock', 'My profile', 'First name', 'Last name', 'Notificaciones', 'Reactions', 'Poll', 'Go to message', 'Save',
   'Saved.', 'Contraseña incorrecta', 'PIN o contraseña', 'Repetir',
@@ -132,12 +133,18 @@ async function api(method, params = {}) {
   return data.result;
 }
 
+// None of these handlers cancels the gesture. Passive listeners let the browser
+// scroll at once instead of waiting for the page's script on every touch.
+const PASSIVE_EVENTS = new Set(['touchstart', 'touchmove', 'wheel', 'scroll']);
 function h(tag, attrs, ...children) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs || {})) {
     if (value === undefined || value === null || value === false) continue;
     if (key === 'class') node.className = value;
-    else if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+    else if (key.startsWith('on')) {
+      const type = key.slice(2);
+      node.addEventListener(type, value, PASSIVE_EVENTS.has(type) ? { passive: true } : undefined);
+    }
     else if (key === 'html') node.innerHTML = value;
     else node.setAttribute(key, value === true ? '' : value);
   }
@@ -155,6 +162,94 @@ function h(tag, attrs, ...children) {
     });
   }
   return node;
+}
+
+// Pictures served by the app (avatars, previews, custom emoji) load a few at a
+// time, the ones on screen (or about to be) first. The web view opens only six
+// connections to the app and one is the event stream: without a limit, slow
+// first downloads took them all and every tap waited behind them.
+const IMAGE_SLOTS = 3;
+const imageQueue = new Set();
+const imagesToWatch = new Set();
+const imageObservers = new Map();
+let imagesLoading = 0, imageWatchFrame = 0;
+function pumpImages() {
+  const ready = [...imageQueue].reverse();  // the most recently shown first
+  for (const img of ready) {
+    if (imagesLoading >= IMAGE_SLOTS) return;
+    imageQueue.delete(img);
+    const src = img.dataset.src;
+    if (!src || !img.isConnected) continue;
+    img.lazyObserver?.unobserve(img);
+    delete img.dataset.src;
+    imagesLoading++;
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true; clearTimeout(timer); imagesLoading--;
+      img.removeEventListener('load', release); img.removeEventListener('error', release);
+      pumpImages();
+    };
+    const timer = setTimeout(release, 15000);  // a stuck download frees its turn
+    img.addEventListener('load', release); img.addEventListener('error', release);
+    img.src = src;
+  }
+}
+function imageObserver(root) {
+  let observer = imageObservers.get(root);
+  if (!observer) {
+    observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) imageQueue.add(entry.target); else imageQueue.delete(entry.target);
+      }
+      pumpImages();
+    }, { root, rootMargin: keepLoaded() ? '1800px 0px' : '900px 0px' });
+    imageObservers.set(root, observer);
+    for (const [key] of imageObservers) if (key && !key.isConnected) imageObservers.delete(key);
+  }
+  return observer;
+}
+function watchImagesNow() {
+  imageWatchFrame = 0;
+  for (const img of imagesToWatch) {
+    imagesToWatch.delete(img);
+    if (!img.dataset.src || !img.isConnected) continue;
+    const root = img.closest('.scroll, .winbody') || null;
+    if (img.lazyObserver && img.lazyRoot === root) continue;
+    img.lazyObserver?.unobserve(img);
+    img.lazyRoot = root; img.lazyObserver = imageObserver(root);
+    img.lazyObserver.observe(img);
+  }
+}
+function watchImage(img) {
+  imagesToWatch.add(img);
+  if (!imageWatchFrame) imageWatchFrame = requestAnimationFrame(watchImagesNow);
+}
+// Pictures still waiting inside redrawn content (rows reused in a new list).
+function watchImages(scope) {
+  if (!scope) return;
+  for (const img of scope.querySelectorAll('img[data-src]')) watchImage(img);
+}
+// Complex features › Keep more loaded (off by default): work like an installed
+// messaging app. Pictures stay in the web view, the core asks Telegram only
+// for what is new, each chat reopens where it was left.
+const keepLoaded = () => !!(state.settings?.advanced_features?.keep_loaded);
+const photoIds = new Map();      // chat -> its current photo id (from the list)
+const chatPlaces = new Map();    // chat -> distance from the newest message when it was left
+function rememberChatPlace() {
+  const open = state.open, box = document.getElementById('scroll');
+  if (!open || !box || open.thread || !keepLoaded()) return;
+  const distance = box.scrollHeight - box.scrollTop - box.clientHeight;
+  if (distance > 120) chatPlaces.set(state.account + ':' + open.peer, distance);
+  else chatPlaces.delete(state.account + ':' + open.peer);
+  while (chatPlaces.size > 50) chatPlaces.delete(chatPlaces.keys().next().value);
+}
+
+function lazySrc(img, src) {
+  if (!('IntersectionObserver' in window)) { img.src = src; return img; }
+  img.dataset.src = src;
+  watchImage(img);
+  return img;
 }
 
 const button = (label, action, extra = '') => h('button', { class: 'btn ' + extra, onclick: action }, label);
@@ -235,6 +330,11 @@ function applySettings() {
     Object.assign(colors, { panel: blend(bg, fg, .05), selected: blend(bg, fg, .19), muted: blend(bg, fg, .70), line: blend(bg, fg, .30), strong: fg });
     for (const [name, value] of Object.entries(colors)) style.setProperty('--' + name, value);
   } else for (const name of Object.keys(colors)) style.removeProperty('--' + name);
+  if (settings.accent_color) {
+    style.setProperty('--accent', settings.accent_color);
+    style.setProperty('--strong', settings.accent_color);
+    style.setProperty('--selected', blend(colors.bg, settings.accent_color, .35));
+  } else style.removeProperty('--accent');
   // 0 keeps each element's usual shape.
   for (const [key, name] of [['bubble_radius', '--bubble-radius'], ['button_radius', '--button-radius'], ['menu_radius', '--menu-radius']]) {
     if (Number(settings[key]) > 0) style.setProperty(name, Number(settings[key]) + 'px'); else style.removeProperty(name);
@@ -244,6 +344,12 @@ function applySettings() {
   // Text and control effects (Settings › Personalization).
   const fx = look.effects || {}, rootClasses = document.documentElement.classList;
   for (const key of ['text_bold', 'text_italic', 'text_strike', 'text_uppercase']) rootClasses.toggle('fx-' + key.slice(5), !!fx[key]);
+  // Personalization › Disable all animations: transitions stop and animated emoji stay still.
+  const still = !!settings.reduce_animations;
+  if (rootClasses.contains('no-motion') !== still) {
+    rootClasses.toggle('no-motion', still);
+    if (still) for (const node of document.querySelectorAll('.animated')) PLAYING.get(node)?.pause();
+  }
   const effect = (name, value) => { if (value) style.setProperty(name, value); else style.removeProperty(name); };
   effect('--fx-underline', fx.text_underline ? fx.text_underline + 'px' : '');
   effect('--fx-underline-color', fx.text_underline_color || '');
@@ -308,7 +414,7 @@ const EVENTS = {
     if (state.open?.peer === peer && !state.open.thread && !state.editing && !state.open.sending) {
       restoreComposer(document.getElementById('field'), record);
     }
-    drawChatList();
+    queueChatList();
   },
   stage(data) {
     const wasReady = state.stage === 'ready' && state.account === data.account && !unavailableWindow();
@@ -334,16 +440,33 @@ const EVENTS = {
   group_call(snapshot) { receiveGroupCall(snapshot); },
   chats(list) {
     state.chats = list;
-    drawChatList();
-    if (state.folders.length) api('folders', { refresh: false }).then((folders) => { state.folders = folders; drawFolderTabs(); drawChatList(); }, () => {});
+    if (state.open && !state.open.thread) {
+      const current = list.find(item => item.id === state.open.peer);
+      if (current) Object.assign(state.open.chat, current);
+    }
+    if (state.view === 'archived') api('archived').then(chats => { state.archived = chats; queueChatList(); });
+    queueChatList();
+    // Folder membership changes rarely: ask for it at most every few seconds.
+    if (state.folders.length && Date.now() - (state.foldersAt || 0) > 4000) {
+      state.foldersAt = Date.now();
+      api('folders', { refresh: false }).then((folders) => { state.folders = folders; drawFolderTabs(); queueChatList(); }, () => {});
+    }
+  },
+  // A chat changed without moving (read receipts, pending messages).
+  chat_patch(chat) {
+    const index = state.chats.findIndex((item) => item.id === chat.id);
+    if (index < 0) return;
+    state.chats[index] = chat;
+    if (state.open && !state.open.thread && state.open.peer === chat.id) Object.assign(state.open.chat, chat);
+    queueChatList();
   },
   chat(chat) {
     const index = state.chats.findIndex((item) => item.id === chat.id);
     if (index >= 0) state.chats.splice(index, 1);
     const pinned = state.chats.filter((item) => item.pinned).length;
-    if (!chat.archived) state.chats.splice(chat.pinned ? 0 : pinned, 0, chat);
+    if (!chat.archived) state.chats.splice(chat.pinned ? (index >= 0 ? index : 0) : pinned, 0, chat);
     if (state.open && !state.open.thread && state.open.peer === chat.id) Object.assign(state.open.chat, chat);
-    drawChatList();
+    queueChatList();
   },
   emoji_status({peer, status}) {
     for (const list of [state.chats, state.archived, state.contacts, state.global?.chats]) {
@@ -369,7 +492,7 @@ const EVENTS = {
       if (state.view === 'profile') render();
     }
     if (state.view === 'contacts') drawContacts();
-    else drawChatList();
+    else queueChatList();
   },
   message({ peer, message }) {
     for (const win of state.windows) if (win.peer === peer && message && !win.messages.some((item) => item.id === message.id)) {
@@ -388,7 +511,12 @@ const EVENTS = {
     // "Activity in the chat list": ··· while someone is typing.
     state.listTyping = state.listTyping || {};
     if (status) state.listTyping[peer] = Date.now() + 6000; else delete state.listTyping[peer];
-    if (state.view === 'chats' && feature('chat_list_activity')) { drawChatList(); setTimeout(() => { if (state.view === 'chats') drawChatList(); }, 6100); }
+    if (state.view === 'chats' && feature('chat_list_activity')) {
+      queueChatList();
+      // One timer clears the expired ··· marks (not one per typing update).
+      clearTimeout(state.listTypingTimer);
+      state.listTypingTimer = setTimeout(() => { if (state.view === 'chats') queueChatList(); }, 6100);
+    }
     if (!state.open || state.open.peer !== peer) return;
     state.open.typing = status;
     clearTimeout(state.open.typingTimer);
@@ -423,9 +551,18 @@ const EVENTS = {
         }
         if (open.translate === translate) Object.assign(open.translated, translated);
       }
-      open.messages = messages;
+      const scroll = document.getElementById('scroll');
+      const atEnd = !scroll || nearBottom(scroll) || Date.now() < (open.stickUntil || 0) || !open.historyLoaded;
+      const oldest = messages.length ? messages[0].id : null;
+      if (!atEnd && oldest !== null) {
+        // Someone reading further up keeps their place and the older pages already loaded.
+        open.messages = [...open.messages.filter((item) => item.id < oldest), ...messages];
+      } else {
+        open.messages = messages;
+        open.done = false;
+      }
       open.historyLoaded = true;
-      drawMessages(true);
+      drawMessages(atEnd);
     }
     for (const win of state.windows) if (win.peer === peer) {
       if (win.translate) {
@@ -602,6 +739,7 @@ async function back(pop = true) {
   }
   if (state.view === 'chat') {
     const open = state.open;
+    rememberChatPlace();
     if (!(await saveDraft()) || state.open !== open || state.view !== 'chat') return;
     state.openRequest = (state.openRequest || 0) + 1;
     api('close', { peer: open?.peer }).catch(() => {});
@@ -764,7 +902,9 @@ function initials(name) {
 function avatar(id, name, extra = '') {
   const box = h('div', { class: 'avatar' + (extra ? ' ' + extra : ''), 'aria-hidden': 'true' }, h('span', {}, initials(name)));
   if (id !== undefined && id !== null && id !== '') {
-    const img = h('img', { alt: '', loading: 'lazy', decoding: 'async', src: '/avatar?' + resourceAuth() + '&peer=' + id + (state.avatarVersion ? '&v=' + state.avatarVersion : '') });
+    const photo = photoIds.get(Number(id));
+    const img = lazySrc(h('img', { alt: '', decoding: 'async' }), '/avatar?' + resourceAuth() + '&peer=' + id +
+      (state.avatarVersion ? '&v=' + state.avatarVersion : '') + (photo ? '&p=' + photo : ''));
     img.onload = () => box.classList.add('photo');
     img.onerror = () => img.remove();
     box.append(img);
@@ -851,14 +991,72 @@ function drawFolderTabs() {
 
 // Last message of a chat: waiting to be sent, sent, read (as in Telegram).
 const TICKS = { pending: '◷', failed: '⚠', sent: '✓', read: '✓✓' };
+
+// Puts exactly `nodes` in `parent`, in this order, touching only what changed.
+// Rows and messages that stay keep their pictures, players and animations
+// (no reload, no flicker, no lost scroll position).
+function reconcile(parent, nodes) {
+  let cursor = parent.firstChild;
+  for (const node of nodes) {
+    if (node === cursor) { cursor = cursor.nextSibling; continue; }
+    parent.insertBefore(node, cursor);
+  }
+  while (cursor) { const next = cursor.nextSibling; cursor.remove(); cursor = next; }
+}
+
+// Several updates in the same frame (typing, new messages, read receipts) draw the list once.
+let chatListFrame = 0;
+function queueChatList() {
+  if (chatListFrame) return;
+  chatListFrame = requestAnimationFrame(() => { chatListFrame = 0; drawChatList(); });
+}
+
+// Rows already drawn, by chat: reused while what they show is the same.
+const chatRows = { context: '', rows: new Map() };
+function chatRow(chat, mode, selecting) {
+  const unread = chat.unread || (chat.unread_mark ? '•' : '');
+  let timer = null, held = false;
+  const chosen = selecting && state.chatSelection.has(chat.id);
+  const activity = feature('chat_list_activity');
+  return peerControl({ class: 'row peer-control' + (state.open && state.open.peer === chat.id && mode !== 'forward' ? ' on' : '') + (chosen ? ' selected' : ''),
+    onclick: () => { if (held) return; if (selecting) { toggleChatSelected(chat.id); return; } mode === 'forward' ? forwardTo(chat) : openChat(chat.id); },
+    oncontextmenu: (event) => { event.preventDefault(); if (mode !== 'forward') chatMenu(chat); },
+    ontouchstart: () => { held = false; timer = setTimeout(() => { held = true; if (mode !== 'forward') chatMenu(chat); }, 550); },
+    ontouchend: () => clearTimeout(timer), ontouchmove: () => clearTimeout(timer) },
+    selecting ? h('span', { class: 'mark' }, chosen ? '☑' : '☐') : null,
+    avatar(chat.id, chat.name),
+    h('div', { class: 'body' },
+      h('div', { class: 'top' }, nameWithStatus(chat.name, chat.emoji_status, true, selecting ? !!chosen : null),
+        activity && (state.listTyping || {})[chat.id] > Date.now() ? h('span', { class: 'activity' }, '···')
+          : activity && chat.online ? h('span', { class: 'activity online', title: t('Online') }, '●') : null,
+        chat.status ? h('span', { class: 'tick ' + chat.status }, TICKS[chat.status]) : null,
+        h('span', { class: 'when' }, shortTime(chat.date))),
+      h('div', { class: 'bottom' },
+        state.drafts[chat.id]?.text ? h('span', { class: 'preview draft' }, t('Draft') + ': ' + state.drafts[chat.id].text)
+          : chat.draft && !state.drafts[chat.id]
+            ? h('span', { class: 'preview draft' }, t('Draft') + ': ' + chat.draft)
+            : h('span', { class: 'preview' }, (chat.out ? t('Tu') + ': ' : ''), richText(chat.preview || '', chat.emojis || [], false)),
+        chat.pinned || chat.muted ? h('span', { class: 'flags' }, (chat.pinned ? '*' : '') + (chat.muted ? '~' : '')) : null,
+        unread ? h('span', { class: 'badge' + (chat.muted ? ' muted' : '') }, unread) : null)));
+}
+
 function drawChatList() {
   const list = document.getElementById('chatlist');
   if (!list) return;
   const query = state.search.trim().toLowerCase();
   const mode = listMode();
   let source = mode === 'archived' ? (state.archived || []) : state.chats;
+  for (const chat of source) if (chat.photo) photoIds.set(chat.id, chat.photo);
   const folder = mode === 'chats' && state.folder !== null ? state.folders.find((item) => item.id === state.folder) : null;
-  if (folder) { const ids = new Set(folder.chats); source = source.filter((chat) => ids.has(chat.id)); }
+  if (folder) {
+    const ids = new Set(folder.chats);
+    source = source.filter(chat => ids.has(chat.id));
+    if (!state.settings.local_pins) {
+      const rank = new Map((folder.pins || []).map((peer, index) => [peer, index]));
+      source = source.map(chat => ({...chat, pinFolder: folder.id, pinned: rank.has(chat.id)}))
+        .sort((a, b) => (rank.get(a.id) ?? rank.size) - (rank.get(b.id) ?? rank.size));
+    }
+  }
   const chats = source.filter((chat) => !query || chat.name.toLowerCase().includes(query));
   if (!chats.length) {
     const loading = !source.length && !folder && state.connection !== 'offline' && (mode !== 'archived' || state.archived === null);
@@ -869,33 +1067,24 @@ function drawChatList() {
   const top = list.scrollTop;
   state.visibleChats = chats.map((chat) => chat.id);
   const selecting = mode !== 'forward' && state.chatSelection;
-  list.replaceChildren(...chats.map((chat) => {
-    const unread = chat.unread || (chat.unread_mark ? '•' : '');
-    let timer = null, held = false;
-    const chosen = selecting && state.chatSelection.has(chat.id);
-    const row = peerControl({ class: 'row peer-control' + (state.open && state.open.peer === chat.id && mode !== 'forward' ? ' on' : '') + (chosen ? ' selected' : ''),
-      onclick: () => { if (held) return; if (selecting) { toggleChatSelected(chat.id); return; } mode === 'forward' ? forwardTo(chat) : openChat(chat.id); },
-      oncontextmenu: (event) => { event.preventDefault(); if (mode !== 'forward') chatMenu(chat); },
-      ontouchstart: () => { held = false; timer = setTimeout(() => { held = true; if (mode !== 'forward') chatMenu(chat); }, 550); },
-      ontouchend: () => clearTimeout(timer), ontouchmove: () => clearTimeout(timer) },
-      selecting ? h('span', { class: 'mark' }, chosen ? '☑' : '☐') : null,
-      avatar(chat.id, chat.name),
-      h('div', { class: 'body' },
-        h('div', { class: 'top' }, nameWithStatus(chat.name, chat.emoji_status, true, selecting ? !!chosen : null),
-          feature('chat_list_activity') && (state.listTyping || {})[chat.id] > Date.now() ? h('span', { class: 'activity' }, '···')
-            : feature('chat_list_activity') && chat.online ? h('span', { class: 'activity online', title: t('Online') }, '●') : null,
-          chat.status ? h('span', { class: 'tick ' + chat.status }, TICKS[chat.status]) : null,
-          h('span', { class: 'when' }, shortTime(chat.date))),
-        h('div', { class: 'bottom' },
-          state.drafts[chat.id]?.text ? h('span', { class: 'preview draft' }, t('Draft') + ': ' + state.drafts[chat.id].text)
-            : chat.draft && !state.drafts[chat.id]
-              ? h('span', { class: 'preview draft' }, t('Draft') + ': ' + chat.draft)
-              : h('span', { class: 'preview' }, (chat.out ? t('Tu') + ': ' : ''), richText(chat.preview || '', chat.emojis || [], false)),
-          h('span', { class: 'flags' }, (chat.pinned ? '*' : '') + (chat.muted ? '~' : '')),
-          unread ? h('span', { class: 'badge' + (chat.muted ? ' muted' : '') }, unread) : null)));
+  const activity = feature('chat_list_activity');
+  const context = [state.account, mode, !!selecting, state.language, state.rtl, state.avatarVersion || 0, activity,
+    state.settings?.ascii_text, animationEnabled(), new Date().toDateString()].join('|');
+  if (context !== chatRows.context) { chatRows.context = context; chatRows.rows.clear(); }
+  const now = Date.now(), kept = new Map();
+  const rows = chats.map((chat) => {
+    const key = JSON.stringify(chat) + '\u0001' + (state.open?.peer === chat.id) + (selecting ? state.chatSelection.has(chat.id) : '') +
+      (activity && (state.listTyping || {})[chat.id] > now) + '\u0001' + (state.drafts[chat.id]?.text ?? '\u0002') + '\u0001' + shortTime(chat.date);
+    const known = chatRows.rows.get(chat.id);
+    const row = known && known.key === key && !kept.has(chat.id) ? known.node : chatRow(chat, mode, selecting);
+    kept.set(chat.id, { key, node: row });
     return row;
-  }));
-  list.scrollTop = top;
+  });
+  chatRows.rows = kept;
+  reconcile(list, rows);
+  watchImages(list);
+  reviveAnimations(list);
+  if (list.scrollTop !== top) list.scrollTop = top;
   if (query.length >= 2 && mode === 'chats') drawGlobal(list, query);
 }
 
@@ -962,6 +1151,19 @@ async function restartApp() {
   setTimeout(() => location.reload(), 300);
 }
 
+function folderPin(chat, changes) {
+  return attempt(() => api('folder_pin', {folder: chat.pinFolder, peer: chat.id, account: state.account, ...changes}),
+    folders => { state.folders = folders; queueChatList(); });
+}
+
+function pinMoves(chat) {
+  if (!chat.pinned || (chat.kind === 'secret' && !state.settings.local_pins)) return [];
+  return [[-1, 'Move pin up'], [1, 'Move pin down']].map(([direction, label]) =>
+    [t(label), () => chat.pinFolder != null ? folderPin(chat, {direction}) : attempt(() => api('move_pin', {peer: chat.id, direction, account: state.account}), async () => {
+      if (chat.archived) { state.archived = await api('archived'); queueChatList(); }
+    })]);
+}
+
 function chatMenu(chat) {
   const read = chat.unread || chat.unread_mark;
   sheet(nameWithStatus(chat.name, chat.emoji_status), [
@@ -970,13 +1172,14 @@ function chatMenu(chat) {
     [read ? t('Marcar como leido') : t('Marcar como no leido'), () => read
       ? attempt(() => api('mark_read_chat', { peer: chat.id }), queuedNote)
       : attempt(() => api('mark_unread', { peer: chat.id, unread: true }), queuedNote)],
-    [chat.pinned ? t('Desfijar') : t('Fijar'), () => attempt(() => api('pin_chat', { peer: chat.id, pinned: !chat.pinned }), queuedNote)],
+    [chat.pinned ? t('Desfijar') : t('Fijar'), () => chat.pinFolder != null ? folderPin(chat, {pinned: !chat.pinned}) : attempt(() => api('pin_chat', { peer: chat.id, pinned: !chat.pinned }), queuedNote)],
     [chat.muted ? t('Activar sonido') : t('Silenciar'), () => muteSheet(chat)],
     [t('Notifications'), () => chatNotifications(chat)],
     [chat.archived ? t('Desarchivar') : t('Archivar'), () => attempt(() => api('archive_chat', { peer: chat.id, archived: !chat.archived }), (result) => {
       queuedNote(result); if (state.view === 'archived') { state.archived = null; render(); }
     })],
     [t('Add to folder'), () => folderSheet([chat.id])],
+    ...pinMoves(chat),
     ...chatTools(chat, false),
     ...leaveItems(chat, false),
   ]);
@@ -1204,6 +1407,7 @@ async function openChat(peer, navigate = true, known = null, preview = false) {
   const account = state.account;
   const request = state.openRequest = (state.openRequest || 0) + 1;
   const current = () => account === state.account && request === state.openRequest && !state.locked && !unavailableWindow();
+  rememberChatPlace();
   if (state.open && !(await saveDraft())) return;
   if (!current()) return;
   // The fresh history event can arrive before the request returns its cached page.
@@ -1375,7 +1579,7 @@ function chatView() {
   if (!thread) setTimeout(drawHeaderStatus, 0);
   const scroll = h('div', { class: 'scroll chat-scroll' + (state.settings.bubbles ? ' bubbles' : ''), id: 'scroll',
     style: chatBackdrop(state.open.peer) ? 'background-image:' + chatBackdrop(state.open.peer) : null,
-    onscroll: (event) => { if (event.target.scrollTop < 60) loadOlder(); updateDownButton(); },
+    onscroll: (event) => chatScrolled(event.target),
     // The person scrolls: stop keeping the newest message in view.
     ontouchmove: () => { if (state.open) state.open.stickUntil = 0; },
     onwheel: () => { if (state.open) state.open.stickUntil = 0; } },
@@ -1385,10 +1589,35 @@ function chatView() {
     const box = document.getElementById('scroll'); box.scrollTop = box.scrollHeight; } }, 'v');
   loadPinned();
   const readonly = chat.kind === 'channel' && false;
-  setTimeout(() => { drawMessages(true); drawOutbox(); }, 0);
+  setTimeout(() => {
+    drawMessages(true); drawOutbox();
+    // Once, when the chat is opened (not on later redraws of the same screen).
+    const key = state.account + ':' + open.peer;
+    const place = keepLoaded() && !thread && !open.placed ? chatPlaces.get(key) : undefined;
+    open.placed = true;
+    const box = document.getElementById('scroll');
+    if (place !== undefined && box && state.open === open) {
+      chatPlaces.delete(key);
+      box.scrollTop = Math.max(0, box.scrollHeight - box.clientHeight - place);
+      open.stickUntil = 0;
+    }
+  }, 0);
   const selectionBar = h('div', { class: 'selection-bar', id: 'selection-bar', hidden: true });
   setTimeout(drawSelection, 0);
   return [bar, previewBar, pinned, selectionBar, scroll, down, readonly ? h('div', { class: 'readonly' }, t('Este chat es de solo lectura.')) : composer()].filter(Boolean);
+}
+
+// At most once per frame: ask for older messages well before the top is reached
+// (about two screens ahead), so scrolling up never stops at an empty edge.
+let chatScrollFrame = 0;
+function chatScrolled(box) {
+  if (chatScrollFrame) return;
+  chatScrollFrame = requestAnimationFrame(() => {
+    chatScrollFrame = 0;
+    if (!box.isConnected) return;
+    if (box.scrollTop < Math.max(600, box.clientHeight * 2)) loadOlder();
+    updateDownButton();
+  });
 }
 
 function updateDownButton() {
@@ -1513,7 +1742,7 @@ function conversationMenu(chat) {
     person ? [t('Share contact'), () => shareContacts([chat.id])] : null,
     [chat.muted ? t('Activar sonido') : t('Silenciar'), () => muteSheet(chat)],
     [t('Notifications'), () => chatNotifications(chat)],
-    [chat.pinned ? t('Desfijar') : t('Fijar'), () => attempt(() => api('pin_chat', { peer: chat.id, pinned: !chat.pinned }), (result) => { chat.pinned = !chat.pinned; queuedNote(result); })],
+    [chat.pinned ? t('Desfijar') : t('Fijar'), () => attempt(() => api('pin_chat', { peer: chat.id, pinned: !chat.pinned }), (result) => { queuedNote(result); })],
     [chat.archived ? t('Desarchivar') : t('Archivar'), () => attempt(() => api('archive_chat', { peer: chat.id, archived: !chat.archived }), (result) => { chat.archived = !chat.archived; queuedNote(result); })],
     [t('Add to folder'), () => folderSheet([chat.id])],
     ...leaveItems(chat, true),
@@ -2395,8 +2624,8 @@ function nameWithStatus(name, status, action = false, pressed = null) {
 }
 
 function customEmoji(id, alt, open = true) {
-  const img = h('img', { class: 'custom-emoji', src: stickerUrl(id), alt, title: alt,
-    onerror: () => img.replaceWith(document.createTextNode(alt)) });
+  const img = lazySrc(h('img', { class: 'custom-emoji', alt, title: alt, decoding: 'async',
+    onerror: () => img.replaceWith(document.createTextNode(alt)) }), stickerUrl(id));
   animated(img, id);
   if (!open) return img;
   // The animation and its fallback may replace the image while the control has focus.
@@ -2418,11 +2647,27 @@ let alphaDecodeQueue = Promise.resolve();
 const animationObserver = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
   for (const entry of entries) {
     const player = PLAYING.get(entry.target);
-    if (player) { if (entry.isIntersecting) player.play(); else player.pause(); continue; }
+    if (player) { if (entry.isIntersecting && animationEnabled()) player.play(); else player.pause(); continue; }
     if (entry.isIntersecting) startAnimation(entry.target);
   }
 }, { rootMargin: '80px' }) : null;
-function animationEnabled() { return !(state.settings && state.settings.animated_emoji === false) && window.lottie; }
+function animationEnabled() {
+  const settings = state.settings || {};
+  return settings.animated_emoji !== false && !settings.reduce_animations;
+}
+// The Lottie player (about 150 KB of script) loads the first time an animated
+// sticker or emoji is shown, not with the app.
+let lottieLoading = null;
+function ensureLottie() {
+  if (window.lottie) return Promise.resolve(window.lottie);
+  lottieLoading ||= new Promise((resolve) => {
+    const script = h('script', { src: 'vendor/lottie_light.min.js' });
+    script.onload = () => resolve(window.lottie || null);
+    script.onerror = () => { lottieLoading = null; resolve(null); };
+    document.head.append(script);
+  });
+  return lottieLoading;
+}
 function animated(img, id) {
   if (!animationObserver || !id) return;
   img.dataset.anim = id;
@@ -2480,9 +2725,11 @@ async function startAnimation(img) {
   const animation = await loadAnimation(id);
   if (!animation || !img.isConnected) { animationObserver.unobserve(img); return; }
   const box = h('span', { class: img.className + ' animated', title: img.title,
-    role: img.alt ? 'img' : null, 'aria-label': img.alt || null });
+    role: img.alt ? 'img' : null, 'aria-label': img.alt || null, 'data-anim-id': id });
+  const lottie = animation.kind === 'lottie' ? await ensureLottie() : null;
+  if (animation.kind === 'lottie' && (!lottie || !img.isConnected)) { animationObserver.unobserve(img); return; }
   if (animation.kind === 'lottie') {
-    const player = window.lottie.loadAnimation({ container: box, renderer: 'svg', loop: true, autoplay: true,
+    const player = lottie.loadAnimation({ container: box, renderer: 'svg', loop: true, autoplay: true,
       animationData: animation.data, rendererSettings: { preserveAspectRatio: 'xMidYMid meet', progressiveLoad: true } });
     PLAYING.set(box, { play: () => player.play(), pause: () => player.pause(), destroy: () => player.destroy() });
   } else if (animation.kind === 'alpha') {
@@ -2515,6 +2762,23 @@ const animationCleanup = new MutationObserver(records => {
   }
 });
 animationCleanup.observe(document.body, {subtree: true, childList: true});
+
+// Rows and messages reused after a redraw: animations stopped while they were
+// off the page start again (from the still picture, as the first time).
+function reviveAnimations(scope) {
+  if (!animationObserver || !scope) return;
+  for (const element of scope.querySelectorAll('.animated, [data-anim]')) {
+    if (!element.classList.contains('animated')) { animationObserver.observe(element); continue; }
+    if (PLAYING.has(element)) { animationObserver.observe(element); continue; }
+    const id = element.dataset.animId;
+    if (!id) continue;
+    const alt = element.getAttribute('aria-label') || '';
+    const img = lazySrc(h('img', { class: element.className.replace(/\banimated\b/, '').trim(), alt, title: element.title || null,
+      decoding: 'async', onerror: () => img.replaceWith(document.createTextNode(alt)) }), stickerUrl(id));
+    element.replaceWith(img);
+    animated(img, id);
+  }
+}
 
 function messageBrowserUrl(value) {
   if (!value || /[\s\u0000-\u001f\u007f]/u.test(value)) return null;
@@ -2699,6 +2963,18 @@ function mediaUrl(peer, id, thumb) {
   return '/media?' + resourceAuth() + '&peer=' + peer + '&id=' + id + '&thumb=' + (thumb ? 1 : 0);
 }
 
+// A preview picture that takes its final size before it arrives (the core sends
+// the media's proportions), so loading it never pushes the conversation around.
+function mediaImage(message, src) {
+  const img = lazySrc(h('img', { decoding: 'async', alt: '' }), src);
+  const ratio = message.w > 0 && message.h > 0 ? message.w / message.h : 0;
+  if (ratio) {
+    img.classList.add('sized');
+    img.style.setProperty('--ar', Math.min(4, Math.max(0.25, ratio)).toFixed(4));
+  }
+  return img;
+}
+
 function mediaNode(message) {
   const peer = state.open.peer;
   const wrap = h('div', { class: 'media ' + message.kind,
@@ -2714,8 +2990,8 @@ function mediaNode(message) {
     wrap.append(h('span', { class: 'meta media-placeholder' }, (message.kind === 'video' ? '▶ ' : '▣ ') + t(message.kind === 'video' ? 'Vídeo' : 'Foto')));
     return wrap;
   }
-  const img = h('img', { loading: 'lazy', alt: '', src: mediaUrl(peer, message.id, true),
-    onerror: () => { wrap.replaceChildren(h('span', { class: 'meta' }, '[' + (message.filename || message.kind) + ']')); } });
+  const img = mediaImage(message, mediaUrl(peer, message.id, true));
+  img.addEventListener('error', () => { wrap.replaceChildren(h('span', { class: 'meta' }, '[' + (message.filename || message.kind) + ']')); });
   wrap.append(img);
   if (message.kind === 'sticker' && message.sticker_id) animated(img, message.sticker_id);
   if (message.kind === 'video') wrap.append(h('span', { class: 'play' }, '▶'));
@@ -2807,26 +3083,70 @@ function emptyHistory(view) {
   return h('div', { class: 'empty' }, t(label));
 }
 
+// Message nodes already drawn for the open chat, reused while the message and
+// everything its node shows stay the same: refreshing the history or loading
+// older pages does not rebuild (and reload) the pictures already on screen.
+function messageContext(open) {
+  const settings = state.settings || {};
+  return [state.language, state.rtl, !!state.selection, !!state.groupCallsAvailable, settings.inline_media,
+    settings.ascii_text, animationEnabled(), open.translate || ''].join('|');
+}
+function messageKey(message, open, replied) {
+  return JSON.stringify(message) + '\u0001' + (replied ? JSON.stringify([replied.sender, replied.text, replied.custom_emojis]) : '') +
+    '\u0001' + (state.selection?.has(message.id) ? 1 : 0) + '\u0001' + JSON.stringify(open.translated?.[message.id] ?? null) +
+    '\u0001' + (open.originals?.has(message.id) ? 1 : 0);
+}
+function messageCache(open) {
+  const context = messageContext(open);
+  if (!open.nodeCache || open.nodeCache.context !== context) open.nodeCache = { context, nodes: new Map() };
+  return open.nodeCache;
+}
+function cachedMessageNode(message, open, replied, kept) {
+  const cache = messageCache(open);
+  const key = messageKey(message, open, replied);
+  const known = cache.nodes.get(message.id);
+  const node = known && known.key === key && !kept?.has(message.id) ? known.node : messageNode(message);
+  (kept || cache.nodes).set(message.id, { key, node });
+  return node;
+}
+
 function drawMessages(toBottom) {
   const container = document.getElementById('messages');
   const scroll = document.getElementById('scroll');
   if (!container || !state.open) return;
+  const open = state.open;
   const nodes = [];
-  if (state.open.olderFailed) nodes.push(button(t('Reintentar'), () => loadOlder(true)));
+  if (open.olderFailed) nodes.push(button(t('Reintentar'), () => loadOlder(true)));
+  const byId = new Map(open.messages.map((message) => [message.id, message]));
+  const cache = messageCache(open), kept = new Map();
+  const days = open.dayNodes || new Map(), keptDays = new Map();
   let lastDay = '';
-  for (const message of state.open.messages) {
+  for (const message of open.messages) {
     if (message.date) {
       const day = new Date(message.date * 1000).toDateString();
-      if (day !== lastDay) { nodes.push(h('div', { class: 'day' }, dayLabel(message.date))); lastDay = day; }
+      if (day !== lastDay) {
+        const label = dayLabel(message.date);
+        const known = days.get(day);
+        const node = known && known.textContent === label && !keptDays.has(day) ? known : h('div', { class: 'day' }, label);
+        keptDays.set(day, node);
+        nodes.push(node); lastDay = day;
+      }
     }
-    nodes.push(messageNode(message));
+    nodes.push(cachedMessageNode(message, open, message.reply_to ? byId.get(message.reply_to) : null, kept));
   }
-  if (!nodes.length) nodes.push(emptyHistory(state.open));
+  cache.nodes = kept; open.dayNodes = keptDays;
+  if (!nodes.length) nodes.push(emptyHistory(open));
   const previous = scroll.scrollHeight - scroll.scrollTop;
-  container.replaceChildren(...nodes);
-  if (state.open.translate) translatePending();
-  if (toBottom) { scroll.scrollTop = scroll.scrollHeight; state.open.stickUntil = Date.now() + 5000; }
-  else scroll.scrollTop = scroll.scrollHeight - previous;
+  reconcile(container, nodes);
+  watchImages(container);
+  reviveAnimations(container);
+  if (open.translate) translatePending();
+  if (toBottom) { scroll.scrollTop = scroll.scrollHeight; open.stickUntil = Date.now() + 5000; }
+  else {
+    // Keep the same messages in view (older pages are added above them).
+    const target = scroll.scrollHeight - previous;
+    if (Math.abs(scroll.scrollTop - target) >= 1) scroll.scrollTop = target;
+  }
 }
 // Pictures load after the chat is drawn: stay at the newest message meanwhile.
 document.addEventListener('load', (event) => {
@@ -2839,16 +3159,22 @@ function appendMessage(message) {
   const container = document.getElementById('messages');
   const scroll = document.getElementById('scroll');
   if (!container) return;
+  const open = state.open;
   const stick = nearBottom(scroll) || message.out;
   container.querySelector('.empty')?.remove();
-  container.append(messageNode(message));
-  if (state.open.translate) translatePending();
-  if (stick) { scroll.scrollTop = scroll.scrollHeight; state.open.stickUntil = Date.now() + 5000; }
+  const replied = message.reply_to ? open.messages.find((item) => item.id === message.reply_to) : null;
+  container.append(cachedMessageNode(message, open, replied));
+  if (open.translate) translatePending();
+  if (stick) { scroll.scrollTop = scroll.scrollHeight; open.stickUntil = Date.now() + 5000; }
 }
 
 function replaceMessage(message) {
   const node = document.getElementById('m' + message.id);
-  if (node) node.replaceWith(messageNode(message));
+  if (!node || !state.open) return;
+  const open = state.open;
+  const replied = message.reply_to ? open.messages.find((item) => item.id === message.reply_to) : null;
+  messageCache(open).nodes.delete(message.id);
+  node.replaceWith(cachedMessageNode(message, open, replied));
 }
 
 function drawOutbox() {
@@ -3082,6 +3408,7 @@ function attachMenu() {
   const items = [
     [t('Gallery'), () => chooseFiles('gallery')],
     [t('Camera'), () => chooseFiles('camera')],
+    [t('Audio'), () => chooseFiles('audio', {accept: 'audio/*'})],
     [t('Archivo'), () => chooseFiles('any')],
   ];
   // Telegram accepts polls in groups and channels (and bots / Saved Messages).
@@ -3243,8 +3570,21 @@ function drawWindowMessages(win, toBottom) {
   const body = win.node?.querySelector('.winbody');
   if (!body) return;
   const stick = toBottom || body.scrollHeight - body.scrollTop - body.clientHeight < 80;
-  body.replaceChildren(...(win.messages.length ? win.messages.slice(-200).map((message) => windowMessage(win, message))
-    : [emptyHistory(win)]));
+  // Same reuse as the main chat: unchanged messages keep their node and picture.
+  const context = [state.language, state.settings?.ascii_text, win.translate || ''].join('|');
+  if (!win.nodeCache || win.nodeCache.context !== context) win.nodeCache = { context, nodes: new Map() };
+  const kept = new Map();
+  const nodes = win.messages.slice(-200).map((message) => {
+    const key = JSON.stringify(message) + '\u0001' + JSON.stringify(win.translated?.[message.id] ?? null) + (win.originals?.has(message.id) ? 1 : 0);
+    const known = win.nodeCache.nodes.get(message.id);
+    const node = known && known.key === key && !kept.has(message.id) ? known.node : windowMessage(win, message);
+    kept.set(message.id, { key, node });
+    return node;
+  });
+  win.nodeCache.nodes = kept;
+  reconcile(body, nodes.length ? nodes : [emptyHistory(win)]);
+  watchImages(body);
+  reviveAnimations(body);
   if (stick) body.scrollTop = body.scrollHeight;
   win.node.querySelector('[data-translation-toggle]')?.setAttribute('aria-pressed', String(!!win.translate));
   translatePending(win);
@@ -3257,7 +3597,7 @@ function windowMessage(win, message) {
     onclick: () => windowMessageMenu(win, message), oncontextmenu: (event) => { event.preventDefault(); windowMessageMenu(win, message); } },
     h('div', { class: 'head' }, h('span', { class: 'who' }, message.sender), h('span', {}, message.time)),
     message.visual ? h('div', { class: 'media ' + message.kind, onclick: (event) => { event.stopPropagation(); if (message.kind !== 'sticker') viewer(message, win.peer); } },
-      h('img', { loading: 'lazy', alt: '', src: mediaUrl(win.peer, message.id, true) })) : null,
+      mediaImage(message, mediaUrl(win.peer, message.id, true))) : null,
     text ? messageText(message, win) : null,
     !message.visual && ['file', 'audio'].includes(message.kind)
       ? h('div', { class: 'file' }, h('button', { class: 'btn', onclick: (event) => { event.stopPropagation(); openFile(message, win.peer); } }, t('Open'))) : null,
@@ -3465,7 +3805,7 @@ function appearanceSection(save) {
   const brightness = h('input', { type: 'range', min: 10, max: 100, step: 5, value: 100 - Number(look.dim ?? 55),
     onchange: (event) => saveLook({ dim: 100 - Number(event.target.value) }) });
   return {
-    colors: [color('text_color', t('Text color'), 'text'), color('background_color', t('Background color'), 'bg')],
+    colors: [color('text_color', t('Text color'), 'text'), color('background_color', t('Background color'), 'bg'), color('accent_color', t('Accent color'), 'strong')],
     corners: [slider('bubble_radius', t('Bubble corners')), slider('button_radius', t('Button corners')), slider('menu_radius', t('Menu corners'))],
     typeface: h('div', { class: 'setting' }, h('span', {}, t('Typeface')), fonts),
     backgrounds: [
@@ -5056,6 +5396,9 @@ const MOBILE_FEATURES = [
   ['calls', 'Calls and video', 'Enable calls in Complex features. Microphone and camera start only when you call or answer.'],
   ['chat_list_activity', 'Activity in the chat list', 'Shows ● when a contact is online and ··· while someone is typing, between the chat name and its unread counter.'],
   ['contact_list_details', 'Contact list details', 'Shows profile photo, activity status and Premium emoji status in the contact list.'],
+  // 3.0.0.2, off by default.
+  ['keep_loaded', 'Keep more loaded', 'TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.'],
+  ['preload_startup', 'Prepare content at startup', 'Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.'],
 ];
 function switchSetting(label, enabled, change) {
   return h('div', { class: 'setting' }, h('span', {}, label),
@@ -5063,10 +5406,13 @@ function switchSetting(label, enabled, change) {
       'aria-checked': String(Boolean(enabled)), onclick: change }, enabled ? 'x' : ' '));
 }
 
+// Off unless turned on (the rest are on unless turned off).
+const FEATURES_OFF = new Set(['keep_loaded', 'preload_startup']);
 function complexFeatures(save) {
   const enabled = (state.settings && state.settings.advanced_features) || {};
+  const on = (key) => FEATURES_OFF.has(key) ? enabled[key] === true : enabled[key] !== false;
   return h('div', { class: 'section' }, ...MOBILE_FEATURES.map(([key, label, note]) => h('div', { class: 'setting column' },
-    switchSetting(t(label), enabled[key] !== false, () => save({ advanced_features: { [key]: enabled[key] === false } })),
+    switchSetting(t(label), on(key), () => save({ advanced_features: { [key]: !on(key) } })),
     h('div', { class: 'muted small' }, t(note)))));
 }
 
@@ -5088,7 +5434,7 @@ function logoSettings() {
     const select = (choices, value) => h('select', {onchange: draw}, choices.map(([key, label]) =>
       h('option', {value: key, selected: key === value}, label)));
     const paletteLabels = {default: t('Default'), light: t('Light'), orange: t('Orange'),
-      blue: t('Blue'), red: t('Red'), pink: t('Pink')};
+      blue: t('Blue'), red: t('Red'), pink: t('Pink'), monochrome: t('Monochrome')};
     const variant = select(catalogue.variants, current.variant);
     const color = select(catalogue.colors.map(key => [key, paletteLabels[key]]), current.color);
     const theme = select([['dark', t('Oscuro')], ['light', t('Claro')]], current.theme);
@@ -5298,10 +5644,13 @@ function settingsView() {
     },
     customization: () => {
       const look = appearanceSection(save);
-      return [section(null, button(t('App logos'), () => { state.settingsTab = 'logos'; render(); })),
+      return [section(null, button(t('App logos'), () => { state.settingsTab = 'logos'; render(); }),
+          toggle('reduce_animations', t('Disable all animations')),
+          note(t('Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.'))),
         section(t('Corners'), ...look.corners), section(t('Backgrounds'), ...look.backgrounds), effectsSection()];
     },
     chats: () => [section(null, defaultReactionSetting(), toggle('bubbles', t('Burbujas')), toggle('ascii_text', t('Mostrar el texto solo en ASCII')),
+      toggle('local_pins', t('Unlimited local pins (device only)')),
       toggle('show_seconds', t('Mostrar segundos en la hora')), toggle('animated_emoji', t('Animated emoji')),
       toggle('inline_media', t('Show media previews inside chats')),
       toggle('offline_copy', t('Guardar una copia para usar sin conexion')))],

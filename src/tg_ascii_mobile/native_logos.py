@@ -3,7 +3,7 @@ from tg_ascii.logos import LOGO_PALETTES, VARIANTS
 
 LEGACY = {
     **{color: ('title-short', 'light' if color == 'light' else 'dark', color)
-       for color in LOGO_PALETTES},
+       for color in ('default', 'light', 'orange', 'blue', 'red', 'pink')},
     **{f'{short}_{theme}': (variant, theme, 'default')
        for short, variant in (('ts', 'title-short'), ('tl', 'title-long'),
                               ('ls', 'lower-short'), ('ll', 'lower-long'))

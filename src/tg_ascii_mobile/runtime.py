@@ -7,6 +7,11 @@ _running = None
 
 def get_core(root, system, locale, background_notify=None):
     global _running
+    if system == 'iOS':
+        # macOS exposes the Apache MIME database to stat(), but the iOS
+        # sandbox disallows reading it. Use Python's bundled MIME mappings.
+        import mimetypes
+        mimetypes.knownfiles = []
     from .core import Core
     with _lock:
         if _running is None or not _running.thread.is_alive():

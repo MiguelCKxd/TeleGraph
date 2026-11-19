@@ -4,6 +4,7 @@ import SwiftUI
 /// iPhone app's account.
 struct SettingsView: View {
     @EnvironmentObject var engine: Engine
+    @AppStorage("watchAccent") private var accent = ""
     @State private var busy = false
     @State private var problem: String?
     @State private var needsPassword = false
@@ -21,6 +22,13 @@ struct SettingsView: View {
     private var settings: some View {
         List {
             NavigationLink(L("Logos de la app", "App logos")) { LogoSettings() }
+            Picker(L("Color de realce", "Accent color"), selection: $accent) {
+                Text(L("Del iPhone", "From iPhone")).tag("")
+                Text(L("Azul", "Blue")).tag("#58aaff")
+                Text(L("Verde", "Green")).tag("#8cf5a6")
+                Text(L("Naranja", "Orange")).tag("#ffb347")
+                Text(L("Rosa", "Pink")).tag("#ff9ad5")
+            }
             if !Local.available {
                 Text(L("La conexión propia del reloj llegará en una próxima versión. Ahora el reloj usa la sesión del iPhone.",
                        "The watch's own connection comes in a later version. For now the watch uses the iPhone's session."))
