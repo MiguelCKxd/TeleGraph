@@ -1407,5 +1407,11 @@
   "📸 You took a screenshot.": "📸 Du tok et skjermbilde.",
   "Rotating key...": "Roterer nøkkel...",
   "Rotate key now (PFS)": "Roter nøkkel nå (PFS)",
-  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Opprett kontoen din i den offisielle Telegram-appen for iPhone eller Android. Kom deretter tilbake hit for å logge inn."
+  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Opprett kontoen din i den offisielle Telegram-appen for iPhone eller Android. Kom deretter tilbake hit for å logge inn.",
+  "Disable all animations": "Slå av alle animasjoner",
+  "Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.": "Animerte emoji, klistremerker, overganger og effekter står stille, så appen går jevnt på tregere enheter. Av som standard.",
+  "Keep more loaded": "Hold mer innhold lastet",
+  "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph fungerer som en installert meldingsapp: profilbilder, nylige meldinger, forhåndsvisninger og kontaktinfo ligger klare på enheten, og skjermene åpnes med dem med en gang. Bare det som virkelig er nytt, hentes på nytt. Bruker mer lagring og minne.",
+  "Prepare content at startup": "Forbered innhold ved oppstart",
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Når chattelisten er lastet, forberedes profilbilder, de siste meldingene i de første chattene, forhåndsvisningene og emojiene deres i bakgrunnen. Bruker mer data og batteri ved oppstart."
 }

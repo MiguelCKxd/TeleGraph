@@ -106,7 +106,8 @@ class DemoBackend(DemoFeatures):
     async def chats(self):
         kinds = getattr(self, 'demo_chat_kinds', {})
         return [Chat(key, name, pinned=key in self.demo_pins, kind=kinds.get(key, 'user'))
-                for key, name in self.demo_chat_names.items()]
+                for key in dict.fromkeys([*self.demo_pins, *self.demo_chat_names])
+                for name in [self.demo_chat_names[key]]]
 
     async def history(self, chat_id):
         return list(self.messages[chat_id])

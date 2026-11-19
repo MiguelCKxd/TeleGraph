@@ -6,6 +6,7 @@ from tkinter import ttk
 
 from .app_dialogs import Choice, messagebox, popup_menu
 from .i18n import tr
+from .preferences import animated_emoji_enabled
 
 
 class StickerGrid(ttk.Frame):
@@ -100,7 +101,7 @@ class StickerGrid(ttk.Frame):
                 frames=None
                 if path:
                     size=(self.cell-14,self.cell-14)
-                    enabled=self.app.preferences.values.get('animated_emoji',True)
+                    enabled=animated_emoji_enabled(self.app.preferences.values)
                     if player:frames=await asyncio.to_thread(player.prepare,path,size,enabled)
                     else:frames=await asyncio.to_thread(decode_frames,path,size,animated=enabled)
                 return path,frames
@@ -120,7 +121,7 @@ class StickerGrid(ttk.Frame):
                 from .telegram_extras import emoji_attribute
                 attr=emoji_attribute(doc)
                 tint=app_palette(self.app.preferences.values)['text'] if getattr(attr,'text_color',False) else None
-                photo=self.app.animation_player.photo(path,(self.cell-14,self.cell-14),self.app.preferences.values.get('animated_emoji',True),prepared=frames,tint=tint,owner=self) if path else None
+                photo=self.app.animation_player.photo(path,(self.cell-14,self.cell-14),animated_emoji_enabled(self.app.preferences.values),prepared=frames,tint=tint,owner=self) if path else None
             except (OSError,ValueError,tk.TclError):photo=None
             if photo:self.photos[doc.id]=photo
             else:remember_grid_failure(self,doc.id)

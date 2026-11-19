@@ -16,6 +16,8 @@ def app_palette(values):
     if foreground or background:
         fg,bg=result['text'],result['bg']
         result.update(panel=blend(bg,fg,.05),selected=blend(bg,fg,.19),muted=blend(bg,fg,.70),line=blend(bg,fg,.30),strong=fg)
+    if accent := values.get('accent_color'):
+        result.update(strong=accent, selected=blend(result['bg'], accent, .35))
     return result
 
 

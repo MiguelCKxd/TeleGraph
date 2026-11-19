@@ -1407,5 +1407,11 @@
   "📸 You took a screenshot.": "📸 Bạn đã chụp màn hình.",
   "Rotating key...": "Đang xoay vòng khóa...",
   "Rotate key now (PFS)": "Xoay vòng khóa ngay (PFS)",
-  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Hãy tạo tài khoản trong ứng dụng Telegram chính thức dành cho iPhone hoặc Android, rồi quay lại đây để đăng nhập."
+  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Hãy tạo tài khoản trong ứng dụng Telegram chính thức dành cho iPhone hoặc Android, rồi quay lại đây để đăng nhập.",
+  "Disable all animations": "Tắt mọi hiệu ứng động",
+  "Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.": "Emoji động, nhãn dán, chuyển cảnh và hiệu ứng sẽ đứng yên để ứng dụng chạy mượt trên thiết bị chậm hơn. Mặc định tắt.",
+  "Keep more loaded": "Giữ sẵn nhiều nội dung hơn",
+  "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph hoạt động như một ứng dụng nhắn tin đã cài đặt: ảnh đại diện, tin nhắn gần đây, bản xem trước và thông tin liên hệ được giữ sẵn trên thiết bị này để các màn hình mở ngay lập tức. Chỉ những gì thực sự mới mới được tải lại. Tốn thêm bộ nhớ và dung lượng.",
+  "Prepare content at startup": "Chuẩn bị nội dung khi khởi động",
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Sau khi danh sách trò chuyện tải xong, ảnh đại diện, tin nhắn mới nhất của các cuộc trò chuyện đầu tiên, bản xem trước và emoji sẽ được chuẩn bị ở chế độ nền. Tốn thêm dữ liệu và pin khi khởi động."
 }

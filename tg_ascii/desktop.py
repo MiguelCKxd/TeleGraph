@@ -925,8 +925,9 @@ class Desktop(DesktopFeatures):
         local_pins = self.local_pin_ids()
         from telethon import utils
         pins={utils.get_peer_id(p):i for i,p in enumerate(folder.pinned_peers)} if folder else {}
+        local_rank = {peer: i for i, peer in enumerate(self.local_pins.values.get(self.ui_account, ())) if peer in local_pins}
         tails, emoji_rows = {}, {}
-        for chat in sorted(self.chats, key=lambda c: (c.id not in local_pins, pins.get(c.id,len(pins)) if folder else not c.pinned)):
+        for chat in sorted(self.chats, key=lambda c: (local_rank.get(c.id, len(local_rank)), pins.get(c.id,len(pins)) if folder else not c.pinned)):
             if not in_chat_list(chat, folder, compiled, archive_view):
                 continue
             if term and term not in chat.name.casefold() and term not in single_line(chat.name).casefold():

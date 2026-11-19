@@ -1407,5 +1407,11 @@
   "📸 You took a screenshot.": "📸 التقطتَ لقطة شاشة.",
   "Rotating key...": "جارٍ تدوير المفتاح...",
   "Rotate key now (PFS)": "تدوير المفتاح الآن (PFS)",
-  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "أنشئ حسابك في تطبيق تيليجرام الرسمي على آيفون أو أندرويد، ثم عد إلى هنا لتسجيل الدخول."
+  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "أنشئ حسابك في تطبيق تيليجرام الرسمي على آيفون أو أندرويد، ثم عد إلى هنا لتسجيل الدخول.",
+  "Disable all animations": "إيقاف كل الرسوم المتحركة",
+  "Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.": "تبقى الرموز التعبيرية المتحركة والملصقات والانتقالات والتأثيرات ثابتة ليعمل التطبيق بسلاسة على الأجهزة الأبطأ. معطّل افتراضيًا.",
+  "Keep more loaded": "إبقاء محتوى أكثر محمّلًا",
+  "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "يعمل TeleGraph كتطبيق مراسلة مثبّت: تبقى صور الملفات الشخصية والرسائل الحديثة والمعاينات وبيانات جهات الاتصال جاهزة على هذا الجهاز وتُفتح الشاشات بها فورًا. لا يُطلب من جديد إلا ما هو جديد فعلًا. يستخدم مساحة تخزين وذاكرة أكثر.",
+  "Prepare content at startup": "تجهيز المحتوى عند البدء",
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "بعد تحميل قائمة المحادثات تُجهَّز في الخلفية صور الملفات الشخصية وآخر رسائل المحادثات الأولى ومعايناتها والرموز التعبيرية. يستهلك بيانات وبطارية أكثر عند البدء."
 }

@@ -14,9 +14,12 @@ class LocalPins:
     def toggle(self, account, peer, enabled=False):
         if not enabled:
             raise ValueError('Local pins are disabled')
-        pins = set(self.values.get(account, []))
+        pins = list(self.values.get(account, []))
         if peer in pins: pins.remove(peer)
-        else: pins.add(peer)
-        updated = {**self.values, account: sorted(pins)}
+        else: pins.insert(0, peer)
+        self.save_order(account, pins)
+
+    def save_order(self, account, pins):
+        updated = {**self.values, account: list(dict.fromkeys(pins))}
         if not self.demo: write_json(self.path, updated)
         self.values = updated

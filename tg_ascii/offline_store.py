@@ -51,8 +51,19 @@ def _encode_chats(chats):
     return [encode_record(chat) for chat in chats]
 
 
+def chat_limit():
+    """Chats whose messages the offline copy keeps (more with Keep more loaded)."""
+    from .resources import keep_loaded
+    return MAX_CHATS_WITH_HISTORY * 5 // 2 if keep_loaded() else MAX_CHATS_WITH_HISTORY
+
+
+def message_limit():
+    from .resources import keep_loaded
+    return MAX_MESSAGES * 5 // 2 if keep_loaded() else MAX_MESSAGES
+
+
 def _encode_messages(messages):
-    return [encode_record(message) for message in messages[-MAX_MESSAGES:]]
+    return [encode_record(message) for message in messages[-message_limit():]]
 
 
 def write(root, account, chats, folders, histories):
@@ -133,7 +144,7 @@ def snapshot(app):
     if app.active is not None and app.messages:
         histories[app.active] = list(app.messages)
     # The most recently used chats keep their messages.
-    keep = list(histories)[-MAX_CHATS_WITH_HISTORY:]
+    keep = list(histories)[-chat_limit():]
     return account, list(app.chats), list(getattr(app, 'folder_records', None) or ()), {peer: histories[peer] for peer in keep}
 
 

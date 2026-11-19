@@ -20,6 +20,7 @@ from tkinter import ttk
 from telethon import errors
 
 from .i18n import tr
+from .preferences import animated_emoji_enabled
 
 HISTORY_CHATS = 25
 SPACING = 0.25
@@ -108,7 +109,7 @@ class Preloader:
     async def run(self, chats):
         app, account, backend = self.app, self.account, self.backend
         player = getattr(app, 'animation_player', None)
-        enabled = app.preferences.values.get('animated_emoji', True)
+        enabled = animated_emoji_enabled(app.preferences.values)
         # 1. Avatars of every chat.
         for chat in chats:
             if self.cancelled:

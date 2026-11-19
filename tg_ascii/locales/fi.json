@@ -1407,5 +1407,11 @@
   "📸 You took a screenshot.": "📸 Otit kuvakaappauksen.",
   "Rotating key...": "Kierretään avainta...",
   "Rotate key now (PFS)": "Kierrä avain nyt (PFS)",
-  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Luo tili iPhonen tai Androidin virallisessa Telegram-sovelluksessa ja palaa sitten tänne kirjautumaan."
+  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Luo tili iPhonen tai Androidin virallisessa Telegram-sovelluksessa ja palaa sitten tänne kirjautumaan.",
+  "Disable all animations": "Poista kaikki animaatiot käytöstä",
+  "Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.": "Animoidut emojit, tarrat, siirtymät ja tehosteet pysyvät paikallaan, jotta sovellus toimii sujuvasti hitaammillakin laitteilla. Oletuksena pois päältä.",
+  "Keep more loaded": "Pidä enemmän sisältöä ladattuna",
+  "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph toimii kuin asennettu viestisovellus: profiilikuvat, viimeisimmät viestit, esikatselut ja yhteystiedot pysyvät valmiina tällä laitteella, ja näkymät avautuvat niistä heti. Vain todella uusi pyydetään uudelleen. Käyttää enemmän tallennustilaa ja muistia.",
+  "Prepare content at startup": "Valmistele sisältö käynnistyksessä",
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Kun keskustelulista on ladattu, profiilikuvat, ensimmäisten keskustelujen viimeisimmät viestit, niiden esikatselut ja emojit valmistellaan taustalla. Käynnistyksessä kuluu enemmän dataa ja akkua."
 }

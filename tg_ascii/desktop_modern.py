@@ -19,6 +19,7 @@ EMOJI_CONCURRENCY = 4
 from .interactions import DesktopInteractions
 from .desktop_bot_buttons import DesktopBotButtons
 from .resources import cache_entries, network_slots
+from .preferences import animated_emoji_enabled
 
 
 def privacy_global_fields(premium, config, settings):
@@ -266,7 +267,7 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
             from .animation import emoji_file
             if not hasattr(self,'_emoji_slots'):self._emoji_slots=asyncio.Semaphore(__import__('tg_ascii.resources',fromlist=['x']).network_slots(EMOJI_CONCURRENCY))
             async with self._emoji_slots:return await emoji_file(self,docs[0],account,backend)
-        self.fetch_art((account,'emoji',document,self.preferences.values.get('animated_emoji',True)),fetch,callback,valid=valid)
+        self.fetch_art((account,'emoji',document,animated_emoji_enabled(self.preferences.values)),fetch,callback,valid=valid)
     def label_emoji(self,widget,document,account,backend):
         token=widget._emoji_request=object()
         def current():return widget.winfo_exists() and account==self.ui_account and widget._emoji_request is token and (backend is None or backend is self.service.backend)
@@ -328,7 +329,7 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
                 canvas.itemconfigure(item,text='')
                 canvas.create_image(*coords,image=photo,anchor='nw',tags=canvas.gettags(item))
             self.request_photo(path,size,painted,owner=canvas,valid=current)
-        self.fetch_art((account,peer,message.id,self.preferences.values.get('animated_emoji',True)) if message.media_kind=='sticker' else (account,peer,message.id),fetch,loaded,valid=current)
+        self.fetch_art((account,peer,message.id,animated_emoji_enabled(self.preferences.values)) if message.media_kind=='sticker' else (account,peer,message.id),fetch,loaded,valid=current)
 
     def open_image_message(self,message,peer=None):
         if message.media_kind=='image':

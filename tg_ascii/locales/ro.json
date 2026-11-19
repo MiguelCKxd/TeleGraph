@@ -1407,5 +1407,11 @@
   "📸 You took a screenshot.": "📸 Ai făcut o captură de ecran.",
   "Rotating key...": "Se rotește cheia...",
   "Rotate key now (PFS)": "Rotește cheia acum (PFS)",
-  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Creează un cont în aplicația oficială Telegram pentru iPhone sau Android, apoi revino aici pentru a te conecta."
+  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Creează un cont în aplicația oficială Telegram pentru iPhone sau Android, apoi revino aici pentru a te conecta.",
+  "Disable all animations": "Dezactivează toate animațiile",
+  "Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.": "Emoji animate, autocolantele, tranzițiile și efectele rămân nemișcate, ca aplicația să meargă fluid pe dispozitivele mai lente. Dezactivat implicit.",
+  "Keep more loaded": "Păstrează mai mult conținut încărcat",
+  "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph funcționează ca o aplicație de mesagerie instalată: fotografiile de profil, mesajele recente, previzualizările și datele de contact rămân pregătite pe acest dispozitiv, iar ecranele se deschid imediat. Se cere din nou doar ce este cu adevărat nou. Folosește mai mult spațiu și memorie.",
+  "Prepare content at startup": "Pregătește conținutul la pornire",
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "După încărcarea listei de chaturi, se pregătesc în fundal fotografiile de profil, ultimele mesaje ale primelor chaturi, previzualizările și emoji. La pornire folosește mai multe date și baterie."
 }
