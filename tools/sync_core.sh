@@ -9,6 +9,8 @@ ref=${TG_ASCII_CORE_REF:-version-1.5}
 rm -rf "$here/src/tg_ascii"
 git -C "$desktop" archive "$ref" tg_ascii | tar -x -C "$here/src"
 git -C "$desktop" rev-parse --short "$ref" > "$here/src/tg_ascii/CORE_REVISION"
+# Tk modules cannot run on Android, iOS or the watches: leave them out (3.0.0.2).
+/usr/bin/python3 "$here/tools/prune_core.py" "$here/src/tg_ascii"
 umask 077
 if [[ ${TG_ASCII_PUBLIC_API:-0} != 1 ]]; then
 /usr/bin/python3 - "$here/src/tg_ascii/_app_credentials.py" <<'PY'

@@ -312,12 +312,15 @@ class Core:
         from . import strings
         strings.install()
         first_run = not (self.root / 'preferences.json').exists()
+        from tg_ascii.local_state import LocalPins
+        self.local_pins = LocalPins(self.root)
         self.prefs = Preferences(self.root)
         if first_run:
             language = self.guess_language(LANGUAGES)
             if language:
                 self.prefs.save({'language': language})
         set_language(self.prefs.values['language'])
+        self.apply_keep_loaded()
         self.locked = self.lock_record() is not None
         self.make_accounts()
         _install_window_shim(self)
@@ -511,6 +514,8 @@ class Core:
 
     def load_snapshot(self):
         from tg_ascii import offline_store
+        self.forget_fresh_histories()
+        self.forget_details()
         self.chats, self.histories, self.previews = [], {}, {}
         snapshot = offline_store.read(self.root, self.account)
         if snapshot is not None:
@@ -578,10 +583,11 @@ class Core:
         from tg_ascii.secret_chats import is_secret_peer
         draft_record = (self.secret_draft(chat.id) if is_secret_peer(chat.id)
                         else self.draft_store.get(self.account, chat.id)) or {}
-        return {'status': status,'id': chat.id, 'name': self.text(chat.name), 'unread': chat.unread, 'pinned': chat.pinned,
+        return {'status': status,'id': chat.id, 'name': self.text(chat.name), 'unread': chat.unread, 'pinned': self.is_pinned(chat),
                 'kind': chat.kind, 'muted': chat.muted, 'archived': chat.archived,
                 'username': getattr(chat.entity, 'username', None),
                 'emoji_status': emoji_status_id(chat.entity),
+                'photo': str(self.photo_id(chat.id) or '') or None,
                 'online': type(getattr(chat.entity, 'status', None)).__name__ == 'UserStatusOnline',
                 'unread_mark': chat.unread_mark, 'preview': self.text(preview.get('text', '')),
                 'out': preview.get('out', False), 'date': preview.get('date'),
@@ -599,11 +605,13 @@ class Core:
         if seconds and message.date is not None:
             clock = message.date.astimezone().strftime('%H:%M:%S')
         visual = message.media_kind in VISUAL_KINDS and message.media is not None
+        width, height = media_dimensions(message.media) if visual else (0, 0)
         audio = audio_json(message)
         # A voice message shows its player, not "[File] voice.ogg (size)".
         text = message.raw_text or '' if audio.get('voice') else message.text
         return {'id': message.id, 'sender': self.text(message.sender), 'text': self.text(text),
                 'caption': self.text(message.raw_text or '') if visual else None, 'visual': visual,
+                'w': width, 'h': height,
                 'time': clock, 'date': stamp, 'out': message.outgoing, 'kind': message.media_kind,
                 'filename': message.filename, 'size': message.size, 'reply_to': message.reply_to_id,
                 'thread_root': message.thread_id,
@@ -644,7 +652,13 @@ class Core:
     def outbox_changed(self, account, peer):
         self.emit('outbox', self.outbox_items(account, peer))
         if account == self.account:  # the list's ◷ / ✓ for that chat
-            self.emit('chats', [self.chat_json(item) for item in self.visible_chats()])
+            self.patch_chat(peer)
+
+    def patch_chat(self, peer):
+        """One row of the list changed in place: send that row, not the whole list."""
+        chat = next((item for item in self.chats if item.id == peer), None)
+        if chat is not None and not chat.archived:
+            self.emit('chat_patch', self.chat_json(chat))
 
     def outbox_items(self, account, peer):
         items = self.outbox.pending(account, peer) if self.outbox else []
@@ -681,8 +695,8 @@ class Core:
             return {}
         keys = ('language', 'theme', 'font_size', 'enter_send', 'offline_copy', 'ascii_text',
                 'show_seconds', 'notifications', 'notify_preview', 'bubbles', 'compact',
-                'ask_account_startup', 'animated_emoji', 'notify_sound', 'notify_active', 'inline_media',
-                'text_color', 'background_color', 'bubble_radius', 'button_radius', 'menu_radius')
+                'ask_account_startup', 'animated_emoji', 'reduce_animations', 'notify_sound', 'notify_active', 'inline_media',
+                'local_pins', 'accent_color', 'text_color', 'background_color', 'bubble_radius', 'button_radius', 'menu_radius')
         snapshot = {key: self.prefs.values.get(key) for key in keys}
         snapshot['advanced_features'] = mobile_features(self.prefs.values)
         snapshot['quick_reaction'] = self.default_reaction(self.account)
@@ -718,8 +732,9 @@ class Core:
         if chat is not None:
             if not message.outgoing and (peer != self.open_peer or self.preview) and peer not in self.window_peers:
                 chat.unread += 1
-            self.chats.remove(chat)
-            self.chats.insert(sum(1 for item in self.chats if item.pinned) if not chat.pinned else 0, chat)
+            if not self.is_pinned(chat):
+                self.chats.remove(chat)
+                self.chats.insert(0, chat)
             self.emit('chat', self.chat_json(chat))
         else:
             self.loop.create_task(self.refresh_chats())
@@ -854,6 +869,8 @@ class Core:
             if payload == 'online':
                 self.loop.create_task(self.sync_push_registration())
             if key == self.account:
+                if payload != 'online':
+                    self.forget_fresh_histories()
                 self.connection = payload
                 self.emit('connection', payload)
                 if payload == 'online':
@@ -914,7 +931,7 @@ class Core:
                 marks = backend.__dict__.setdefault('read_max', {})
                 if maximum > marks.get(peer, 0):
                     marks[peer] = maximum
-                    self.emit('chats', [self.chat_json(item) for item in self.visible_chats()])
+                    self.patch_chat(peer)
         elif kind == 'emoji_status':
             peer, status = payload
             chat = next((item for item in self.chats if item.id == peer), None)
@@ -995,7 +1012,11 @@ class Core:
                 del client.iter_dialogs
             except AttributeError:
                 pass
+        if backend is not self.backend:
+            return
         self.chats = chats
+        if self.prefs and self.prefs.values.get('local_pins') and self.account not in self.local_pins.values:
+            self.local_pins.save_order(self.account, [c.id for c in chats if c.pinned])
         from tg_ascii.secret_chats import is_secret_peer
         secret_mgr = getattr(backend, 'secret_chats', None)
         if secret_mgr is not None:
@@ -1015,9 +1036,25 @@ class Core:
         self.previews.update(captured)
         self.emit('chats', [self.chat_json(chat) for chat in self.visible_chats()])
         self.schedule_save()
+        if self.feature('preload_startup'):
+            self.loop.create_task(self.preload())
 
-    def visible_chats(self):
-        return [chat for chat in self.chats if not chat.archived]
+    def local_order(self):
+        if getattr(self, 'prefs', None) and self.prefs.values.get('local_pins'):
+            return self.local_pins.values.get(self.account)
+        return None
+
+    def is_pinned(self, chat):
+        order = self.local_order()
+        return chat.pinned if order is None else chat.id in order
+
+    def visible_chats(self, archived=False):
+        chats = [chat for chat in self.chats if bool(chat.archived) == archived]
+        order = self.local_order()
+        if order is None:
+            return sorted(chats, key=lambda chat: not chat.pinned)
+        ranks = {peer: index for index, peer in enumerate(order)}
+        return sorted(chats, key=lambda chat: ranks.get(chat.id, len(ranks)))
 
     def record_history_change(self, peer, kind, value):
         for account, target, updates in self.history_requests.values():
@@ -1064,6 +1101,7 @@ class Core:
             return
         if backend is not self.backend or self.histories.get(peer) is not previous:
             return
+        self.__dict__.setdefault('history_fresh', {})[peer] = time.monotonic()
         self.histories[peer] = messages
         self.emit('history', {'peer': peer, 'messages': [self.message_json(m) for m in messages],
                               **self.translation_state(peer, messages)})
@@ -1092,7 +1130,7 @@ class Core:
         self.floating_peers.add(peer)
         cached = self.histories.get(peer) or []
         if self.backend is not None:
-            self.loop.create_task(self.reload_and_read(peer) if read else self.reload_history(peer))
+            self.loop.create_task(self.reload_and_read(peer) if read else self.refresh_history(peer))
         chat = next((item for item in self.chats if item.id == peer), None)
         return {'messages': [self.message_json(m) for m in cached], 'chat': self.chat_json(chat) if chat else None,
                 'draft': self.draft_record(peer), **self.translation_state(peer, cached)}
@@ -1202,11 +1240,14 @@ class Core:
                 return '#%02x%02x%02x' % tuple(round(x + (y - x) * weight) for x, y in zip(a, b))
             result['panel'] = blend(result['bg'], result['text'], .05)
             result['muted'] = blend(result['bg'], result['text'], .70)
+        if values.get('accent_color'):
+            result['strong'] = values['accent_color']
         appearance = self.appearance()
         effects = appearance['effects']
         result.update(brand_logo=appearance['brand_logo'], icon=appearance['icon'], scale=max(0.8, min(1.6, int(values.get('font_size') or 12) / 12)),
                       bold=bool(effects.get('text_bold')), italic=bool(effects.get('text_italic')),
-                      font=appearance['font'], bubbles=bool(values.get('bubbles')))
+                      font=appearance['font'], bubbles=bool(values.get('bubbles')),
+                      reduce_animations=bool(values.get('reduce_animations')))
         return result
 
     def publish_wear_appearance(self):
@@ -1231,8 +1272,11 @@ class Core:
         if self.stage != 'ready':
             return {'error': tr('Conectando...')}
         op = request.get('op')
+        if op == 'move_pin':
+            await self.api_move_pin(int(request['peer']), int(request['direction']), self.account)
+            return {'ok': True}
         if op == 'chats':
-            return [{'id': chat['id'], 'name': chat['name'], 'unread': int(chat.get('unread') or 0),
+            return [{'pinned': chat.get('pinned', False), 'id': chat['id'], 'name': chat['name'], 'unread': int(chat.get('unread') or 0),
                      'preview': chat.get('preview') or '', 'kind': chat.get('kind') or 'user'} for chat in (await self.api_chats())[:60]]
         if op == 'messages':
             peer = int(request['peer'])
@@ -1321,29 +1365,114 @@ class Core:
             return None
         return Path(path) if path else None
 
+    async def _media_index(self, folder):
+        """Cached media of this account by name stem, read from disk once (not one
+        directory scan per picture: the folder holds thousands of files)."""
+        index = self.__dict__.setdefault('media_indexes', {})
+        known = index.get(folder)
+        if known is not None:
+            return known
+
+        def scan():
+            found = {}
+            try:
+                with os.scandir(folder) as entries:
+                    for entry in entries:
+                        name = entry.name
+                        if name.startswith('.') or name.endswith(('-play.caf', '-play-v2.caf')):
+                            continue
+                        found.setdefault(name.split('.', 1)[0], name)
+            except OSError:
+                pass
+            return found
+        scanned = await asyncio.to_thread(scan)
+        known = index.get(folder)
+        if known is None:
+            known = index[folder] = scanned
+        return known
+
+    def forget_media_index(self):
+        self.__dict__.pop('media_indexes', None)
+
     async def media_file(self, peer, ident, thumbnail=True):
-        """Local path of a message's media (preview or full), downloading it once."""
+        """Local path of a message's media (preview or full), downloading it once.
+        Requests for the same file while it downloads share that download."""
         folder = self.media_folder()
         stem = f'{int(peer)}-{int(ident)}' + ('-t' if thumbnail else '')
+        index = await self._media_index(folder)
+        name = index.get(stem)
+        if name is not None:
+            path = folder / name
+            try:
+                if path.stat().st_size:
+                    return path
+            except OSError:
+                pass
+            index.pop(stem, None)
+        jobs = self.__dict__.setdefault('media_jobs', {})
+        job = jobs.get((folder, stem))
+        if job is None:
+            job = jobs[(folder, stem)] = self.loop.create_task(self._download_media_file(folder, stem, peer, ident, thumbnail))
+            job.add_done_callback(lambda done: jobs.pop((folder, stem), None) if jobs.get((folder, stem)) is done else None)
+        # A page that stops waiting (scrolled away) must not cancel the shared download.
+        return await asyncio.shield(job)
+
+    async def _download_media_file(self, folder, stem, peer, ident, thumbnail):
         original = folder / stem
         if original.is_file() and original.stat().st_size:
             return original
-        for item in folder.glob(stem + '.*'):
-            if not item.name.endswith(('-play.caf', '-play-v2.caf')) and item.is_file() and item.stat().st_size:
-                return item
         backend = self.backend
         if backend is None:
             raise ConnectionError('offline')
         message = next((m for m in self.histories.get(peer) or [] if m.id == ident), None)
         media = getattr(message, 'media', None)
         if media is None or isinstance(media, (dict, list, str)):
-            raw = await backend.client.get_messages(peer, ids=ident)
+            raw = await self._fetch_message(backend, peer, ident)
             media = getattr(raw, 'media', None)
         if media is None:
             raise LookupError('no media')
         folder.mkdir(parents=True, exist_ok=True, mode=0o700)
         path = await backend.download_media(media, folder / stem, thumbnail=thumbnail)
-        return Path(path) if path else None
+        if not path:
+            return None
+        path = Path(path)
+        known = self.__dict__.get('media_indexes', {}).get(folder)
+        if known is not None:
+            known[stem] = path.name
+        return path
+
+    async def _fetch_message(self, backend, peer, ident):
+        """One Telegram message, asked together with the others requested in the
+        same moment for that chat (a screen of previews is one request, not
+        one per picture: faster and far from Telegram's flood limits)."""
+        batches = self.__dict__.setdefault('message_batches', {})
+        key = (id(backend), int(peer))
+        batch = batches.get(key)
+        if batch is None or len(batch['ids']) >= 100:
+            batch = batches[key] = {'ids': {}, 'task': None}
+
+            async def run(batch=batch):
+                await asyncio.sleep(0.03)
+                if batches.get(key) is batch:
+                    batches.pop(key, None)
+                ids = list(batch['ids'])
+                try:
+                    found = await backend.client.get_messages(int(peer), ids=ids)
+                except Exception as exc:
+                    for future in batch['ids'].values():
+                        if not future.done():
+                            future.set_exception(exc)
+                    return
+                found = found if isinstance(found, list) else [found]
+                by_id = {getattr(item, 'id', None): item for item in found if item is not None}
+                for number, future in batch['ids'].items():
+                    if not future.done():
+                        future.set_result(by_id.get(number))
+            batch['task'] = self.loop.create_task(run())
+        future = batch['ids'].get(int(ident))
+        if future is None:
+            future = batch['ids'][int(ident)] = self.loop.create_future()
+        return await asyncio.shield(future)
 
     async def poll_attachment(self, peer, ident, part, thumbnail=True):
         from telethon.tl import types
@@ -1751,6 +1880,8 @@ class Core:
         handler = getattr(self, 'api_' + method.replace('.', '_'), None)
         if handler is None or not callable(handler):
             raise LookupError(method)
+        if method not in ('profile', 'contacts', 'profile_tab') and any(word in method for word in CHANGES_DETAILS):
+            self.forget_details()
         return await handler(**params)
 
     async def api_state(self, locale='', window_account=None):
@@ -1851,7 +1982,7 @@ class Core:
         return [self.chat_json(chat) for chat in self.visible_chats()]
 
     async def api_archived(self):
-        return [self.chat_json(chat) for chat in self.chats if chat.archived]
+        return [self.chat_json(chat) for chat in self.visible_chats(archived=True)]
 
     async def api_open(self, peer, read=True, window=False):
         """Open a chat. read=False is the preview: nothing is marked as read.
@@ -1874,7 +2005,7 @@ class Core:
             chat.unread, chat.unread_mark = 0, False
             self.emit('chat', self.chat_json(chat))
         if self.backend is not None:
-            self.loop.create_task(self.reload_and_read(peer) if read else self.reload_history(peer))
+            self.loop.create_task(self.reload_and_read(peer) if read else self.refresh_history(peer))
             self.loop.create_task(self.refresh_header(peer))
         return {'peer': peer, 'messages': [self.message_json(m) for m in cached or []],
                 'draft': self.draft_record(peer),
@@ -1884,7 +2015,7 @@ class Core:
 
     async def reload_and_read(self, peer):
         backend = self.backend
-        await self.reload_history(peer)
+        await self.refresh_history(peer)
         if backend is None or backend is not self.backend or self.locked:
             return
         history = self.histories.get(peer) or []
@@ -2205,6 +2336,7 @@ class Core:
     async def api_folders(self, refresh=True):
         """Telegram chat folders and which chats each one shows (refresh asks
         Telegram again; otherwise the last folders are matched to the list)."""
+        from telethon import utils
         from tg_ascii.telegram_features import compile_folder, in_chat_list
         backend = self.backend
         if backend is not None and hasattr(backend, 'folders') and (refresh or not self.folder_records):
@@ -2219,6 +2351,7 @@ class Core:
             title = getattr(raw, 'text', raw) or ''
             ids = [chat.id for chat in self.chats if in_chat_list(chat, folder, compiled)]
             result.append({'id': folder.id, 'title': self.text(str(title)), 'chats': ids,
+                           'pins': [utils.get_peer_id(p) for p in getattr(folder, 'pinned_peers', ())],
                            # Custom emoji in the folder name (Telegram's TextWithEntities).
                            'emojis': custom_emoji_spans(str(title), getattr(raw, 'entities', None)),
                            'still': bool(getattr(folder, 'title_noanimate', False))})
@@ -2252,6 +2385,12 @@ class Core:
         return {'chats': chats, 'messages': messages}
 
     async def api_contacts(self):
+        cached = self.cached_detail('contacts')
+        if cached is not None:
+            return cached
+        return self.remember_detail('contacts', await self._contacts())
+
+    async def _contacts(self):
         from telethon import utils
         users = await asyncio.wait_for(self.backend.contacts(), 30)
         seconds = bool(self.prefs and self.prefs.values.get('show_seconds'))
@@ -2282,6 +2421,12 @@ class Core:
         return {'id': chat.id, 'name': self.text(chat.name), 'kind': chat.kind}
 
     async def api_profile(self, peer):
+        cached = self.cached_detail(('profile', peer))
+        if cached is not None:
+            return cached
+        return self.remember_detail(('profile', peer), await self._profile(peer))
+
+    async def _profile(self, peer):
         from tg_ascii.contact_appearance import validated_contact
         account, backend = self.account, self.backend
         data = await asyncio.wait_for(backend.profile(peer), 30)
@@ -2548,6 +2693,7 @@ class Core:
             raise
 
     def _purge_peer_media(self, peer):
+        self.forget_media_index()
         try:
             for item in self.media_folder().glob(f'{int(peer)}-*'):
                 item.unlink(missing_ok=True)
@@ -2824,6 +2970,8 @@ class Core:
         self.locked = False
         self.hidden_at = None
         self.emit('lock', False)
+        if self.feature('preload_startup'):
+            self.loop.create_task(self.preload())
         if self.stage == 'choose_account':
             self.emit('stage', self.state_snapshot())
 
@@ -2859,6 +3007,17 @@ class Core:
         folder = self.root / 'mobile-avatars' / self.account
         stem = f'{int(peer)}-big' if big else f'{int(peer)}'
         path, none = folder / f'{stem}.jpg', folder / f'{stem}.none'
+        photo_id = self.photo_id(peer)
+        if self.keep_loaded() and not big and photo_id is not None:
+            # Keep more loaded: Telegram never changes the picture behind a photo
+            # id, so the copy stays valid until the person sets another photo.
+            if photo_id == 0:
+                return None
+            try:
+                if path.is_file() and (folder / f'{stem}.id').read_text() == str(photo_id):
+                    return path
+            except OSError:
+                pass
         week = 3 * 86400
         for candidate in (path, none):
             try:
@@ -2889,17 +3048,52 @@ class Core:
             if not big:
                 fresh.discard(int(peer))
         folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        jobs = self.__dict__.setdefault('avatar_jobs', {})
+        job = jobs.get(path)
+        if job is None:
+            job = jobs[path] = self.loop.create_task(self._download_avatar(backend, target, path, none, big))
+            job.add_done_callback(lambda done: jobs.pop(path, None) if jobs.get(path) is done else None)
+        return await asyncio.shield(job)
+
+    async def _download_avatar(self, backend, target, path, none, big):
+        # Written next to its place and renamed: a request arriving meanwhile
+        # never reads half a picture.
+        temporary = path.with_name(f'.{path.name}.{secrets.token_hex(4)}.part')
         async with self._avatar_slots:
             try:
                 result = await asyncio.wait_for(backend.client.download_profile_photo(
-                    target, file=str(path), download_big=bool(big)), 60 if big else 30)
+                    target, file=str(temporary), download_big=bool(big)), 60 if big else 30)
             except Exception:
                 result = None
+        if result:
+            try:
+                os.replace(result if isinstance(result, str) else temporary, path)
+            except OSError:
+                result = None
         if not result:
+            temporary.unlink(missing_ok=True)
             none.touch()
             return None
         none.unlink(missing_ok=True)
+        photo_id = None if big else self.photo_id(int(path.stem))
+        marker = path.with_suffix('.id')
+        if photo_id:
+            marker.write_text(str(photo_id))
+        else:
+            marker.unlink(missing_ok=True)
         return path
+
+    def photo_id(self, peer):
+        """The chat's current photo id from the list (0: no photo; None: unknown)."""
+        chat = next((item for item in self.chats if item.id == peer), None)
+        entity = getattr(chat, 'entity', None)
+        if entity is None or not hasattr(entity, 'photo'):
+            return None
+        photo = entity.photo
+        if photo is None or type(photo).__name__ in ('UserProfilePhotoEmpty', 'ChatPhotoEmpty'):
+            return 0
+        ident = getattr(photo, 'photo_id', None)
+        return int(ident) if ident else None
 
     # -- more message types ----------------------------------------------------------------
     async def api_send_poll(self, peer, question, answers, multiple=False, quiz=False, correct=0,
@@ -3468,7 +3662,42 @@ class Core:
         return await self._action(coroutine)
 
     async def api_pin_chat(self, peer, pinned):
-        return await self._chat_flag(peer, 'pinned', bool(pinned), self.backend.pin(peer, bool(pinned)))
+        account, backend = self.account, self.backend
+        if self.prefs.values.get('local_pins'):
+            order = self.local_order()
+            if order is None:
+                order = [chat.id for chat in self.chats if chat.pinned]
+            order = [item for item in order if item != peer]
+            if pinned:
+                order.insert(0, peer)
+            self.local_pins.save_order(account, order)
+            self.emit('chats', [self.chat_json(chat) for chat in self.visible_chats()])
+            return {'queued': False}
+        result = await self._action(backend.pin(peer, bool(pinned)))
+        if account == self.account and not result['queued']:
+            await self.refresh_chats()
+        return result
+
+    async def api_move_pin(self, peer, direction, account):
+        self.check_active_account(account)
+        chat = next(c for c in self.chats if c.id == peer)
+        if direction not in (-1, 1) or not self.is_pinned(chat):
+            raise ValueError('Invalid move')
+        order = self.local_order()
+        if order is None:
+            await self.backend.move_pinned(peer, direction, chat.archived)
+            if account == self.account:
+                await self.refresh_chats()
+        else:
+            visible = [c.id for c in self.visible_chats(chat.archived) if self.is_pinned(c)]
+            target = visible.index(peer) + direction
+            if 0 <= target < len(visible):
+                order = order.copy()
+                a, b = order.index(peer), order.index(visible[target])
+                order[a], order[b] = order[b], order[a]
+                self.local_pins.save_order(account, order)
+                self.emit('chats', [self.chat_json(c) for c in self.visible_chats()])
+        return True
 
     async def api_mute_chat(self, peer, muted, duration=None):
         """duration: seconds muted (None: until turned back on), as Desktop's Mute menu."""
@@ -3519,6 +3748,24 @@ class Core:
             except Exception as exc:
                 print('batch:', action, peer, exc)
         return {'done': done}
+
+    async def api_folder_pin(self, folder, peer, account, pinned=None, direction=None):
+        from telethon import utils
+        self.check_active_account(account)
+        backend = self.backend
+        records = await backend.folders()
+        record = next(item for item in records if item.id == folder)
+        if direction is None:
+            await backend.pin_in_folder(record, peer, bool(pinned))
+        else:
+            order = [utils.get_peer_id(p) for p in record.pinned_peers]
+            source = order.index(peer)
+            target = source + direction
+            if direction in (-1, 1) and 0 <= target < len(order):
+                order[source], order[target] = order[target], order[source]
+                await backend.reorder_folder_pins(record, order)
+        self.check_active_account(account)
+        return await self.api_folders(True)
 
     async def api_folder_membership(self, folder, peer, include=True):
         records = {item.id: item for item in self.folder_records}
@@ -4521,9 +4768,16 @@ class Core:
             if isinstance(values.get('advanced_features'), dict):
                 # The desktop's Complex features, on unless turned off here (mobile_features).
                 stored = dict(self.prefs.values.get('mobile_features') or {})
-                stored.update({key: bool(value) for key, value in values['advanced_features'].items() if key in MOBILE_FEATURES})
+                stored.update({key: bool(value) for key, value in values['advanced_features'].items()
+                               if key in MOBILE_FEATURES or key in MOBILE_FEATURES_OFF})
                 changes['mobile_features'] = stored
             self.prefs.save(changes)
+            if 'local_pins' in changes:
+                if changes['local_pins'] and self.chats and self.account not in self.local_pins.values:
+                    self.local_pins.save_order(self.account, [c.id for c in self.chats if c.pinned])
+                self.emit('chats', [self.chat_json(c) for c in self.visible_chats()])
+            if changes.get('mobile_features', {}).get('preload_startup'):
+                self.loop.create_task(self.preload())
             set_language(self.prefs.values['language'])
             if values.get('notifications') and self.native_notify_permission is not None:
                 self.native_notify_permission()
@@ -4533,9 +4787,150 @@ class Core:
                     self.native_notify_disable()
             if 'notify_preview' in changes or 'notifications' in changes:
                 await self.sync_push_registration()
+            self.apply_keep_loaded()
             self.emit('settings', self.settings_snapshot())
             self.publish_wear_appearance()
         return self.settings_snapshot()
+
+    # -- Complex features › Keep more loaded / Prepare content at startup (3.0.0.2) --
+    def feature(self, key):
+        return bool(self.prefs) and mobile_features(self.prefs.values).get(key, False)
+
+    def keep_loaded(self):
+        return self.feature('keep_loaded')
+
+    def apply_keep_loaded(self):
+        """Memory budgets and the offline copy follow the switch (shared core)."""
+        from tg_ascii import resources
+        resources.set_keep_loaded(self.keep_loaded())
+        if not self.keep_loaded():
+            self.forget_details()
+
+    def cached_detail(self, key):
+        """A profile or the contact list asked for a few minutes ago (Keep more loaded)."""
+        if not self.keep_loaded():
+            return None
+        found = self.__dict__.get('detail_cache', {}).get((self.account, key))
+        if found is not None and time.monotonic() - found[0] < KEEP_DETAILS:
+            return found[1]
+        return None
+
+    def remember_detail(self, key, value):
+        if self.keep_loaded():
+            cache = self.__dict__.setdefault('detail_cache', {})
+            cache[(self.account, key)] = (time.monotonic(), value)
+            while len(cache) > 200:
+                cache.pop(next(iter(cache)))
+        return value
+
+    def forget_details(self):
+        self.__dict__.pop('detail_cache', None)
+
+    def forget_fresh_histories(self):
+        self.__dict__.get('history_fresh', {}).clear()
+
+    async def refresh_history(self, peer):
+        """Keep more loaded: a chat reloaded a few minutes ago, with the
+        connection up since then (live updates arrived meanwhile), only asks
+        Telegram for the messages newer than the last one it has, as the
+        official apps do. Otherwise the latest page is read again."""
+        from tg_ascii.secret_chats import is_secret_peer
+        fresh = self.__dict__.setdefault('history_fresh', {})
+        cached = self.histories.get(peer)
+        if (self.keep_loaded() and cached and not is_secret_peer(peer) and self.connection == 'online'
+                and not self.in_background and time.monotonic() - fresh.get(peer, float('-inf')) < KEEP_FRESH):
+            return await self.reload_newer(peer)
+        return await self.reload_history(peer)
+
+    async def reload_newer(self, peer):
+        backend = self.backend
+        previous = self.histories.get(peer)
+        if backend is None or not previous:
+            return await self.reload_history(peer)
+        newest = max(message.id for message in previous)
+
+        async def request():
+            raw = await backend.client.get_messages(peer, min_id=newest, limit=100)
+            if len(raw) >= 100:
+                raise OverflowError('gap')  # many new messages: read the latest page instead
+            await backend.resolve_missing_senders(raw)
+            messages = [backend.message(item) for item in reversed(raw)]
+            maximum = getattr(backend, 'read_max', {}).get(peer, 0)
+            for message in messages:
+                message.read = message.outgoing and message.id <= maximum
+            return messages
+        try:
+            arrived = await self.history_page(peer, request(), include_new=True)
+        except Exception:
+            return await self.reload_history(peer)
+        if backend is not self.backend or self.histories.get(peer) is not previous:
+            return
+        known = {message.id for message in previous}
+        additions = [message for message in arrived if message.id not in known]
+        if not additions:
+            return  # nothing new: the screen is already up to date
+        previous.extend(additions)
+        previous.sort(key=lambda message: message.id)
+        del previous[:-400]
+        self.emit('history', {'peer': peer, 'messages': [self.message_json(m) for m in previous],
+                              **self.translation_state(peer, previous)})
+        self.schedule_save()
+
+    async def preload(self):
+        """Complex features › Prepare content at startup: once per account and
+        launch, after the chat list, prepare what the first screens show."""
+        from tg_ascii.secret_chats import is_secret_peer
+        account, backend = self.account, self.backend
+        done = self.__dict__.setdefault('preloaded_accounts', set())
+        if not self.feature('preload_startup') or backend is None or account in done:
+            return
+
+        def current():
+            return (self.account == account and self.backend is backend and not self.locked
+                    and self.connection == 'online' and self.feature('preload_startup'))
+        active = self.__dict__.setdefault('preloading_accounts', set())
+        if not current() or not self.chats or account in active:
+            return
+        active.add(account)
+        try:
+            await self._prepare_chats(current)
+            if current():
+                done.add(account)
+        finally:
+            active.discard(account)
+
+    async def _prepare_chats(self, current):
+        from tg_ascii.secret_chats import is_secret_peer
+        chats = self.visible_chats()[:80]
+        slots = asyncio.Semaphore(3)
+
+        async def gently(work):
+            async with slots:
+                if not current():
+                    work.close()
+                    return
+                try:
+                    await asyncio.wait_for(work, 60)
+                except Exception:
+                    pass
+        # Profile photos of the list, then the latest messages of the first chats.
+        await asyncio.gather(*(gently(self.avatar_file(chat.id)) for chat in chats))
+        for chat in chats[:12]:
+            if not current():
+                return
+            if not is_secret_peer(chat.id) and chat.id not in self.__dict__.get('history_fresh', {}):
+                await gently(self.reload_history(chat.id))
+                await asyncio.sleep(0.2)  # well under Telegram's request limits
+        previews = []
+        for chat in chats[:12]:
+            if is_secret_peer(chat.id):
+                continue
+            visual = [m for m in self.histories.get(chat.id) or () if m.media_kind in VISUAL_KINDS and m.media is not None]
+            previews += [(chat.id, m.id) for m in visual[-6:]]
+        await asyncio.gather(*(gently(self.media_file(peer, ident, True)) for peer, ident in previews[:60]))
+        emoji = {int(ident) for chat in chats for ident, _ in (self.previews.get(chat.id) or {}).get('emojis') or ()}
+        await asyncio.gather(*(gently(self.sticker_file(ident)) for ident in list(emoji)[:80]))
+
 
     def default_reaction(self, account):
         values = self.prefs.values
@@ -4914,6 +5309,7 @@ class Core:
     async def api_clear_cache(self):
         from tg_ascii.app_data import remove_cache, human_size
         freed = await asyncio.to_thread(lambda: remove_cache(self.root) + self._mobile_cache_bytes(clear=True))
+        self.forget_media_index()
         return human_size(freed)
 
     async def api_delete_all(self):
@@ -4967,11 +5363,21 @@ def effects_json(values):
 # app already offered them): 'mobile_features' keeps only the ones turned off.
 MOBILE_FEATURES = ('polls', 'checklists', 'locations', 'contacts', 'articles', 'stars_gifts', 'links', 'stories',
                    'chat_translation', 'call_history', 'calls', 'chat_list_activity', 'contact_list_details')
+# 3.0.0.2: off unless turned on (Complex features): Keep more loaded and
+# Prepare content at startup.
+MOBILE_FEATURES_OFF = ('keep_loaded', 'preload_startup')
+KEEP_FRESH = 600      # seconds a reloaded chat is trusted while the connection stays up
+KEEP_DETAILS = 300    # seconds profiles and the contact list are reused
+# Calls that change a profile or the contacts: the kept copies are dropped.
+CHANGES_DETAILS = ('contact', 'block', 'profile', 'group', 'member', 'username', 'photo', 'bio', 'name',
+                   'privacy', 'emoji_status', 'leave', 'join', 'delete_chat', 'note')
 
 
 def mobile_features(values):
     stored = values.get('mobile_features') if isinstance(values.get('mobile_features'), dict) else {}
-    return {key: stored.get(key, True) is not False for key in MOBILE_FEATURES}
+    features = {key: stored.get(key, True) is not False for key in MOBILE_FEATURES}
+    features.update({key: stored.get(key) is True for key in MOBILE_FEATURES_OFF})
+    return features
 
 
 def emoji_status_id(entity):
@@ -5079,6 +5485,27 @@ def birthday_text(birthday):
         return ''
     text = f'{birthday.day:02d}/{birthday.month:02d}'
     return text + (f'/{birthday.year}' if getattr(birthday, 'year', None) else '')
+
+
+def media_dimensions(media):
+    """Width and height of a photo/video/sticker (the page reserves its space
+    before the preview arrives). (0, 0) when Telegram does not say."""
+    try:
+        photo = getattr(media, 'photo', None)
+        if photo is not None:
+            sizes = [size for size in getattr(photo, 'sizes', None) or ()
+                     if getattr(size, 'w', 0) and getattr(size, 'h', 0)]
+            if sizes:
+                largest = max(sizes, key=lambda size: size.w * size.h)
+                return int(largest.w), int(largest.h)
+        document = getattr(media, 'document', None) or media
+        for attribute in getattr(document, 'attributes', None) or ():
+            width, height = getattr(attribute, 'w', 0), getattr(attribute, 'h', 0)
+            if isinstance(width, int) and isinstance(height, int) and width > 0 and height > 0:
+                return width, height
+    except Exception:
+        pass
+    return 0, 0
 
 
 def audio_json(message):

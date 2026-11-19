@@ -25,6 +25,9 @@ MAX_MEDIA = 80 * 1024 * 1024
 MAX_UPLOAD = 1536 * 1024 * 1024
 HEARTBEAT = 15
 REQUEST_READ_TIMEOUT = 30
+# A connection is kept open for the page's next request (pictures, calls):
+# no new socket per request. Idle connections close after this many seconds.
+KEEP_ALIVE_IDLE = 20
 UI_CONTENT_POLICY = (
     "Content-Security-Policy: default-src 'none'; script-src 'self'; "
     "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
@@ -106,18 +109,32 @@ class Server:
     # -- HTTP ------------------------------------------------------------------
     async def handle(self, reader, writer):
         try:
-            head = await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'), REQUEST_READ_TIMEOUT)
+            first = True
+            while await self.handle_one(reader, writer, first):
+                first = False
+        finally:
+            try:
+                writer.close()
+            except Exception:
+                pass
+
+    async def handle_one(self, reader, writer, first):
+        """One request; True when the connection can carry the next one."""
+        writer.tg_keep = False
+        try:
+            head = await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'),
+                                          REQUEST_READ_TIMEOUT if first else KEEP_ALIVE_IDLE)
         except (asyncio.IncompleteReadError, asyncio.LimitOverrunError, asyncio.TimeoutError, ConnectionError):
-            writer.close()
-            return
+            return False
         try:
             lines = head.decode('latin-1').split('\r\n')
-            method, target, _version = lines[0].split(' ', 2)
+            method, target, version = lines[0].split(' ', 2)
             headers = {}
             for line in lines[1:]:
                 if ':' in line:
                     name, value = line.split(':', 1)
                     headers[name.strip().lower()] = value.strip()
+            reusable = version.strip() == 'HTTP/1.1' and 'close' not in headers.get('connection', '').lower()
             url = urlsplit(target)
             query = {key: values[0] for key, values in parse_qs(url.query).items()}
             path = unquote(url.path)
@@ -137,7 +154,8 @@ class Server:
             if length < 0:
                 return await self.respond(writer, 400, b'')
             if path == '/upload' and method == 'POST':
-                return await self.upload(reader, writer, headers, query, length)
+                await self.upload(reader, writer, headers, query, length, reusable)
+                return writer.tg_keep
             if length > MAX_BODY:
                 return await self.respond(writer, 413, b'')
             body = b''
@@ -145,67 +163,77 @@ class Server:
                 body = await asyncio.wait_for(reader.readexactly(length), REQUEST_READ_TIMEOUT)
             if path == '/events' and method == 'GET':
                 return await self.events(writer, headers, query)
-            if path == '/media' and method == 'GET':
-                return await self.media(writer, headers, query)
-            if path == '/staged' and method == 'GET':
-                return await self.staged(writer, headers, query)
-            if path == '/sticker' and method == 'GET':
-                return await self.sticker(writer, headers, query)
-            if path == '/avatar' and method == 'GET':
-                return await self.avatar(writer, headers, query)
-            if path == '/background' and method == 'GET':
-                return await self.background(writer, headers, query)
-            if path == '/logo' and method == 'GET':
-                content_type = 'image/png'
-                if 'photo' in query or 'official' in query:
-                    if not self.authorised(headers, query) or self.core.locked:
-                        return await self.respond(writer, 403, b'token')
-                    if 'photo' in query:
-                        logo = self.core.logo_photo_file(query['photo'])
-                        content_type = 'image/jpeg'
-                    else:
-                        logo = self.core.official_logo_file(query['official'])
-                else:
-                    logo = await self.core.brand_logo_file(query.get('variant'), query.get('theme'), query.get('color'))
-                if logo is None:
-                    return await self.respond(writer, 404, b'')
-                data = await asyncio.to_thread(logo.read_bytes)
-                if 'photo' in query and self.core.locked:
-                    return await self.respond(writer, 403, b'token')
-                return await self.respond(writer, 200, data, content_type,
-                                          ('Cache-Control: no-store' if 'photo' in query else
-                                           'Cache-Control: private, max-age=86400',))
-            if path.startswith('/api/'):
-                return await self.api(writer, method, path[5:], headers, query, body)
-            if method != 'GET':
-                return await self.respond(writer, 405, b'')
-            return await self.static(writer, path)
+            # The whole request was read: the answer may leave the connection open.
+            writer.tg_keep = reusable
+            return await self.dispatch(writer, method, path, headers, query, body)
         except (ConnectionError, asyncio.IncompleteReadError, asyncio.TimeoutError):
-            pass
+            return False
         except Exception:
+            writer.tg_keep = False
             try:
                 await self.respond(writer, 500, b'')
             except Exception:
                 pass
-        finally:
-            try:
-                writer.close()
-            except Exception:
-                pass
+            return False
+
+    async def dispatch(self, writer, method, path, headers, query, body):
+        """Answer a fully read request; returns whether the connection stays open."""
+        try:
+            await self.route(writer, method, path, headers, query, body)
+        except (ConnectionError, asyncio.IncompleteReadError, asyncio.TimeoutError):
+            return False
+        return writer.tg_keep and not writer.is_closing()
+
+    async def route(self, writer, method, path, headers, query, body):
+        if path == '/media' and method == 'GET':
+            return await self.media(writer, headers, query)
+        if path == '/staged' and method == 'GET':
+            return await self.staged(writer, headers, query)
+        if path == '/sticker' and method == 'GET':
+            return await self.sticker(writer, headers, query)
+        if path == '/avatar' and method == 'GET':
+            return await self.avatar(writer, headers, query)
+        if path == '/background' and method == 'GET':
+            return await self.background(writer, headers, query)
+        if path == '/logo' and method == 'GET':
+            content_type = 'image/png'
+            if 'photo' in query or 'official' in query:
+                if not self.authorised(headers, query) or self.core.locked:
+                    return await self.respond(writer, 403, b'token')
+                if 'photo' in query:
+                    logo = self.core.logo_photo_file(query['photo'])
+                    content_type = 'image/jpeg'
+                else:
+                    logo = self.core.official_logo_file(query['official'])
+            else:
+                logo = await self.core.brand_logo_file(query.get('variant'), query.get('theme'), query.get('color'))
+            if logo is None:
+                return await self.respond(writer, 404, b'')
+            data = await asyncio.to_thread(logo.read_bytes)
+            if 'photo' in query and self.core.locked:
+                return await self.respond(writer, 403, b'token')
+            return await self.respond(writer, 200, data, content_type,
+                                      ('Cache-Control: no-store' if 'photo' in query else
+                                       'Cache-Control: private, max-age=86400',))
+        if path.startswith('/api/'):
+            return await self.api(writer, method, path[5:], headers, query, body)
+        if method != 'GET':
+            return await self.respond(writer, 405, b'')
+        return await self.static(writer, path)
 
     def authorised(self, headers, query):
         token = headers.get('x-tg-token') or query.get('t') or ''
         return hmac.compare_digest(token.encode(), self.core.token.encode())
 
-    def response_head(self, status, length, content_type, extra):
+    def response_head(self, status, length, content_type, extra, keep=False):
         caching = [] if any(item.startswith('Cache-Control') for item in extra) else ['Cache-Control: no-store']
         head = [f'HTTP/1.1 {status} {REASONS.get(status, "OK")}', f'Content-Type: {content_type}',
-                f'Content-Length: {length}', 'Connection: close', *caching,
+                f'Content-Length: {length}', 'Connection: keep-alive' if keep else 'Connection: close', *caching,
                 'X-Content-Type-Options: nosniff', 'Referrer-Policy: no-referrer', *extra]
         return ('\r\n'.join(head) + '\r\n\r\n').encode('latin-1')
 
     async def respond(self, writer, status, body, content_type='text/plain; charset=utf-8', extra=()):
-        writer.write(self.response_head(status, len(body), content_type, extra))
+        writer.write(self.response_head(status, len(body), content_type, extra, getattr(writer, 'tg_keep', False)))
         writer.write(body)
         await writer.drain()
 
@@ -251,7 +279,7 @@ class Server:
         data = json.dumps(result, ensure_ascii=False, default=str).encode('utf-8')
         return await self.respond(writer, 200, data, 'application/json; charset=utf-8')
 
-    async def upload(self, reader, writer, headers, query, length):
+    async def upload(self, reader, writer, headers, query, length, reusable=False):
         """An attachment chosen in the page, streamed to the staging folder."""
         if not self.authorised(headers, query) or self.core.locked:
             return await self.respond(writer, 403, b'token')
@@ -271,6 +299,7 @@ class Server:
         except Exception:
             target.unlink(missing_ok=True)
             raise
+        writer.tg_keep = reusable
         data = json.dumps({'ok': True, 'result': {'key': target.name, 'name': query.get('name') or target.name,
                                                   'size': length}}).encode('utf-8')
         return await self.respond(writer, 200, data, 'application/json; charset=utf-8')
@@ -304,7 +333,8 @@ class Server:
             path = await asyncio.to_thread(playable_caf, path)
         if self.core.locked or self.core.account != account:
             return await self.respond(writer, 403, b'token')
-        return await self.send_file(writer, headers, path, 'Cache-Control: no-store')
+        keep = self.keep_headers(query) if thumbnail and 'poll' not in query else ()
+        return await self.send_file(writer, headers, path, keep[0] if keep else 'Cache-Control: no-store')
 
     async def secret_media(self, writer, headers, query, peer, ident, thumbnail):
         account = self.core.account
@@ -352,7 +382,7 @@ class Server:
                 status = 206
                 extra += (f'Content-Range: bytes {start}-{end}/{size}',)
             length = end - start + 1
-            writer.write(self.response_head(status, length, kind, extra))
+            writer.write(self.response_head(status, length, kind, extra, getattr(writer, 'tg_keep', False)))
             await writer.drain()
             # iOS terminates the process if it calls sendfile(2), even on loopback.
             stream.seek(start)
@@ -410,7 +440,16 @@ class Server:
         data = await asyncio.to_thread(path.read_bytes)
         if self.core.locked or self.core.account != account:
             return await self.respond(writer, 403, b'token')
-        return await self.respond(writer, 200, data, 'image/jpeg')
+        return await self.respond(writer, 200, data, 'image/jpeg', self.keep_headers(query, 'p'))
+
+    def keep_headers(self, query, version_key=None):
+        """Keep more loaded: the web view keeps pictures whose address names an
+        unchangeable Telegram file (a photo id, a message preview), so screens
+        show them again without asking."""
+        keep = getattr(self.core, 'keep_loaded', None)
+        if keep is None or not keep() or (version_key and not query.get(version_key)):
+            return ()
+        return ('Cache-Control: private, max-age=2592000, immutable',)
 
     async def background(self, writer, headers, query):
         """A background picture chosen on this device."""
@@ -428,7 +467,7 @@ class Server:
         if not self.authorised(headers, query):
             return await self.respond(writer, 403, b'token')
         writer.write(b'HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\n'
-                     b'Connection: keep-alive\r\nX-Accel-Buffering: no\r\n\r\n: hello\n\n')
+                     b'Connection: keep-alive\r\nX-Accel-Buffering: no\r\n\r\nretry: 1000\n: hello\n\n')
         await writer.drain()
         queue = asyncio.Queue()
         queue.window_account = headers.get('x-tg-window-account', query.get('window_account'))

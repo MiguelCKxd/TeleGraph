@@ -288,11 +288,10 @@ def android_calls_dependency(text, directory):
         source = Path(source).expanduser().resolve()
         if source == staged.resolve():
             raise ValueError('Set the calls AAR path outside the generated Gradle project')
-        required = {'classes.jar', 'libs/webrtc.jar',
-                    'jni/arm64-v8a/libntgcalls.so', 'jni/x86_64/libntgcalls.so'}
+        required = {'classes.jar', 'libs/webrtc.jar', 'jni/arm64-v8a/libntgcalls.so'}
         with ZipFile(source) as archive:
             if not required.issubset(archive.namelist()):
-                raise ValueError('Calls AAR must include both supported phone architectures and Java classes')
+                raise ValueError('Calls AAR must include the arm64 engine and Java classes')
         staged.parent.mkdir(exist_ok=True)
         shutil.copyfile(source, staged)
     else:
@@ -327,6 +326,13 @@ if platform == 'android':
             text = text.replace('dependencies {', f'dependencies {{\n    implementation "{dependency}"', 1)
     if LEGACY_WEAR:
         text = re.sub(r'^[ \t]*implementation "' + re.escape(wearable) + r'"\n', '\n', text, flags=re.M)
+    # 3.0.0.2: phones, watches and this Mac's emulators are all arm64. The x86_64
+    # copies of Python, OpenSSL and the call engine added ~42 MB to every APK.
+    # TELEGRAPH_ANDROID_ABIS="arm64-v8a x86_64" restores them for an Intel emulator.
+    abis = os.environ.get('TELEGRAPH_ANDROID_ABIS', 'arm64-v8a').split()
+    if not abis or any(abi not in ('arm64-v8a', 'x86_64') for abi in abis):
+        raise ValueError('TELEGRAPH_ANDROID_ABIS accepts arm64-v8a and x86_64')
+    text = re.sub(r'abiFilters [^\n]+', 'abiFilters ' + ', '.join(f'"{abi}"' for abi in abis), text)
     gradle.write_text(text)
     manifest = build / 'android' / 'gradle' / 'app' / 'src' / 'main' / 'AndroidManifest.xml'
     text = manifest.read_text()

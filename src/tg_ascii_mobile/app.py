@@ -352,7 +352,7 @@ class TgAsciiMobile(toga.App):
         def document_intent(kind):
             intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             intent.addCategory(Intent.CATEGORY_OPENABLE)
-            intent.setType('*/*')
+            intent.setType('audio/*' if kind == 'audio' else '*/*')
             if kind in ('media', 'gallery'):
                 types = jarray(jclass('java.lang.String'))(['image/*', 'video/*'])
                 intent.putExtra(Intent.EXTRA_MIME_TYPES, types)

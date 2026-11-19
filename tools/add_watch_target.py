@@ -89,8 +89,8 @@ def copy_python():
         shutil.rmtree(target)
     ignore_bytecode = shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo')
     shutil.copytree(PYTHON_SOURCE, target / 'app', ignore=ignore_bytecode)
-    shutil.copy2(ROOT / 'src' / 'tg_ascii' / 'message_translation.py',
-                 target / 'app' / 'tgwatch' / 'message_translation.py')
+    for module in ('message_translation.py', 'pin_order.py'):
+        shutil.copy2(ROOT / 'src' / 'tg_ascii' / module, target / 'app' / 'tgwatch' / module)
     credential_module = ROOT / 'src' / 'tg_ascii' / '_app_credentials.py'
     if os.environ.get('TG_ASCII_PUBLIC_API') != '1' and credential_module.is_file():
         shutil.copy2(credential_module, target / 'app' / '_app_credentials.py')

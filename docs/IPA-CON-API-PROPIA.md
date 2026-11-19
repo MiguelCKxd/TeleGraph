@@ -20,7 +20,7 @@ El IPA de GitHub se exportó con una firma de distribución de App Store. Para i
 
 Utiliza macOS con Xcode, el entorno de Briefcase de este proyecto y las dependencias nativas de la versión. Configura el checkout de la fuente de escritorio en `TG_ASCII_DESKTOP`, su revisión de la 3.0 en `TG_ASCII_CORE_REF` y, si tienes los frameworks en otra ubicación, define `TELEGRAPH_WATCH_PYTHON_FRAMEWORK` y `TELEGRAPH_IOS_CALLS_FRAMEWORK`. La firma requiere identidades y perfiles locales para el par de aplicaciones.
 
-Desde la raíz de [esta rama del IPA](https://github.com/MiguelCKxd/TeleGraph/tree/apple-ipa-v3.0.0), ejecuta el exportador.
+Desde la raíz de [esta rama del IPA](https://github.com/MiguelCKxd/TeleGraph/tree/apple-ipa-v3.0.0.3), ejecuta el exportador.
 
 ```sh
 tools/export_public_ios.sh dist/personal-api
