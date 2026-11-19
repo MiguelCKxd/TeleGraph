@@ -24,6 +24,19 @@ import sys
 
 LEVELS = ('limited', 'normal', 'unlimited')
 _profile = {'cpu': 'normal', 'ram': 'normal', 'gpu': 'normal', 'network': 'normal'}
+# 3.0.0.2: Complex features › Keep more loaded (off by default). Memory caches,
+# the on-disk cache and the offline copy grow as with Memory › Unlimited, unless
+# Memory is set to Limited.
+_keep_loaded = False
+
+
+def keep_loaded():
+    return _keep_loaded
+
+
+def set_keep_loaded(value):
+    global _keep_loaded
+    _keep_loaded = bool(value)
 _applied_priority = None
 
 
@@ -39,12 +52,17 @@ def configure(values):
     for kind in _profile:
         value = (values or {}).get(f'resource_{kind}', 'normal')
         _profile[kind] = value if value in LEVELS else 'normal'
+    features = (values or {}).get('advanced_features')
+    set_keep_loaded(isinstance(features, dict) and features.get('keep_loaded') is True)
     apply_priority()
     return dict(_profile)
 
 
 def scaled(kind, normal, limited, unlimited):
-    return {'limited': limited, 'unlimited': unlimited}.get(level(kind), normal)
+    current = level(kind)
+    if kind == 'ram' and _keep_loaded and current == 'normal':
+        current = 'unlimited'
+    return {'limited': limited, 'unlimited': unlimited}.get(current, normal)
 
 
 # -- network ------------------------------------------------------------------

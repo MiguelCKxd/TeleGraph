@@ -1407,5 +1407,11 @@
   "📸 You took a screenshot.": "📸 คุณจับภาพหน้าจอ",
   "Rotating key...": "กำลังหมุนเวียนคีย์...",
   "Rotate key now (PFS)": "หมุนเวียนคีย์ตอนนี้ (PFS)",
-  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "สร้างบัญชีในแอป Telegram อย่างเป็นทางการสำหรับ iPhone หรือ Android แล้วกลับมาที่นี่เพื่อเข้าสู่ระบบ"
+  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "สร้างบัญชีในแอป Telegram อย่างเป็นทางการสำหรับ iPhone หรือ Android แล้วกลับมาที่นี่เพื่อเข้าสู่ระบบ",
+  "Disable all animations": "ปิดภาพเคลื่อนไหวทั้งหมด",
+  "Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.": "อีโมจิเคลื่อนไหว สติกเกอร์ การเปลี่ยนฉาก และเอฟเฟกต์จะหยุดนิ่ง เพื่อให้แอปทำงานลื่นไหลบนอุปกรณ์ที่ช้ากว่า ปิดอยู่โดยค่าเริ่มต้น",
+  "Keep more loaded": "เก็บเนื้อหาที่โหลดไว้มากขึ้น",
+  "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph ทำงานเหมือนแอปแชทที่ติดตั้งในเครื่อง: รูปโปรไฟล์ ข้อความล่าสุด ตัวอย่าง และข้อมูลผู้ติดต่อพร้อมใช้งานบนอุปกรณ์นี้ หน้าจอจึงเปิดได้ทันที จะขอใหม่เฉพาะสิ่งที่ใหม่จริงๆ ใช้พื้นที่และหน่วยความจำมากขึ้น",
+  "Prepare content at startup": "เตรียมเนื้อหาเมื่อเริ่มแอป",
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "เมื่อรายการแชทโหลดแล้ว จะเตรียมรูปโปรไฟล์ ข้อความล่าสุดของแชทแรกๆ ตัวอย่าง และอีโมจิไว้เบื้องหลัง ใช้ข้อมูลและแบตเตอรี่มากขึ้นตอนเริ่มแอป"
 }

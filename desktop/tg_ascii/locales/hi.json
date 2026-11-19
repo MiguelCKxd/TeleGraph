@@ -1407,5 +1407,11 @@
   "📸 You took a screenshot.": "📸 आपने स्क्रीनशॉट लिया।",
   "Rotating key...": "कुंजी बदली जा रही है...",
   "Rotate key now (PFS)": "अभी कुंजी बदलें (PFS)",
-  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "iPhone या Android के आधिकारिक Telegram ऐप में अपना खाता बनाएँ, फिर साइन इन करने के लिए यहाँ लौटें।"
+  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "iPhone या Android के आधिकारिक Telegram ऐप में अपना खाता बनाएँ, फिर साइन इन करने के लिए यहाँ लौटें।",
+  "Disable all animations": "सभी एनिमेशन बंद करें",
+  "Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.": "एनिमेटेड इमोजी, स्टिकर, ट्रांज़िशन और इफ़ेक्ट रुके रहते हैं, ताकि धीमे डिवाइस पर भी ऐप सहज चले। डिफ़ॉल्ट रूप से बंद।",
+  "Keep more loaded": "और सामग्री लोड रखें",
+  "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph इंस्टॉल किए गए मैसेजिंग ऐप की तरह काम करता है: प्रोफ़ाइल फ़ोटो, हाल के संदेश, प्रीव्यू और संपर्क जानकारी इस डिवाइस पर तैयार रहती है और स्क्रीन तुरंत खुलती हैं। केवल सचमुच नई चीज़ें फिर से मांगी जाती हैं। अधिक स्टोरेज और मेमोरी लेता है।",
+  "Prepare content at startup": "शुरू होते समय सामग्री तैयार करें",
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "चैट सूची लोड होने के बाद प्रोफ़ाइल फ़ोटो, पहली चैटों के नवीनतम संदेश, उनके प्रीव्यू और इमोजी बैकग्राउंड में तैयार होते हैं। शुरू होते समय अधिक डेटा और बैटरी लगती है।"
 }

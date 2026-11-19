@@ -1407,5 +1407,11 @@
   "📸 You took a screenshot.": "📸 Sacaste un pantallazo.",
   "Rotating key...": "Rotando clave...",
   "Rotate key now (PFS)": "Rotar clave ahora (PFS)",
-  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Crea tu cuenta en la app oficial de Telegram para iPhone o Android. Después vuelve aquí para iniciar sesión."
+  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Crea tu cuenta en la app oficial de Telegram para iPhone o Android. Después vuelve aquí para iniciar sesión.",
+  "Disable all animations": "Desactivar todas las animaciones",
+  "Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.": "Los emojis animados, stickers, transiciones y efectos quedan quietos pa que la app ande fluida en equipos más lentos. Desactivado por defecto.",
+  "Keep more loaded": "Mantener más contenido cargado",
+  "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph funciona como una app de mensajería instalada: fotos de perfil, mensajes recientes, vistas previas y datos de contacto quedan listos en este equipo y las pantallas se abren al tiro con ellos. Solo se vuelve a pedir lo que es nuevo de verdad. Usa más almacenamiento y memoria.",
+  "Prepare content at startup": "Preparar contenido al iniciar",
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Cuando carga la lista de chats, se preparan en segundo plano las fotos de perfil, los últimos mensajes de tus primeros chats, sus vistas previas y emojis. Usa más datos y batería al iniciar."
 }

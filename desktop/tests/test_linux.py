@@ -129,6 +129,7 @@ class LinuxRuntimeTests(unittest.TestCase):
             self.assertNotIn('GI_TYPELIB_PATH', os.environ)
 
 
+@unittest.skipIf(sys.platform == 'win32', 'Linux launchers lock their files with fcntl (POSIX only)')
 class LinuxLauncherTests(unittest.TestCase):
     def test_pinned_id_updates_in_place_and_preserves_unrelated_launchers(self):
         from tg_ascii.linux_runtime import DESKTOP_ENTRY, DESKTOP_ID, ICON_NAME, sync_launcher_icon
@@ -207,6 +208,23 @@ class DebPackageTests(unittest.TestCase):
                                             capture_output=True, text=True, check=True).stdout
                     self.assertEqual(dict(line.split(': ', 1) for line in fields.splitlines()),
                                      {'Package': 'tg-ascii', 'Version': '9.9.9', 'Architecture': architecture})
+
+    def test_deb_keeps_shared_library_links(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+        from package_deb import package
+        import subprocess
+        with tempfile.TemporaryDirectory() as folder:
+            archive = Path(folder) / 'TeleGraph-9.9.9-linux-x86_64.zip'
+            with zipfile.ZipFile(archive, 'w') as bundle:
+                info = zipfile.ZipInfo(f'{archive.stem}/TG-ASCII')
+                info.external_attr = 0o755 << 16
+                bundle.writestr(info, '#!/bin/sh\n')
+                bundle.writestr(f'{archive.stem}/_internal/av.libs/libx.so', 'library')
+                link = zipfile.ZipInfo(f'{archive.stem}/_internal/libx.so')
+                link.external_attr = 0o120777 << 16
+                bundle.writestr(link, 'av.libs/libx.so')
+            listing = subprocess.run(['dpkg-deb', '-c', str(package(archive))], capture_output=True, text=True, check=True).stdout
+            self.assertIn('./opt/tg-ascii/_internal/libx.so -> av.libs/libx.so', listing)
 
 
 if __name__ == '__main__':

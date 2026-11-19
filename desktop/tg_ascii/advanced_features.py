@@ -21,6 +21,7 @@ FEATURES = {
     'process_decoding': ('Decode in separate processes', 'Stickers, emoji and photos are prepared in separate processes, one per spare core, instead of threads of the app. Off: as in the original version.'),
     'gpu_video': ('GPU video in group calls', 'With the expanded view, the cameras are drawn by the graphics card in their own window, which can be enlarged or made full screen, and each camera is sent bigger and smoother. Off: the grid inside the call window, as in the original version.'),
     'group_video_grid': ('Expanded group video view', 'Shows every camera Telegram allows at once (up to 30) in group video calls, in a grid. Uses more CPU and data. Off: one camera at a time, as before.'),
+    'keep_loaded': ('Keep more loaded', 'TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.'),
     'push_notifications': (
         'macOS push notifications' if sys.platform == 'darwin' else 'Windows push notifications',
         'Requires a configured macOS push identity. Normal notifications remain available.' if sys.platform == 'darwin' else 'Requires a configured Windows push identity. Normal notifications remain available.'

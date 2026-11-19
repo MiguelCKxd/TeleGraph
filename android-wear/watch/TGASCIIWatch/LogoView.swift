@@ -59,6 +59,7 @@ struct LogoSettings: View {
         ("blue", L("Azul", "Blue")),
         ("red", L("Rojo", "Red")),
         ("pink", L("Rosa", "Pink")),
+        ("monochrome", L("Monocromo", "Monochrome")),
     ]
 
     var body: some View {

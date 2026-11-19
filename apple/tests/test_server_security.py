@@ -29,6 +29,9 @@ class ServerSecurityTests(IsolatedAsyncioTestCase):
     async def request(self, request):
         reader, writer = await asyncio.open_connection('127.0.0.1', self.port)
         try:
+            # This client reads until the end: it asks the server to close.
+            line, rest = request.split('\r\n', 1)
+            request = line + '\r\nConnection: close\r\n' + rest
             writer.write(request.replace('{port}', str(self.port)).encode())
             await writer.drain()
             return (await reader.read()).decode()
@@ -46,6 +49,29 @@ class ServerSecurityTests(IsolatedAsyncioTestCase):
                 media = await self.request(f'GET /staged HTTP/1.1\r\n{valid}{byte_range}\r\n')
                 self.assertTrue(media.startswith(f'HTTP/1.1 {status} '))
                 self.assertIn("Content-Security-Policy: sandbox; default-src 'none'", media)
+
+    async def test_connection_carries_several_requests(self):
+        reader, writer = await asyncio.open_connection('127.0.0.1', self.port)
+        try:
+            request = (f'POST /api/state HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\nX-TG-Token: test-token\r\n'
+                       'Content-Length: 2\r\n\r\n{}').encode()
+            for _ in range(2):
+                writer.write(request)
+                await writer.drain()
+                head = (await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'), 5)).decode()
+                self.assertTrue(head.startswith('HTTP/1.1 200 '))
+                self.assertIn('Connection: keep-alive', head)
+                length = int(head.split('Content-Length: ')[1].split('\r\n')[0])
+                self.assertEqual(json.loads(await reader.readexactly(length)), {'ok': True, 'result': True})
+            # A request refused before its body is read is answered and the connection closes.
+            writer.write(f'POST /api/state HTTP/1.1\r\nHost: attacker.invalid:{self.port}\r\nContent-Length: 2\r\n\r\n{{}}'.encode())
+            await writer.drain()
+            rejected = (await asyncio.wait_for(reader.read(), 5)).decode()
+            self.assertTrue(rejected.startswith('HTTP/1.1 403 '))
+            self.assertIn('Connection: close', rejected)
+        finally:
+            writer.close()
+            await writer.wait_closed()
 
     async def test_api_rejects_rebinding_foreign_origin_and_missing_token(self):
         cases = (

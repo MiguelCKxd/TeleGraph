@@ -1407,5 +1407,11 @@
   "📸 You took a screenshot.": "📸 צילמת את המסך.",
   "Rotating key...": "מסובב מפתח...",
   "Rotate key now (PFS)": "סובב מפתח כעת (PFS)",
-  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "יש ליצור חשבון באפליקציית טלגרם הרשמית לאייפון או לאנדרואיד, ואז לחזור לכאן כדי להתחבר."
+  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "יש ליצור חשבון באפליקציית טלגרם הרשמית לאייפון או לאנדרואיד, ואז לחזור לכאן כדי להתחבר.",
+  "Disable all animations": "כיבוי כל האנימציות",
+  "Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.": "אימוג׳י מונפשים, מדבקות, מעברים ואפקטים נשארים סטטיים כדי שהאפליקציה תפעל בצורה חלקה במכשירים איטיים יותר. כבוי כברירת מחדל.",
+  "Keep more loaded": "להשאיר יותר תוכן טעון",
+  "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph פועלת כמו אפליקציית הודעות מותקנת: תמונות פרופיל, הודעות אחרונות, תצוגות מקדימות ופרטי אנשי קשר נשמרים מוכנים במכשיר זה והמסכים נפתחים מיד. רק מה שבאמת חדש מתבקש שוב. משתמשת ביותר אחסון וזיכרון.",
+  "Prepare content at startup": "הכנת תוכן בעת ההפעלה",
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "לאחר טעינת רשימת הצ׳אטים מוכנים ברקע תמונות פרופיל, ההודעות האחרונות של הצ׳אטים הראשונים, התצוגות המקדימות והאימוג׳י שלהם. בעת ההפעלה צורכת יותר נתונים וסוללה."
 }

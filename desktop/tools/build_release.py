@@ -18,7 +18,7 @@ from typing import NamedTuple
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_MODULES = ['windows_launcher.py','recovery.py','ui_work.py','sticker_search.py','translations_search.py','composer.py','message_translation.py','translation_queue.py','mobile_icons.py','sender_identity.py','free_crop.py','official_icons.py','translations_editing.py','animated_emojis.py','animation.py','interface_background.py','telegram_wallpapers.py','custom_icon.py','translations_visual.py','translated_view.py','shared_media.py','appearance.py','desktop_settings.py','attachments.py','translations_customization.py','translations_profiles.py', 'profile_details.py', 'desktop_profile.py', '__init__.py', '__main__.py', 'auth.py', 'backend.py', 'desktop.py', 'typography.py', 'notifications.py', 'translations_v092.py', 'translations_v010.py', 'bot_buttons.py', 'desktop_bot_buttons.py', 'folder_features.py', 'desktop_folders.py', 'rich_preview.py', 'sticker_picker.py', 'image_gestures.py', 'interactions.py',
+SOURCE_MODULES = ['windows_launcher.py','recovery.py','ui_work.py','sticker_search.py','translations_search.py','composer.py','message_translation.py','pin_order.py','translation_queue.py','mobile_icons.py','sender_identity.py','free_crop.py','official_icons.py','translations_editing.py','animated_emojis.py','animation.py','interface_background.py','telegram_wallpapers.py','custom_icon.py','translations_visual.py','translated_view.py','shared_media.py','appearance.py','desktop_settings.py','attachments.py','translations_customization.py','translations_profiles.py', 'profile_details.py', 'desktop_profile.py', '__init__.py', '__main__.py', 'auth.py', 'backend.py', 'desktop.py', 'typography.py', 'notifications.py', 'translations_v092.py', 'translations_v010.py', 'bot_buttons.py', 'desktop_bot_buttons.py', 'folder_features.py', 'desktop_folders.py', 'rich_preview.py', 'sticker_picker.py', 'image_gestures.py', 'interactions.py',
                   'desktop_service.py', 'i18n.py', 'preferences.py', 'accounts.py', 'transfers.py',
                   'telegram_features.py', 'desktop_features.py', 'media_viewer.py', 'demo_features.py', 'windows_drop.py', 'app_dialogs.py', 'desktop_plus.py',
                   'telegram_extras.py', 'translations.py', 'local_state.py', 'updater.py', 'themes.py', 'message_tools.py', 'desktop_tools.py', 'audio_engine.py', 'background.py', 'instance.py', 'scrolling.py', 'logos.py', 'desktop_actions.py', 'telegram_actions.py', 'links.py', 'video_metadata.py', 'translations_extra.py', 'messaging_features.py', 'desktop_modern.py', 'bubbles.py', 'image_tools.py', 'native_emoji.py', 'translations_v08.py', 'translations_v09.py']
@@ -59,7 +59,7 @@ SOURCE_MODULES += ['day_separators.py', 'gift_preview.py', 'native_open.py', 'de
                    'translations_v14_world.py', 'contact_search.py']
 # 1.4.1 / 1.5. A test checks that every tg_ascii module is listed.
 SOURCE_MODULES += ['outbox.py', 'read_visibility.py', 'composer_keys.py', 'message_window.py', 'line_breaking.py',
-                   'translations_v15.py', 'resources.py', 'preload.py', 'tree_fit.py', 'row_emoji.py', 'pane_memory.py', 'menu_style.py', 'app_menus.py', 'translations_v151.py', 'custom_menus.py', 'tl_codec.py', 'offline_store.py', 'pending_actions.py', 'app_data.py', 'translations_v153.py', 'autostart.py', 'saved_windows.py', 'window_settings.py', 'translations_v154.py', 'spanish_latam.py', 'linux_runtime.py', 'decode_pool.py', 'translations_v155.py', 'gpu_video.py', 'translations_v155_gpu.py', 'translations_v155_archive.py', 'translations_v156.py', 'devices.py', 'desktop_devices.py', 'emoji_usage.py', 'service_messages.py', 'translations_v30.py', 'secret_tl.py', 'secret_chats.py']
+                   'translations_v15.py', 'resources.py', 'preload.py', 'tree_fit.py', 'row_emoji.py', 'pane_memory.py', 'menu_style.py', 'app_menus.py', 'translations_v151.py', 'custom_menus.py', 'tl_codec.py', 'offline_store.py', 'pending_actions.py', 'app_data.py', 'translations_v153.py', 'autostart.py', 'saved_windows.py', 'window_settings.py', 'translations_v154.py', 'spanish_latam.py', 'linux_runtime.py', 'decode_pool.py', 'translations_v155.py', 'gpu_video.py', 'translations_v155_gpu.py', 'translations_v155_archive.py', 'translations_v156.py', 'devices.py', 'desktop_devices.py', 'emoji_usage.py', 'service_messages.py', 'translations_v30.py', 'secret_tl.py', 'secret_chats.py', 'translations_v3002.py']
 
 
 def build_architecture():
@@ -207,6 +207,58 @@ def build_mac_dock_plugin(app, identifier):
                     *flags, '-framework', 'AppKit', '-framework', 'ImageIO', '-framework', 'CoreGraphics',
                     str(ROOT / 'tools/macos/TeleGraphDockIcon.m'), '-o', str(executable)], check=True)
     return bundle
+
+
+def slim_linux_bundle(app):
+    """3.0.0.2: lighter Linux downloads and installs.
+
+    * Wheels such as PyAV and NumPy ship their libraries in ``<name>.libs``;
+      PyInstaller copied each one again to ``_internal``. Same bytes: the copy
+      becomes a relative link (about 150 MB installed on x86_64).
+    * Debug sections of native libraries are removed (``strip --strip-debug``
+      keeps every symbol the loader uses). The call engine alone carried 110 MB.
+    Returns the bytes saved."""
+    import filecmp
+    internal = app / '_internal'
+    before = sum(path.stat().st_size for path in app.rglob('*') if path.is_file() and not path.is_symlink())
+    originals = {}
+    for libs in sorted(internal.glob('*.libs')):
+        for path in libs.iterdir():
+            if path.is_file() and not path.is_symlink():
+                originals.setdefault(path.name, path)
+    for path in sorted(internal.iterdir()):
+        twin = originals.get(path.name)
+        if twin is not None and path.is_file() and not path.is_symlink() and filecmp.cmp(path, twin, shallow=False):
+            path.unlink()
+            path.symlink_to(twin.relative_to(internal))
+    strip = shutil.which('strip')
+    if strip:
+        for path in sorted(app.rglob('*')):
+            if path.is_symlink() or not path.is_file() or path.stat().st_size < 256 * 1024:
+                continue
+            with path.open('rb') as stream:
+                if stream.read(4) != b'\x7fELF':
+                    continue
+            subprocess.run([strip, '--strip-debug', '--preserve-dates', str(path)], check=False, capture_output=True)
+    else:
+        print('Aviso: falta strip (binutils); las bibliotecas conservan su informacion de depuracion.')
+    after = sum(path.stat().st_size for path in app.rglob('*') if path.is_file() and not path.is_symlink())
+    return before - after
+
+
+def zip_tree(app, archive, label):
+    """Zip a portable build keeping its symbolic links (the updater and the
+    Debian packager recreate them)."""
+    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
+        for path in sorted(app.rglob('*')):
+            name = (Path(label) / path.relative_to(app)).as_posix()
+            if path.is_symlink():
+                info = zipfile.ZipInfo(name)
+                info.create_system = 3
+                info.external_attr = (0o120777 << 16)
+                bundle.writestr(info, os.readlink(path))
+            elif path.is_file():
+                bundle.write(path, name)
 
 
 def configure_mac_bundle(app, signing=None):
@@ -400,6 +452,8 @@ def build(output, credentials=None, demo_only=False, keep_app=False, mac_push_pr
                 host_assets = app / '_internal' / 'share' / folder
                 if host_assets.is_dir():
                     shutil.rmtree(host_assets)
+            saved = slim_linux_bundle(app)
+            print(f'Paquete Linux aligerado en {saved / 1e6:.0f} MB.', flush=True)
         executable = app / ('Contents/MacOS/TG-ASCII' if system == 'darwin' else
                             'TG-ASCII.exe' if system == 'windows' else 'TG-ASCII')
         report = work / 'gui-self-test.json'
@@ -437,10 +491,7 @@ def build(output, credentials=None, demo_only=False, keep_app=False, mac_push_pr
             subprocess.run(['/usr/bin/ditto', '-c', '-k', '--norsrc', '--noextattr', '--keepParent',
                             str(package), str(archive.resolve())], check=True)
         else:
-            with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
-                for path in app.rglob('*'):
-                    if path.is_file():
-                        bundle.write(path, Path(label) / path.relative_to(app))
+            zip_tree(app, archive, label)
         if keep_app:
             # Keep the verified app outside the temporary build tree before cleanup.
             destination=output / label

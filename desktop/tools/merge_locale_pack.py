@@ -13,9 +13,9 @@ sys.path.insert(0, str(ROOT))
 
 
 def main():
-    from tg_ascii import translations_v15, translations_v151, translations_v153, translations_v154, translations_v155, translations_v155_gpu, translations_v155_archive, translations_v156, translations_v30
+    from tg_ascii import translations_v15, translations_v151, translations_v153, translations_v154, translations_v155, translations_v155_gpu, translations_v155_archive, translations_v156, translations_v30, translations_v3002
     packs = {}
-    for release, overwrite in ((translations_v15, True), (translations_v151, False), (translations_v153, False), (translations_v154, False), (translations_v155, False), (translations_v155_gpu, False), (translations_v155_archive, False), (translations_v156, False), (translations_v30, False)):
+    for release, overwrite in ((translations_v15, True), (translations_v151, False), (translations_v153, False), (translations_v154, False), (translations_v155, False), (translations_v155_gpu, False), (translations_v155_archive, False), (translations_v156, False), (translations_v30, False), (translations_v3002, False)):
         for code, labels in release.pack_values().items():
             packs.setdefault(code, []).append((labels, overwrite))
     for code, sources in packs.items():

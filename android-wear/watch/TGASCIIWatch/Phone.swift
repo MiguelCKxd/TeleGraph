@@ -5,6 +5,7 @@ struct ChatItem: Identifiable, Decodable, Hashable {
     let id: Int64
     let name: String
     let unread: Int
+    var pinned: Bool? = nil
     let preview: String
     let kind: String?
 }

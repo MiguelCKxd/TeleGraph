@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import stat
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,12 +41,23 @@ def package(archive, output=None):
     with tempfile.TemporaryDirectory() as temporary:
         tree = Path(temporary) / 'root'
         with zipfile.ZipFile(archive) as bundle:
-            bundle.extractall(temporary)
+            links = []
+            for info in bundle.infolist():
+                mode = info.external_attr >> 16
+                if stat.S_ISLNK(mode):
+                    links.append(info)  # 3.0.0.2: libraries shared through relative links
+                else:
+                    bundle.extract(info, temporary)
             # zipfile does not restore Unix modes: put them back from the archive.
             for info in bundle.infolist():
                 mode = info.external_attr >> 16
-                if mode:
+                if mode and not stat.S_ISLNK(mode):
                     os.chmod(Path(temporary) / info.filename, mode & 0o777)
+            for info in links:
+                target = bundle.read(info).decode('utf-8')
+                if target.startswith('/') or '..' in Path(target).parts:
+                    raise SystemExit(f'Unsafe link in archive: {info.filename}')
+                (Path(temporary) / info.filename).symlink_to(target)
         app = Path(temporary) / archive.stem
         target = tree / 'opt' / 'tg-ascii'
         target.parent.mkdir(parents=True)

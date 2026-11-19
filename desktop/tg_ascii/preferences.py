@@ -8,7 +8,7 @@ from .contact_appearance import CONTACT_DEFAULTS, validated_contact
 
 MAX_SETTINGS_BYTES = 2 * 1024 * 1024
 
-DEFAULTS = {'interface_background':'', 'custom_icon':'', 'official_icon_label':'', 'animated_emoji':True, 'telegram_backgrounds':False, 'text_color':'', 'background_color':'', 'button_radius':0, 'menu_radius':0, 'bubble_radius':0, 'language': 'en', 'font_size': 12, 'ascii_text': False,
+DEFAULTS = {'interface_background':'', 'custom_icon':'', 'official_icon_label':'', 'animated_emoji':True, 'reduce_animations':False, 'telegram_backgrounds':False, 'text_color':'', 'background_color':'', 'accent_color':'', 'button_radius':0, 'menu_radius':0, 'bubble_radius':0, 'language': 'en', 'font_size': 12, 'ascii_text': False,
             'enter_send': True, 'compact': False, 'inline_media': True, 'local_pins': False,
             'notifications': True, 'notify_preview': True, 'notify_sound': True,
             'notify_active': False, 'theme': 'dark', 'logo_theme': 'dark',
@@ -55,6 +55,16 @@ from .advanced_features import validated_features
 DEFAULTS['advanced_features'] = validated_features({})
 # Mobile app: the same features, on unless turned off there (explicit choices only).
 DEFAULTS['mobile_features'] = {}
+
+
+def animations_allowed(values):
+    """False when Personalization › Disable all animations is on (3.0.0.2, off by default)."""
+    return not values.get('reduce_animations', False)
+
+
+def animated_emoji_enabled(values):
+    """Animated emoji and stickers play: their own switch and the global one agree."""
+    return bool(values.get('animated_emoji', True)) and animations_allowed(values)
 
 
 def data_root():
@@ -120,7 +130,7 @@ class Preferences:
         result['advanced_features'] = validated_features(values.get('advanced_features'))
         from .advanced_features import FEATURES
         mobile = values.get('mobile_features')
-        result['mobile_features'] = ({key: value for key, value in mobile.items() if key in FEATURES and type(value) is bool}
+        result['mobile_features'] = ({key: value for key, value in mobile.items() if (key in FEATURES or key == "preload_startup") and type(value) is bool}
                                      if isinstance(mobile, dict) else {})
         from .i18n import LANGUAGES
         if isinstance(values.get('language'), str) and values['language'] in LANGUAGES:
@@ -142,7 +152,7 @@ class Preferences:
         if isinstance(family, str) and len(family) <= 160 and not any(ord(c) < 32 for c in family):
             result['font_family'] = family
         import re
-        for key in ('text_color','background_color'):
+        for key in ('text_color','background_color','accent_color'):
             color=values.get(key,'')
             if isinstance(color,str) and re.fullmatch(r'#[0-9a-fA-F]{6}',color):result[key]=color.lower()
         for key in ('button_radius','menu_radius','bubble_radius'):

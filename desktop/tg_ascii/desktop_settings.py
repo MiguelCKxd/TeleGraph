@@ -70,7 +70,7 @@ class DesktopSettings:
         size=tk.IntVar(value=self.preferences.values['font_size'])
         ttk.Label(appearance,text=tr('Tamaño del texto')).pack(anchor='w',pady=(10,2))
         ttk.Spinbox(appearance,from_=10,to=20,textvariable=size,width=6).pack(anchor='w')
-        colors={key:tk.StringVar(value=self.preferences.values.get(key,'')) for key in ('text_color','background_color')}
+        colors={key:tk.StringVar(value=self.preferences.values.get(key,'')) for key in ('text_color','background_color','accent_color')}
         from .appearance import app_palette
         preview=tk.Label(appearance,text=f'{APP_NAME}  > Hello / Hola',padx=12,pady=18);preview.pack(fill='x',pady=8)
         def preview_colors():
@@ -78,9 +78,9 @@ class DesktopSettings:
             palette=app_palette(values);preview.configure(bg=palette['bg'],fg=palette['text'])
         def pick_color(key):
             palette=app_palette(self.preferences.values)
-            value=colorchooser.askcolor(color=colors[key].get() or palette['text' if key=='text_color' else 'bg'],parent=self.root,title=tr('Text color' if key=='text_color' else 'Background color'))[1]
+            value=colorchooser.askcolor(color=colors[key].get() or palette[{'text_color':'text','background_color':'bg','accent_color':'strong'}[key]],parent=self.root,title=tr({'text_color':'Text color','background_color':'Background color','accent_color':'Accent color'}[key]))[1]
             if value:colors[key].set(value.lower());preview_colors()
-        for key,label in [('text_color','Text color'),('background_color','Background color')]:
+        for key,label in [('text_color','Text color'),('background_color','Background color'),('accent_color','Accent color')]:
             row=FlowFrame(appearance);row.pack(fill='x',pady=3)
             ttk.Button(row,text=tr(label),command=lambda k=key:pick_color(k)).pack(side='left')
             ttk.Button(row,text=tr('Default'),command=lambda k=key:(colors[k].set(''),preview_colors())).pack(side='left')
@@ -225,6 +225,10 @@ class DesktopSettings:
         frame_labels={'auto':'Automatic (as until now)','15':'15 fps','24':'24 fps','30':'30 fps','60':'60 fps','120':'120 fps','unlimited':'Unlimited'}
         option_row(custom,'frame_limit','Frame rate limit',['auto','15','24','30','60','120','unlimited'],frame_labels)
         ttk.Label(custom,text=tr('Limited saves battery and memory; Unlimited uses more of your computer for speed. Graphics sets how many animations play at once and their frame rate. Thread and priority changes apply fully after restarting.'),style='Muted.TLabel',wraplength=480).pack(fill='x',pady=(0,6))
+        # 3.0.0.2: one switch that stills every animation (off by default).
+        flags['reduce_animations']=tk.BooleanVar(value=self.preferences.values.get('reduce_animations',False))
+        ttk.Checkbutton(custom,text=tr('Disable all animations'),variable=flags['reduce_animations'],style='Settings.TCheckbutton').pack(fill='x',pady=6)
+        ttk.Label(custom,text=tr('Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.'),style='Muted.TLabel',wraplength=480).pack(fill='x',pady=(0,6))
         flags['preload_startup']=tk.BooleanVar(value=self.preferences.values.get('preload_startup',False))
         ttk.Checkbutton(custom,text=tr('Prepare everything at startup (slower start, smoother use)'),variable=flags['preload_startup'],style='Settings.TCheckbutton').pack(fill='x',pady=6)
         ttk.Label(custom,text=tr('For powerful computers: once the chat list loads, all profile photos, the latest messages of your first chats and their emoji are prepared in advance.'),style='Muted.TLabel',wraplength=480).pack(fill='x',pady=(0,6))

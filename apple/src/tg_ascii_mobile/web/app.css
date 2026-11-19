@@ -494,3 +494,109 @@ html[style*="--fx-menu-border:"] .sheet, html[style*="--fx-menu-border:"] .compo
 
 .personal-channel-preview { display: block; width: 100%; padding: .55em .65em; margin-block: .25em .6em;
   background: var(--panel); border: 1px solid var(--line); text-align: start; overflow-wrap: anywhere; cursor: pointer; }
+
+/* 3.0: smooth scrolling and a common grid.
+   One side inset (--inset) for bars, search, tabs, rows, sections and the
+   conversation, so their contents line up on the same vertical edges; one
+   control height (--control) so buttons, fields and icons in a line match. */
+:root { --inset: .8em; --control: max(44px, 2.6em); --field-pad: max(.6em, calc((var(--control) - 1.3em - 2px) / 2)); }
+
+/* Scroll areas keep their own momentum and never drag the page behind them. */
+.scroll, .winbody, .sheet, .call-people { overscroll-behavior: contain; }
+/* The conversation keeps its place by itself when older pages arrive; the
+   browser's own anchoring (Chrome only) would add to it. */
+.chat-scroll, .winbody { overflow-anchor: none; }
+/* Long lists: rows off screen are not laid out or painted until they come near. */
+#chatlist > .row { content-visibility: auto; contain-intrinsic-size: auto 4.2em; }
+/* Previews take their final size before arriving (no jumps while scrolling). */
+.msg .media img.sized { aspect-ratio: var(--ar); width: min(100%, calc(22em * var(--ar))); height: auto; max-height: none; object-fit: cover; }
+.msg .media.sticker img.sized { width: min(9em, calc(9em * var(--ar))); }
+.winbody .msg .media img.sized { width: min(100%, calc(12em * var(--ar))); }
+.msg .media img, .webpage img { background: var(--panel); }
+
+/* bars: the same height everywhere, everything centred on one line */
+.bar { min-height: calc(var(--control) + .5em); padding-inline: calc(var(--inset) - .35em); gap: .35em; }
+.bar .title { line-height: 1.25; }
+.bar .title .names { gap: .05em; }
+.bar .sub { line-height: 1.2; }
+.bar .btn, .selection-bar .btn, .preview-bar .btn, .winbar .btn, .sheet .actions .btn, .voice-actions .btn,
+.composer .line .btn, .wincompose .line .btn, .btn.down {
+  display: inline-flex; align-items: center; justify-content: center; min-height: var(--control); line-height: 1.2; flex: none; }
+.bar .status { padding-inline: .25em; }
+
+/* search, folder tabs */
+.search { padding: .45em var(--inset); }
+.search input { min-height: var(--control); padding-block: 0; }
+.tabs { padding: .3em calc(var(--inset) - .35em); gap: .3em; align-items: center; }
+.tab { display: inline-flex; align-items: center; min-height: 2.25em; padding: 0 .75em; }
+
+/* chat list rows: avatar centred on the two text lines, time and badge on the same edge */
+.row { padding: .6em var(--inset); gap: .7em; align-items: center; min-height: 4.2em; }
+.row .body { display: flex; flex-direction: column; justify-content: center; gap: .2em; }
+.row .top, .row .bottom { align-items: center; margin: 0; }
+.row .top .name { line-height: 1.3; }
+.row .when { font-variant-numeric: tabular-nums; }
+.row .preview { line-height: 1.3; }
+.row .badge { min-width: 1.6em; height: 1.45em; line-height: 1.45em; padding: 0 .4em; text-align: center;
+  font-variant-numeric: tabular-nums; border-radius: var(--button-radius, 0); }
+.row .avatar > span, .avatar.small > span, .avatar.big > span { line-height: 1; }
+.row .activity { flex: none; color: var(--strong); font-size: .85em; }
+.row .flags { font-size: .9em; }
+.empty { padding: 2.5em var(--inset); line-height: 1.5; }
+
+/* conversation */
+.messages { padding: .5em var(--inset) 1em; gap: .25em; }
+.day { margin: .9em 0 .45em; padding: .1em .6em; background: color-mix(in srgb, var(--panel) 85%, transparent);
+  border-radius: var(--button-radius, 0); font-variant-numeric: tabular-nums; }
+.msg { padding: .4em .55em; }
+.msg .head { align-items: baseline; font-variant-numeric: tabular-nums; }
+.msg .head > span:last-child:not(.who) { flex: none; }
+.msg .text { line-height: 1.4; }
+.msg > .meta:last-child { text-align: end; margin-top: .1em; font-variant-numeric: tabular-nums; }
+.msg .reply { padding-block: .05em; }
+.reactions { gap: .35em; margin-top: .3em; }
+.reaction { display: inline-flex; align-items: center; gap: .2em; min-height: 1.9em; padding: 0 .5em; font-variant-numeric: tabular-nums; }
+.msg.service { padding: .3em .7em; margin: .2em 0; }
+.comments-button { padding: .3em .6em; }
+.pinned { padding: .5em var(--inset); min-height: 2.6em; display: flex; align-items: center; gap: .3em; }
+.pinned > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.preview-bar, .selection-bar { padding: .25em calc(var(--inset) - .35em) .25em var(--inset); min-height: calc(var(--control) + .3em); }
+.btn.down { inset-inline-end: var(--inset); min-width: var(--control); padding: 0; }
+
+/* composer: icons, field and send button share one height and one centre line */
+.composer { padding: .45em calc(var(--inset) - .3em) calc(var(--bottom) + .45em); gap: .35em; }
+.composer .line { align-items: flex-end; gap: .25em; }
+.composer textarea { min-height: var(--control); padding-block: var(--field-pad); }
+.composer-prompt { inset: calc(var(--field-pad) + 1px) calc(.6em + 1px) auto; }
+.composer .line .icon-button { min-height: var(--control); }
+.composer .context { min-height: 1.8em; padding-inline: .3em; }
+.attachments { padding-inline: .3em; }
+.format-bar { padding: .15em .2em; gap: .2em; }
+
+/* menus (sheets): same spacing for titles, items and actions */
+.sheet { padding: .7em .5em calc(var(--bottom) + .7em); }
+.sheet h3 { margin: .2em .5em .6em; line-height: 1.3; }
+.sheet .item { display: flex; align-items: center; gap: .3em; min-height: 48px; padding: .6em .7em; line-height: 1.3; }
+.sheet .item::before { flex: none; }
+.sheet .quick { justify-content: center; gap: .45em; padding: .3em .5em .7em; }
+.sheet .quick button { display: inline-grid; place-items: center; width: 2.35em; height: 2.35em; padding: 0; line-height: 1;
+  border-radius: var(--button-radius, 0); }
+.sheet .actions { gap: .4em; margin-top: .6em; align-items: center; }
+.sheet.form { padding-left: var(--inset); padding-right: var(--inset); gap: .45em; }
+
+/* settings and profile */
+.section { padding: .7em var(--inset); }
+.section h4 { margin: .35em 0 .55em; line-height: 1.3; }
+.setting { min-height: var(--control); padding: .35em 0; gap: .7em; }
+.setting > span { line-height: 1.35; }
+.profile-head { padding: 1em var(--inset); gap: 1em; }
+.profile-actions { gap: .4em; }
+.account { gap: .6em; padding: .45em 0; }
+
+/* toast above the composer, lined up with the conversation */
+#toast { left: var(--inset); right: var(--inset); padding: .65em .9em; line-height: 1.35; }
+@media (min-width: 760px) { #toast { left: auto; right: 1.5em; } }
+
+/* Personalization › Disable all animations (off by default). */
+.no-motion *, .no-motion *::before, .no-motion *::after {
+  animation: none !important; transition: none !important; scroll-behavior: auto !important; }

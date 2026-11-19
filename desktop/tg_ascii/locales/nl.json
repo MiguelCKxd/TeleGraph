@@ -1407,5 +1407,11 @@
   "📸 You took a screenshot.": "📸 Je hebt een schermafbeelding gemaakt.",
   "Rotating key...": "Sleutel roteren...",
   "Rotate key now (PFS)": "Sleutel nu roteren (PFS)",
-  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Maak je account aan in de officiële Telegram-app voor iPhone of Android en kom hier terug om in te loggen."
+  "Create your account in the official Telegram app for iPhone or Android, then return here to sign in.": "Maak je account aan in de officiële Telegram-app voor iPhone of Android en kom hier terug om in te loggen.",
+  "Disable all animations": "Alle animaties uitschakelen",
+  "Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.": "Geanimeerde emoji, stickers, overgangen en effecten blijven stil, zodat de app soepel werkt op tragere apparaten. Standaard uit.",
+  "Keep more loaded": "Meer inhoud geladen houden",
+  "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph werkt als een geïnstalleerde berichtenapp: profielfoto’s, recente berichten, voorbeelden en contactgegevens blijven klaar op dit apparaat en schermen openen er meteen mee. Alleen wat echt nieuw is, wordt opnieuw opgevraagd. Gebruikt meer opslag en geheugen.",
+  "Prepare content at startup": "Inhoud voorbereiden bij het starten",
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Zodra de chatlijst geladen is, worden profielfoto’s, de laatste berichten van je eerste chats, hun voorbeelden en emoji op de achtergrond voorbereid. Gebruikt bij het starten meer data en batterij."
 }

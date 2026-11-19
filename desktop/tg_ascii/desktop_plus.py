@@ -17,6 +17,7 @@ from .notification_history import record_notice
 
 from .desktop_modern import DesktopModern
 from .resources import cache_entries, network_slots
+from .preferences import animated_emoji_enabled
 
 # Visible avatars fetched at once (1.3: 2). Downloads share the backend's own
 # DOWNLOAD_CONCURRENCY=4 slots and FLOOD_WAIT gate.
@@ -115,7 +116,7 @@ class DesktopPlus(DesktopModern):
         try:
             from .animation import AnimationPlayer
             if not hasattr(self, 'animation_player'): self.animation_player=AnimationPlayer(self.root)
-            return self.animation_player.photo(path,size,self.preferences.values.get('animated_emoji',True),tint=tint)
+            return self.animation_player.photo(path,size,animated_emoji_enabled(self.preferences.values),tint=tint)
         except (ImportError, OSError, ValueError, tk.TclError): return None
 
     def request_photo(self,path,size,callback,*,owner=None,tint=None,valid=None,enabled=None):
@@ -124,11 +125,11 @@ class DesktopPlus(DesktopModern):
         from .animation import AnimationPlayer
         if not hasattr(self,'animation_player'):self.animation_player=AnimationPlayer(self.root)
         follows_setting=enabled is None
-        enabled=self.preferences.values.get('animated_emoji',True) if follows_setting else bool(enabled)
+        enabled=animated_emoji_enabled(self.preferences.values) if follows_setting else bool(enabled)
         valid=valid or (lambda:owner is None or bool(owner.winfo_exists()))
         if follows_setting:
             target_valid=valid
-            valid=lambda:enabled==self.preferences.values.get('animated_emoji',True) and target_valid()
+            valid=lambda:enabled==animated_emoji_enabled(self.preferences.values) and target_valid()
         try:
             if not valid():return
         except tk.TclError:return
@@ -276,7 +277,7 @@ class DesktopPlus(DesktopModern):
         if chats is None:chats={chat.id:chat for chat in self.chats}
         if not hasattr(self,'animation_player'):self.animation_player=AnimationPlayer(self.root)
         player=self.animation_player
-        enabled=self.preferences.values.get('animated_emoji',True)
+        enabled=animated_emoji_enabled(self.preferences.values)
         for ident in visible:
             chat=chats.get(int(ident))
             if chat is None:continue

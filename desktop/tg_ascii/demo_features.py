@@ -9,7 +9,7 @@ class DemoFeatures:
                              'username': 'demo_user', 'phone': '', 'about': tr('Demo local'), 'is_user': True, 'bot': False}
         self.demo_contacts = [types.User(2, first_name='Alex'), types.User(3, first_name='Sam')]
         self.demo_folders = []
-        self.demo_pins = set()
+        self.demo_pins = []
         self.demo_chat_names = {1: tr('Mensajes guardados'), 2: 'Proyecto TG-ASCII', 3: tr('Ideas de diseno')}
         self.demo_chat_kinds = {}
         self.demo_secret_chats = {}
@@ -50,7 +50,16 @@ class DemoFeatures:
         attachment_path(filename)
 
     async def pin(self, peer, pinned):
-        self.demo_pins.add(peer) if pinned else self.demo_pins.discard(peer)
+        if peer in self.demo_pins:
+            self.demo_pins.remove(peer)
+        if pinned:
+            self.demo_pins.insert(0, peer)
+
+    async def move_pinned(self, peer, direction, archived=False):
+        index = self.demo_pins.index(peer)
+        target = index + direction
+        if 0 <= target < len(self.demo_pins):
+            self.demo_pins.insert(target, self.demo_pins.pop(index))
 
     def folder_store(self):
         from .folder_features import MemoryFolders

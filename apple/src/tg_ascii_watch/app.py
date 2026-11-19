@@ -70,6 +70,8 @@ class TgAsciiWatch(toga.App):
         return self.phone_look if self.wear_link_available and self.use_phone_style and self.phone_look else {}
 
     def colour(self, value):
+        if value == STRONG and self.core.prefs and self.core.prefs.values.get('accent_color'):
+            return self.core.prefs.values['accent_color']
         return self.look.get(PALETTE.get(value), value)
 
     def load_wear_look(self):
@@ -179,10 +181,11 @@ class TgAsciiWatch(toga.App):
             if self.screen == 'chats':
                 self.show_chats()
         elif kind == 'chat':
+            index = next((i for i, c in enumerate(self.chats) if c['id'] == data['id']), 0)
             self.chats = [chat for chat in self.chats if chat['id'] != data['id']]
             if not data.get('archived'):
                 pinned = sum(1 for chat in self.chats if chat.get('pinned'))
-                self.chats.insert(0 if data.get('pinned') else pinned, data)
+                self.chats.insert(index if data.get('pinned') else pinned, data)
             if self.screen == 'chats':
                 self.show_chats()
         elif kind == 'message' and self.screen == 'chat' and data['peer'] == self.open_peer:
@@ -280,7 +283,8 @@ class TgAsciiWatch(toga.App):
                     self.button(tr('Entrar con codigo QR'), self.start_qr),
                     self.label(tr('Numero de telefono'), 10, MUTED), phone,
                     self.button(tr('Continuar'), lambda: self.run('login.phone', phone=phone.value.strip())),
-                    self.button(tr('App logos'), self.show_logos)]
+                    self.button(tr('App logos'), self.show_logos),
+                    self.button(tr('Accent color'), self.show_accents)]
         if error:
             children.insert(1, self.label(error, 10, DANGER))
         self.page(*children)
@@ -329,7 +333,8 @@ class TgAsciiWatch(toga.App):
                             style=Pack(direction='row', justify_content='center'))
         children = [logo_row,
                     self.label('TeleGraph' + ('  ○' if offline else ''), 13, STRONG, True, text_align='center'),
-                    self.button(tr('App logos'), self.show_logos)]
+                    self.button(tr('App logos'), self.show_logos),
+                    self.button(tr('Accent color'), self.show_accents)]
         if not self.chats:
             children.append(self.label(tr('Cargando...') if not offline else tr('Sin conexion'), 10, MUTED, text_align='center'))
         for chat in self.chats[:40]:
@@ -338,6 +343,12 @@ class TgAsciiWatch(toga.App):
             children.append(self.button(title, lambda chat=chat: self.open_chat(chat), color=STRONG if unread else FG))
         self.page(*children)
 
+    def show_accents(self):
+        choices = [('Default', ''), ('Blue', '#58aaff'), ('Orange', '#ffb347'), ('Pink', '#ff9ad5'), ('Red', '#ff7777')]
+        self.page(self.label(tr('Accent color'), 13, STRONG),
+                  *[self.button(tr(label), lambda value=value: self.run('settings', values={'accent_color': value},
+                              done=lambda _: self.show_chats())) for label, value in choices])
+
     def show_logos(self, appearance=None):
         from tg_ascii.logos import LOGO_PALETTES, VARIANTS, png_bytes
         self.screen = 'logos'
@@ -345,7 +356,7 @@ class TgAsciiWatch(toga.App):
         selected = self.look.get('brand_logo') or appearance['brand_logo']
         variants = {label: key for key, label in VARIANTS.items()}
         color_labels = {'default': tr('Default'), 'light': tr('Light'), 'orange': tr('Orange'),
-                        'blue': tr('Blue'), 'red': tr('Red'), 'pink': tr('Pink')}
+                        'blue': tr('Blue'), 'red': tr('Red'), 'pink': tr('Pink'), 'monochrome': tr('Monochrome')}
         colors = {label: key for key, label in color_labels.items() if key in LOGO_PALETTES}
         themes = {tr('Dark'): 'dark', tr('Light'): 'light'}
         variant = toga.Selection(items=list(variants), value=VARIANTS[selected['variant']])
@@ -425,6 +436,11 @@ class TgAsciiWatch(toga.App):
                 self.chat_draft = field.value = ''
         is_secret = getattr(self, 'open_kind', None) == 'secret'
         children = [self.button('< ' + self.open_name[:22], self.close_chat, color=STRONG)]
+        chat = next((c for c in self.chats if c['id'] == self.open_peer), {})
+        if chat.get('pinned') and not is_secret:
+            for direction, label in [(-1, 'Move pin up'), (1, 'Move pin down')]:
+                children.append(self.button(tr(label), lambda step=direction: self.run(
+                    'move_pin', peer=self.open_peer, direction=step, account=self.core.account)))
         if is_secret:
             children.append(self.button('🔒 ' + tr('Clave de cifrado y autodestrucción'), self.show_secret_info, color=MUTED, size=10))
         elif getattr(self, 'open_kind', None) == 'user':

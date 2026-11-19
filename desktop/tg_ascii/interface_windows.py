@@ -20,6 +20,7 @@ from . import APP_NAME
 from .i18n import tr
 from .desktop_tools import DesktopTools
 from .ui_work import FrameJob, bind_text_action, clear_text_actions
+from .preferences import animated_emoji_enabled
 
 
 def pinned_backend(app, account):
@@ -783,7 +784,7 @@ class LinkedChatWindow(DesktopTools):
                 owner.insert_photo(path, marker, tag, epoch, (280, 180))
         key = (account, peer, message.id)
         if message.media_kind == 'sticker':
-            key += (app.preferences.values.get('animated_emoji', True),)
+            key += (animated_emoji_enabled(app.preferences.values),)
         self.app.fetch_art(key, fetch, loaded)
 
     def acknowledge(self):

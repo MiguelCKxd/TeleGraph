@@ -124,6 +124,24 @@ def list_entries(app, peer, chat, *, include_pin=True):
     if include_pin:
         entries.append((tr('Fijar / Desfijar'), lambda: perform(lambda: backend.pin_in_folder(folder, peer, not pinned)
                                                                 if folder else backend.pin(peer, not chat.pinned))))
+    local = app.preferences.values['local_pins'] and peer in app.local_pin_ids()
+    if local or (pinned and not folder):
+        from .secret_chats import is_secret_peer
+        def move(direction):
+            if local:
+                order = list(app.local_pins.values[account])
+                visible = {c.id for c in app.chats if c.archived == chat.archived}
+                peers = [p for p in order if p in visible]
+                target = peers.index(peer) + direction
+                if 0 <= target < len(peers):
+                    a, b = order.index(peer), order.index(peers[target])
+                    order[a], order[b] = order[b], order[a]
+                    app.local_pins.save_order(account, order)
+                    app.render_chats()
+            else:
+                perform(lambda: backend.move_pinned(peer, direction, chat.archived))
+        if local or not is_secret_peer(peer):
+            entries.extend([(tr('Move up'), lambda: move(-1)), (tr('Move down'), lambda: move(1))])
     entries += [(tr('Unarchive' if chat.archived else 'Archive'), lambda: perform(lambda: backend.archive_chat(peer, not chat.archived))),
                 (tr('Add to folder'), folders)]
     if caps.can_join or caps.can_leave:

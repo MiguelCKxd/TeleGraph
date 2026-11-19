@@ -1,6 +1,7 @@
 """Telegram's standard animated-emoji pack, resolved without changing source text."""
 from dataclasses import replace
 import unicodedata
+from .preferences import animated_emoji_enabled
 
 
 def candidate(message):
@@ -14,7 +15,7 @@ def candidate(message):
 
 
 def animated_content(app,message):
-    if not app.preferences.values.get('animated_emoji',True):return message
+    if not animated_emoji_enabled(app.preferences.values):return message
     key=candidate(message)
     document=getattr(app,'_standard_emoji_packs',{}).get(app.ui_account,{}).get(key)
     if document is None:return message
@@ -29,7 +30,7 @@ def animated_content(app,message):
 
 
 def ensure_pack(app):
-    if app.demo or app.active is None or not app.preferences.values.get('animated_emoji',True):return
+    if app.demo or app.active is None or not animated_emoji_enabled(app.preferences.values):return
     if not any(candidate(message) for message in app.messages):return
     from .animation import renderer_available
     if not renderer_available('application/x-tgsticker'):return

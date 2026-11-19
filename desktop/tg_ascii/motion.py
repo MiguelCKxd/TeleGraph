@@ -8,7 +8,7 @@ import shutil
 import tkinter as tk
 from tkinter import ttk
 
-from .preferences import read_json, write_json
+from .preferences import animations_allowed, read_json, write_json
 
 EASINGS = ('linear', 'ease-out', 'ease-in-out')
 SWIPE_DEFAULT = {'enabled': True, 'gesture_enabled': True, 'duration_ms': 96,
@@ -51,6 +51,10 @@ def validate_motion(value):
     return result
 
 
+def _values(app):
+    return getattr(getattr(app, 'preferences', None), 'values', None) or {}
+
+
 def motion_root(app):
     store = getattr(app, 'interface_store', None)
     return Path(store.root) if store is not None else app.preferences.path.parent / 'interface'
@@ -66,7 +70,7 @@ def get_motion(app):
 def motion_event(app, name='swipe_reply'):
     values = get_motion(app)
     event = values['events'].get(name, SWIPE_DEFAULT).copy()
-    event['enabled'] = values['enabled'] and event['enabled']
+    event['enabled'] = values['enabled'] and event['enabled'] and animations_allowed(_values(app))
     return event
 
 
@@ -119,7 +123,7 @@ def resource_photo(app, path, size):
     from .animation import AnimationPlayer
     if not hasattr(app, 'animation_player'):
         app.animation_player = AnimationPlayer(app.root)
-    return app.animation_player.photo(path, size, enabled=get_motion(app)['enabled'])
+    return app.animation_player.photo(path, size, enabled=get_motion(app)['enabled'] and animations_allowed(_values(app)))
 
 
 def indicator_photo(app, event):

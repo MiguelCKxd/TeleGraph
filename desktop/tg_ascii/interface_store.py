@@ -15,7 +15,7 @@ SCHEMA = 1
 MAX_UNDO_STEPS = 100
 KINDS = ('button', 'menu', 'label', 'image', 'panel')
 APPEARANCE_KEYS = {
-    'theme', 'font_size', 'font_family', 'text_color', 'background_color',
+    'theme', 'font_size', 'font_family', 'text_color', 'background_color', 'accent_color',
     'button_radius', 'menu_radius', 'bubble_radius', 'bubbles', 'compact',
     'interface_background', 'animated_emoji', 'inline_media',
 }

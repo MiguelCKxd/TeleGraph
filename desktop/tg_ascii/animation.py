@@ -12,6 +12,7 @@ import time
 import tkinter as tk
 import weakref
 from telethon.errors import RPCError,FileReferenceExpiredError,FileReferenceInvalidError,FileReferenceEmptyError
+from .preferences import animated_emoji_enabled
 
 REFERENCE_ERRORS=(FileReferenceExpiredError,FileReferenceInvalidError,FileReferenceEmptyError)
 
@@ -139,7 +140,7 @@ async def emoji_file(app, document, account, backend, side=128):
     cache=getattr(app,'_emoji_files',None)
     if cache is None:cache=app._emoji_files=OrderedDict()
     from .resources import decode_fps
-    key=(account,document.id,app.preferences.values.get('animated_emoji',True),side,decode_fps())
+    key=(account,document.id,animated_emoji_enabled(app.preferences.values),side,decode_fps())
     path=cache.get(key)
     if path and Path(path).is_file():cache.move_to_end(key);return path
     jobs=getattr(app,'_emoji_jobs',None)
@@ -173,7 +174,7 @@ async def _emoji_file(app, document, account, backend, side=128):
     # heavy) renders across launches in the account's persistent cache.
     from .media_cache import emoji_base, touch
     base = emoji_base(backend, document.id) or app.preview_dir / f'{account}-emoji-{document.id}'
-    animated=app.preferences.values.get('animated_emoji', True)
+    animated=animated_emoji_enabled(app.preferences.values)
     if not animated:
         try:
             return await backend.download_media(document,base.with_suffix('.jpg'),thumbnail=True)

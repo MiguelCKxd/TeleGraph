@@ -548,6 +548,14 @@ from .translations_v156 import extend as extend_v156
 extend_v156(CATALOGUES)
 from .translations_v30 import extend as extend_v30
 extend_v30(CATALOGUES)
+from .translations_v3002 import extend as extend_v3002
+extend_v3002(CATALOGUES)
 
 from .translations_extended import load_catalogues as load_extended_catalogues
 CATALOGUES.update(load_extended_catalogues())
+
+CATALOGUES['es'].update({
+    'Accent color': 'Color de realce', 'Monochrome': 'Monocromo',
+    'Move pin up': 'Subir chat fijado', 'Move pin down': 'Bajar chat fijado',
+    'Unlimited local pins (device only)': 'Fijados ilimitados solo en este dispositivo',
+})

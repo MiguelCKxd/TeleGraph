@@ -238,6 +238,10 @@ class TelegramFeatures(ProfileDetails, FolderFeatures):
         return await self.client(functions.messages.ToggleDialogPinRequest(
             peer=types.InputDialogPeer(entity), pinned=pinned))
 
+    async def move_pinned(self, peer, direction, archived=False):
+        from .pin_order import move_pinned
+        await move_pinned(self.client, peer, direction, archived)
+
     async def stories(self):
         results, state = [], None
         for page in range(10):
