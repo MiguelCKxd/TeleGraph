@@ -5,8 +5,6 @@ iOS / Mac: an AVFoundation camera screen, and Core Image for a picture.
 Both give the core the text of the code, or None.
 """
 
-# Returned instead of a code while Google's scanner module is still being installed.
-PREPARING = '\x00preparing'
 CAMERA_DENIED = '\x00camera-denied'
 
 

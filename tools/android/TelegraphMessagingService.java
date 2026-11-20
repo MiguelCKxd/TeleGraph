@@ -28,34 +28,9 @@ public final class TelegraphMessagingService extends FirebaseMessagingService {
             if (payload.has("data")) {
                 payload = new JSONObject(payload.getString("data"));
             }
-            if (payload.opt("custom") instanceof String) {
-                payload.put("custom", new JSONObject(payload.getString("custom")));
-            }
-            long account = payload.optLong("user_id");
-            // Some Telegram apps receive only a badge: there is no account or peer in that delivery.
-            JSONObject hint = new JSONObject();
-            if (account > 0) {
-                hint.put("user_id", account);
-            } else if (payload.has("badge") && payload.optLong("badge", -1) >= 0 && message.getSentTime() > 0) {
-                hint.put("badge_sent_at", message.getSentTime() / 1000L);
-            } else {
+            JSONObject hint = notificationHint(payload, message.getSentTime());
+            if (hint == null) {
                 return;
-            }
-            // WorkManager persists its inputs. Keep routing IDs only, never contact names or text.
-            String kind = payload.optString("loc_key");
-            if (kind.matches("[A-Z0-9_]{1,80}")) {
-                hint.put("loc_key", kind);
-            }
-            JSONObject custom = payload.optJSONObject("custom");
-            if (custom != null) {
-                JSONObject route = new JSONObject();
-                for (String field : new String[]{"from_id", "channel_id", "chat_id", "msg_id"}) {
-                    long value = custom.optLong(field);
-                    if (value > 0) {
-                        route.put(field, value);
-                    }
-                }
-                hint.put("custom", route);
             }
             Data.Builder input = new Data.Builder().putString("hint", hint.toString());
             if (message.getTtl() > 0 && message.getSentTime() > 0) {
@@ -71,6 +46,49 @@ public final class TelegraphMessagingService extends FirebaseMessagingService {
         } catch (JSONException malformed) {
             // Drop the malformed hint without logging message data.
         }
+    }
+
+    static JSONObject notificationHint(JSONObject payload, long sentAtMillis) throws JSONException {
+        long account = payload.optLong("user_id");
+        if (payload.has("user_id") && account <= 0) {
+            return null;
+        }
+        String kind = payload.optString("loc_key");
+        if (kind.equals("SESSION_REVOKE") || kind.equals("MESSAGE_MUTED") || kind.equals("DC_UPDATE")
+                || kind.startsWith("READ_") || kind.startsWith("DELETE_") || kind.startsWith("PHONE_CALL")) {
+            return null;
+        }
+        JSONObject hint = new JSONObject();
+        if (account > 0) {
+            hint.put("user_id", account);
+        }
+        JSONObject custom = payload.optJSONObject("custom");
+        if (payload.opt("custom") instanceof String) {
+            custom = new JSONObject(payload.getString("custom"));
+        }
+        // Only routing IDs are allowed in WorkManager's persistent database.
+        if (account > 0 && custom != null && custom.optLong("msg_id") > 0) {
+            JSONObject route = new JSONObject();
+            for (String field : new String[]{"channel_id", "chat_id", "from_id"}) {
+                long id = custom.optLong(field);
+                if (id > 0) {
+                    route.put(field, id);
+                }
+            }
+            if (route.length() > 0) {
+                route.put("msg_id", custom.optLong("msg_id"));
+                hint.put("custom", route);
+                if (kind.matches("[A-Z0-9_]{1,80}")) {
+                    hint.put("loc_key", kind);
+                }
+                return hint;
+            }
+        }
+        // Telegram can provide just the recipient in multi-account mode, or just a badge.
+        if (!kind.isEmpty() || sentAtMillis < 1000L || (account <= 0 && payload.optLong("badge", -1) < 0)) {
+            return null;
+        }
+        return hint.put("badge_sent_at", sentAtMillis / 1000L);
     }
 
     @Override

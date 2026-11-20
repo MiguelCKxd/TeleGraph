@@ -10,8 +10,10 @@ import tempfile
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urlencode
 from xml.etree import ElementTree as ET
 
+from tg_ascii.i18n import tr
 from tg_ascii.preferences import write_json
 
 COLOR_FIELDS = ('background_color', 'second_background_color', 'third_background_color', 'fourth_background_color')
@@ -39,10 +41,49 @@ def wallpaper_options(options, original=None):
     return settings
 
 
+def telegram_wallpaper_link(wallpaper, settings):
+    """Create the official preview link using the settings applied to this background."""
+    slug = getattr(wallpaper, 'slug', None)
+    if slug and not re.fullmatch(r'[A-Za-z0-9_-]+', slug):
+        return None
+    colors = [f'{color & 0xffffff:06x}' for key in COLOR_FIELDS
+              if (color := getattr(settings, key)) is not None]
+    fill = ('-' if len(colors) == 2 else '~').join(colors)
+    pattern = bool(getattr(wallpaper, 'pattern', False))
+    if not slug and not fill:
+        return None
+    query = {}
+    if pattern:
+        if not slug or not fill:
+            return None
+        query.update(intensity=settings.intensity if settings.intensity is not None else 50, bg_color=fill)
+    if len(colors) == 2 and (pattern or not slug):
+        query['rotation'] = settings.rotation or 0
+    if slug:
+        modes = []
+        if not pattern and settings.blur:
+            modes.append('blur')
+        if settings.motion:
+            modes.append('motion')
+        if modes:
+            query['mode'] = ' '.join(modes)
+    suffix = '?' + urlencode(query) if query else ''
+    return 'https://t.me/bg/' + (slug or fill) + suffix
+
+
 def web_pattern(source, target, settings):
     """Draw compressed Telegram vector patterns natively in the WebView, using only path geometry."""
     with gzip.open(source, 'rb') as stream:
         data = stream.read(4 * 1024 * 1024 + 1)
+    # Only UTF-8 is accepted: in UTF-16 or UTF-32 the declarations below would hide between zero
+    # bytes, and ASCII text in those encodings is still valid UTF-8, so zero bytes are refused too.
+    try:
+        text = data.decode('utf-8')
+    except UnicodeDecodeError:
+        raise ValueError('Unsupported pattern') from None
+    declared = re.match(r'\ufeff?\s*<\?xml[^>]*?encoding\s*=\s*["\']([^"\']+)', text)
+    if '\x00' in text or (declared and declared.group(1).lower().replace('-', '') != 'utf8'):
+        raise ValueError('Unsupported pattern')
     if len(data) > 4 * 1024 * 1024 or re.search(br'<!\s*(?:DOCTYPE|ENTITY)\b', data, re.I):
         raise ValueError('Unsupported pattern')
     source_svg = ET.fromstring(data)
@@ -230,7 +271,7 @@ class ChatWallpapers:
                 pending.discard(identity)
 
     async def _apply_chat_wallpaper(self, account, target, source, options, sync, key, catalog_id, preview):
-        from telethon import types, functions
+        from telethon import errors, types, functions
         self.check_active_account(account)
         if not account or sync not in ('', 'devices', 'both') or (target == 'all' and sync == 'both'):
             raise ValueError('Invalid wallpaper scope')
@@ -299,9 +340,14 @@ class ChatWallpapers:
                     raise ValueError('Telegram keeps global solid and gradient backgrounds on this device.')
                 self.check_active_account(account)
                 if peer:
-                    await client(functions.messages.SetChatWallPaperRequest(peer,
-                        wallpaper=reference if source != 'reset' else None, settings=settings if source != 'reset' else None,
-                        for_both=sync == 'both' or None))
+                    try:
+                        await client(functions.messages.SetChatWallPaperRequest(
+                            peer, wallpaper=reference if source != 'reset' else None,
+                            settings=settings if source != 'reset' else None, for_both=sync == 'both' or None))
+                    except errors.PremiumAccountRequiredError:
+                        if sync != 'both':
+                            raise
+                        raise ValueError(tr('Setting a background for both people requires Telegram Premium. You can apply it just for yourself.')) from None
                 else:
                     await client(functions.account.InstallWallPaperRequest(reference, settings))
             # Commit to the originating account even if it switched while Telegram was answering.
@@ -313,6 +359,10 @@ class ChatWallpapers:
                 target_file.replace(folder / target_file.name)
                 records[target] = dict(file=target_file.name, motion=bool(settings.motion), sync=sync, source=source,
                                        options=options or {}, catalog_id=str(catalog_id) if source == 'gallery' else None)
+                if target == 'all' and (source != 'image' or sync):
+                    link = telegram_wallpaper_link(record, settings)
+                    if link:
+                        records[target]['telegram_link'] = link
                 if original:
                     if key:
                         original.replace(folder / original.name)

@@ -98,6 +98,9 @@ function openWallpaperMenu(chat) {
     }
     edit(current.source, {catalog_id:current.catalog_id}, {...record, ...current.options, sync:current.sync});
   }]);
+  if (!chat && current?.telegram_link?.startsWith('https://t.me/bg/')) {
+    actions.push([t('Open link') + ' · Telegram', () => { if (alive()) openUrl(current.telegram_link); }]);
+  }
   if (chat && state.appearance?.background) actions.push([t('Use the interface background'), () =>
     attempt(() => api('apply_chat_wallpaper', {account, target, source: 'interface'}),
       look => updateWallpapers(look, revision))]);
@@ -122,8 +125,8 @@ function editWallpaper(chat, request, record) {
   const [blurRow, blur] = check(t('Blur'), !!record.blur);
   const sync = h('select', {}, h('option', {value:''}, t('Only on this device')),
     (chat || !(request.source === 'fill' || (request.source === 'gallery' && !record.has_file))) && (!chat || (chat.kind !== 'secret' && !chat.self))
-      ? h('option', {value:'devices'}, t('On all my devices (Telegram)')) : null,
-    chat?.kind === 'user' && !chat.self ? h('option', {value:'both'}, t('Also for {name}').replace('{name}',chat.name)) : null);
+      ? h('option', {value:'devices'}, chat ? t('On all my devices (Telegram)') : t('Save to my Telegram backgrounds')) : null,
+    chat?.kind === 'user' && !chat.self ? h('option', {value:'both'}, t('Also for {name}').replace('{name}',chat.name) + ' · Telegram Premium') : null);
   if (record.sync && [...sync.options].some(option => option.value === record.sync)) sync.value = record.sync;
   const options = () => ({motion: motion.checked, blur: blur.checked,
     ...(editableColors ? {colors:colors.map(node=>node.value),rotation:Number(angle.value)} : {}),

@@ -12,14 +12,15 @@ def identifier(account, peer, message=None):
     return json.dumps(parts, separators=(',', ':'))
 
 
-async def perform(core, request):
+async def perform(core, request, protected_data_available):
     """Run on the core loop. Incoming message searches never mark anything read."""
-    while core.stage == 'loading' and not core.locked:
+    while core.stage == 'loading' and not core.locked and protected_data_available():
         await asyncio.sleep(.1)
     account, backend = core.account, core.backend
 
     def check():
-        if core.locked or core.account != account or core.backend is not backend or core.stage != 'ready':
+        if (core.locked or not protected_data_available() or core.account != account
+                or core.backend is not backend or core.stage != 'ready'):
             raise PermissionError('Open and unlock TeleGraph.')
 
     check()
@@ -48,6 +49,7 @@ async def perform(core, request):
         if not isinstance(content, str) or not content.strip() or len(content) > 4096:
             raise ValueError('Invalid message.')
         # Use the bound client: Siri must report success only after Telegram accepts it.
+        check()
         await backend.send(peer, content)
         return {}
     if op == 'read':
@@ -65,6 +67,20 @@ async def perform(core, request):
         raise ValueError('Unsupported action.')
     requested = {decode(token, 2)[1] for token in request.get('conversations', [])}
     ids = {tuple(decode(token, 3)[1:]) for token in request.get('ids', [])}
+    from_notification = 'notificationRoutes' in request
+    def preview_allowed():
+        return (core.prefs is not None and core.prefs.values.get('notifications', True)
+                and core.prefs.values.get('notify_preview', True) and core.lock_record() is None)
+    if from_notification:
+        if not preview_allowed():
+            return []
+        identity = core.accounts.identities.get(account)
+        selected = {(peer, msg) for route in request['notificationRoutes']
+                    if isinstance(route, list) and len(route) == 3 and all(type(item) is int for item in route)
+                    for user, peer, msg in [route] if user == identity and peer in peers and msg > 0}
+        ids = ids & selected if ids else selected
+        if not ids:
+            return []
     terms = [term.casefold() for term in request.get('terms', [])]
     records = []
     async for dialog in backend.client.iter_dialogs(limit=100):
@@ -75,9 +91,19 @@ async def perform(core, request):
             continue
         if request.get('unread') and not dialog.unread_count:
             continue
-        async for raw in backend.client.iter_messages(dialog.id, limit=20):
+        if from_notification:
+            policy = await backend.notification_policy(dialog.id, platform='iOS')
             check()
+            if not policy['enabled'] or not policy['preview'] or not preview_allowed():
+                continue
+        options = {'ids': [msg for peer, msg in ids if peer == dialog.id]} if ids else {'limit': 20}
+        async for raw in backend.client.iter_messages(dialog.id, **options):
+            check()
+            if raw is None:
+                continue
             if request.get('unread') and raw.id <= dialog.dialog.read_inbox_max_id:
+                if ids:
+                    continue
                 break
             if raw.out or not raw.raw_text or (ids and (dialog.id, raw.id) not in ids):
                 continue
@@ -88,8 +114,8 @@ async def perform(core, request):
                             'name': message.sender or dialog.name, 'text': raw.raw_text, 'date': raw.date.timestamp(),
                             'sender': identifier(account, raw.sender_id or dialog.id)})
             if len(records) == 20:
-                return records
-    return records
+                return records if not from_notification or preview_allowed() else []
+    return records if not from_notification or preview_allowed() else []
 
 
 def install(app):
@@ -101,7 +127,7 @@ def install(app):
         try:
             request = json.loads(str(native.payloadJSON))
             future = asyncio.run_coroutine_threadsafe(
-                asyncio.wait_for(perform(app.core, request), timeout=20), app.core.loop)
+                asyncio.wait_for(perform(app.core, request, lambda: bool(native.canAccessProtectedData)), timeout=20), app.core.loop)
         except Exception:
             native.finishJSON_(None)
             return

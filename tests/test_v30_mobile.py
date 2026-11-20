@@ -695,14 +695,19 @@ class PushRegistrationMobileTests(IsolatedAsyncioTestCase):
 
         def item(peer, age=0, unread=1, out=False, pinned=False):
             raw = SimpleNamespace(id=20, date=datetime.fromtimestamp(now-age, timezone.utc), out=out)
-            return SimpleNamespace(id=peer, pinned=pinned, message=raw, unread_count=unread,
+            return SimpleNamespace(id=peer, input_entity=peer, pinned=pinned, message=raw, unread_count=unread,
                                    dialog=SimpleNamespace(read_inbox_max_id=0 if unread else 20))
 
         async def dialogs():
             for row in (item(1,200,pinned=True),item(2,unread=0),item(3,out=True),item(4),item(5,200)):
                 yield row
 
-        backend = SimpleNamespace(client=SimpleNamespace(iter_dialogs=dialogs),
+        async def history(peer, **bounds):
+            self.assertEqual((peer, bounds), (3, {'offset_id': 20, 'min_id': 0}))
+            for message in ():
+                yield message
+
+        backend = SimpleNamespace(client=SimpleNamespace(iter_dialogs=dialogs, iter_messages=history),
                                   notification_policy=AsyncMock(return_value={'enabled':True,'preview':True,'sound':True}),
                                   message=lambda raw: Message(id=20, sender='Sender', text='Private test', date=raw.date, time='12:00'))
         core.accounts = SimpleNamespace(services={'a':SimpleNamespace(backend=backend)},current='a',entries={'a':{}})
@@ -720,6 +725,67 @@ class PushRegistrationMobileTests(IsolatedAsyncioTestCase):
         self.addCleanup(fresh.loop.close)
         self.assertFalse(fresh.claim_android_notification(('a',4,20)))
         self.assertTrue(fresh.claim_android_notification(('b',4,20)))
+
+    async def test_badge_reaches_second_account_when_first_account_fails(self):
+        from datetime import datetime, timezone
+
+        core = self.core
+        core.stage = 'choose_account'
+        core.prefs = SimpleNamespace(values={})
+        now = datetime.now(timezone.utc)
+        raw = SimpleNamespace(id=3, date=now, out=False)
+        async def dialogs():
+            yield SimpleNamespace(message=raw, id=4, unread_count=1,
+                                  dialog=SimpleNamespace(read_inbox_max_id=0))
+        backend = SimpleNamespace(client=SimpleNamespace(iter_dialogs=dialogs), message=lambda message: message)
+        core.accounts = SimpleNamespace(services={}, identities={'offline': 1, 'ready': 2}, current='offline')
+        async def connect(key):
+            if key == 'offline':
+                raise ConnectionError('offline')
+            core.accounts.services[key] = SimpleNamespace(backend=backend)
+        core.connect_saved_push_account = connect
+        core.notify = AsyncMock(return_value=True)
+        with self.assertRaises(ConnectionError):
+            await core.sync_android_badge(int(now.timestamp()))
+        core.notify.assert_awaited_once_with('ready', 4, raw)
+        self.assertEqual((core.stage, core.accounts.current), ('choose_account', 'offline'))
+
+    async def test_badge_finds_recent_unread_behind_call_but_stops_at_time_boundary(self):
+        from datetime import datetime, timedelta, timezone
+
+        core = self.core
+        core.stage = 'ready'
+        core.prefs = SimpleNamespace(values={})
+        now = datetime.now(timezone.utc)
+        def message(number, age=0, action=None):
+            return SimpleNamespace(id=number, out=False, date=now-timedelta(seconds=age), action=action)
+        async def dialogs():
+            for peer in (4, 5):
+                yield SimpleNamespace(id=peer, input_entity=peer, message=message(22, action='call'),
+                                      unread_count=1, dialog=SimpleNamespace(read_inbox_max_id=18))
+        async def history(peer, **bounds):
+            self.assertEqual(bounds, {'offset_id': 22, 'min_id': 18})
+            yield message(21, action='call')
+            yield message(20, age=60 if peer == 4 else 100)
+        client = SimpleNamespace(iter_dialogs=dialogs, iter_messages=history)
+        backend = SimpleNamespace(client=client, message=lambda raw: raw.id)
+        core.accounts = SimpleNamespace(services={'ready': SimpleNamespace(backend=backend)})
+        core.notify = AsyncMock(return_value=True)
+        self.assertEqual(await core.sync_android_badge(int(now.timestamp())), 0)
+        core.notify.assert_awaited_once_with('ready', 4, 20)
+
+    async def test_account_only_android_wakeup_never_scans_another_account(self):
+        core = self.core
+        core.stage = 'choose_account'
+        core.prefs = SimpleNamespace(values={})
+        core.accounts = SimpleNamespace(identities={'first': 10, 'second': 20}, current='first')
+        core._sync_account_badge = AsyncMock(return_value=True)
+        for unknown in (0, True, '20', 99):
+            self.assertEqual(await core.sync_android_badge(200, unknown), 1)
+        core._sync_account_badge.assert_not_awaited()
+        self.assertEqual(await core.sync_android_badge(200, 20), 0)
+        core._sync_account_badge.assert_awaited_once_with('second', 110, 20)
+        self.assertEqual(core.accounts.current, 'first')
 
     async def test_android_token_refresh_retries_when_telegram_did_not_register(self):
         client = AsyncMock(return_value=False)

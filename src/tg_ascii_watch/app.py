@@ -21,6 +21,14 @@ TYPEFACES = {'courier': 'monospace', 'sans': 'sans-serif', 'serif': 'serif'}
 QUICK = ('👍', '❤', '😂', 'OK', '¿?')
 # Round screens: keep everything inside the circle.
 SIDE, TOP = 32, 30
+BUTTON_INSET = 5  # characters taken by a button's own side padding
+
+
+def round_wrap(text, size, inset=0):
+    """Wrap to the round screen's width. Toga labels and buttons do not wrap by themselves;
+    the font is monospace, so the characters per line follow from the font size."""
+    width = max(12 - inset, int(250 / size) - inset)
+    return '\n'.join(textwrap.fill(line, width) if line else '' for line in str(text).split('\n'))
 
 
 def tr(text):
@@ -244,11 +252,13 @@ class TgAsciiWatch(toga.App):
     def label(self, text, size=11, color=FG, bold=False, **extra):
         # Labels do not wrap by themselves: wrap to the round screen's width
         # (monospace, so characters per line follow from the font size).
-        width = max(12, int(250 / (size * self.look.get('scale', 1))))
-        wrapped = '\n'.join(textwrap.fill(line, width) if line else '' for line in str(text).split('\n'))
-        return toga.Label(wrapped, style=self.text_style(size, color, bold, margin_bottom=4, **extra))
+        return toga.Label(round_wrap(text, size * self.look.get('scale', 1)),
+                          style=self.text_style(size, color, bold, margin_bottom=4, **extra))
 
     def button(self, text, action, color=FG, size=11):
+        # A button is as wide as its text plus Material's side padding, so long captions
+        # ("Entrar con código QR") ran past the edge of the round screen.
+        caption = round_wrap(text, size * self.look.get('scale', 1), BUTTON_INSET)
         widget = toga.Button(text, on_press=lambda widget: action(),
                              style=self.text_style(size, color, margin_bottom=5))
         widget.style.background_color = self.colour(PANEL)
@@ -256,6 +266,27 @@ class TgAsciiWatch(toga.App):
             widget._impl.native.setAllCaps(False)  # Material buttons are upper case by default.
         except Exception:
             pass
+        if caption != text:
+            try:
+                # toga.Button drops everything after a line break, and Wear OS's button style
+                # shows one line: set the wrapped caption natively and let Toga measure it again.
+                widget._impl.native.setMaxLines(3)
+                widget._impl.native.setText(caption)
+                widget.refresh()
+            except Exception:
+                pass
+        return widget
+
+    def text_input(self, *, password=False, size=12, margin_bottom=6, **kwargs):
+        from android.content.res import ColorStateList
+        from android.graphics import Color
+
+        control = toga.PasswordInput if password else toga.TextInput
+        widget = control(style=self.text_style(size, margin_bottom=margin_bottom), **kwargs)
+        # Android themes hint text and the underline independently of typed text.
+        tint = Color.parseColor(self.colour(MUTED))
+        widget._impl.native.setHintTextColor(tint)
+        widget._impl.native.setBackgroundTintList(ColorStateList.valueOf(tint))
         return widget
 
     def toast(self, text):
@@ -278,7 +309,7 @@ class TgAsciiWatch(toga.App):
 
     def show_phone(self, error=''):
         self.screen = 'login'
-        phone = toga.TextInput(placeholder='+34…', style=self.text_style(12, margin_bottom=6))
+        phone = self.text_input(placeholder='+34…')
         children = [self.label('TeleGraph', 13, STRONG, True, text_align='center'),
                     self.button(tr('Entrar con codigo QR'), self.start_qr),
                     self.label(tr('Numero de telefono'), 10, MUTED), phone,
@@ -291,7 +322,7 @@ class TgAsciiWatch(toga.App):
 
     def show_secret(self, method, field, title, error='', password=False):
         self.screen = 'login'
-        widget = (toga.PasswordInput if password else toga.TextInput)(style=self.text_style(12, margin_bottom=6))
+        widget = self.text_input(password=password)
         children = [self.label(title, 11, STRONG, True), widget,
                     self.button(tr('Continuar'), lambda: self.run(method, **{field: widget.value.strip()}))]
         if error:
@@ -426,8 +457,8 @@ class TgAsciiWatch(toga.App):
         def save_draft(widget):
             self.chat_draft = widget.value or ''
 
-        field = toga.TextInput(value=self.chat_draft, placeholder=tr('Escribe un mensaje'),
-                               on_change=save_draft, style=self.text_style(11, margin_bottom=5))
+        field = self.text_input(value=self.chat_draft, placeholder=tr('Escribe un mensaje'),
+                                on_change=save_draft, size=11, margin_bottom=5)
 
         def send(text):
             text = (text or '').strip()

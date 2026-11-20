@@ -488,10 +488,15 @@ elif platform == 'ios':
         text = re.sub(rf'\n\s*CODE_SIGN_ENTITLEMENTS = {re.escape(entitlements.name)};', '', text)
         # Xcode's own Archive (needed to create the watch app's profiles) signs
         # with the team written in the project, not only the command line's.
-        text = re.sub(r'(\n(\s*)PRODUCT_BUNDLE_IDENTIFIER = "?org\.tgas\.ios"?;)(?!\n\s*DEVELOPMENT_TEAM)',
-                      r'\1\n\2DEVELOPMENT_TEAM = ' + os.environ.get('TELEGRAPH_APPLE_TEAM', '') + r';\n\2CODE_SIGN_STYLE = Automatic;', text)
+        team = os.environ.get('TELEGRAPH_APPLE_TEAM', '')
+        if team and not re.fullmatch(r'[A-Z0-9]{10}', team):
+            raise ValueError('Invalid Apple development team identifier')
         # Not the Apple Watch app's (org.tgas.ios.watchkitapp, add_watch_target.py).
         text = re.sub(r'PRODUCT_BUNDLE_IDENTIFIER = (?!"?[\w.]+\.watchkitapp"?;)"?[^";]+"?;', f'PRODUCT_BUNDLE_IDENTIFIER = "{IOS_ID}";', text)
+        if team:
+            text = re.sub(
+                rf'(\n(\s*)PRODUCT_BUNDLE_IDENTIFIER = "{re.escape(IOS_ID)}";)(?:\n\2DEVELOPMENT_TEAM = [^;]*;)?(?:\n\2CODE_SIGN_STYLE = Automatic;)?',
+                rf'\1\n\2DEVELOPMENT_TEAM = {team};\n\2CODE_SIGN_STYLE = Automatic;', text)
         with entitlements.open('wb') as stream:
             # Xcode selects the final APNs environment from the signing profile.
             plistlib.dump({'aps-environment': 'development',
@@ -579,6 +584,9 @@ elif platform == 'ios':
         data['NSMicrophoneUsageDescription'] = 'TeleGraph uses the microphone only while you record a voice message or a video to send.'
         data['NSFaceIDUsageDescription'] = 'TeleGraph uses Face ID only to unlock the app when you turn that on.'
         if 'Watch' not in info.name:
+            services = data.setdefault('NSApplicationServices', {}).setdefault('Advertises', [])
+            if not any(entry.get('NSApplicationServiceIdentifier') == 'telegraph-companion' for entry in services):
+                services.append({'NSApplicationServiceIdentifier': 'telegraph-companion'})
             data['UILaunchStoryboardName'] = IOS_LAUNCH_STORYBOARD
             modes = set(data.get('UIBackgroundModes', [])) | {'remote-notification', 'audio', 'voip'}
             if os.environ.get('TELEGRAPH_IOS_CALLS_FRAMEWORK'):
@@ -600,6 +608,15 @@ elif platform == 'ios':
     # Apple Watch companion (watch/TGASCIIWatch), same version and build.
     import subprocess
     subprocess.run([sys.executable, str(Path(__file__).with_name('add_watch_target.py')), VERSION, IOS_BUILD], check=True)
+    phone = build / 'ios' / 'xcode' / 'TGASCII'
+    main = phone / 'main.m'
+    source = main.read_text()
+    for name in ('TeleGraphTVLink.m', 'TGCallAudio.m'):
+        shutil.copyfile(Path(__file__).parent / 'ios' / name, phone / name)
+        include = f'#import "{name}"'
+        if include not in source:
+            source = include + '\n' + source
+    main.write_text(source)
     from configure_siri import configure_siri
     configure_siri(build / 'ios' / 'xcode')
     from add_notification_target import add_notification_target
