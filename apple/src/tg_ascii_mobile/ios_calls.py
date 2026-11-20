@@ -160,8 +160,9 @@ def devices(lib):
 class IOSCallEngine:
     uses_hardware = True
 
-    def __init__(self, on_state, on_signaling, on_frames, on_emojis, *, lib, audio_session):
+    def __init__(self, on_state, on_signaling, on_frames, on_emojis, *, lib, audio_session, voice_io=None):
         self.lib, self.audio_session = lib, audio_session
+        self.voice_io = voice_io
         self.audio_active = False
         self.handle = lib.ntg_instance_create()
         if not self.handle:
@@ -180,6 +181,12 @@ class IOSCallEngine:
                 on_state(peer, 'REMOTE_' + DEVICE_KINDS[info.device].upper() + '_' + SOURCE_STATES[info.state])
 
         def frames(_handle, peer, mode, device, items, length, _data):
+            if self.voice_io is not None and mode == PLAYBACK and device == 0:
+                for index in range(length if items else 0):
+                    frame = items[index]
+                    if frame.data and 0 < frame.length <= 96000 and frame.length % 2 == 0:
+                        self.voice_io.appendBytes_length_(frame.data, frame.length)
+                return
             if device != CAMERA or mode not in (CAPTURE, PLAYBACK) or not items or not length:
                 return
             last = items[length - 1]
@@ -263,18 +270,27 @@ class IOSCallEngine:
                 options = listing[name]
                 return (selected.get(name) or (options[0]['id'] if options else '')).encode()
 
-            mic = Audio(DEVICE_SOURCE, 48000, 1, device('microphone'), False)
-            speaker = Audio(DEVICE_SOURCE, 48000, 1, device('speaker'), False)
+            def audio(name):
+                if self.voice_io is not None:
+                    return Audio(EXTERNAL_SOURCE, 48000, 1, b'', False)
+                return Audio(DEVICE_SOURCE, 48000, 1, device(name), False)
+
+            mic, speaker = audio('microphone'), audio('speaker')
             remote_video = Video(EXTERNAL_SOURCE, -1, -1, 0, b'', False)
             if selected.get('screen'):
                 camera = Video(EXTERNAL_SOURCE, 1280, 720, 12, b'', False)
             else:
                 camera = Video(DEVICE_SOURCE, 640, 480, 24, device('camera'), False) if video else None
+            # NTgCalls enables incoming voice on the remote microphone track.
             checked(self.lib.ntg_set_stream_sources(self.handle, peer, PLAYBACK,
-                                                    Media(None, C.pointer(speaker), C.pointer(remote_video), None)))
+                                                    Media(C.pointer(speaker), None, C.pointer(remote_video), None)))
             checked(self.lib.ntg_set_stream_sources(self.handle, peer, CAPTURE,
                                                     Media(C.pointer(mic), None, C.pointer(camera) if camera else None, None)))
             self.apply_mute(peer, muted)
+            if self.voice_io is not None:
+                sender = C.cast(self.lib.ntg_send_external_frame, C.c_void_p).value
+                if not self.voice_io.startWithHandle_peer_sender_(self.handle, peer, sender):
+                    raise RuntimeError(f'iOS audio engine failed ({self.voice_io.errorCode})')
         await self.run(native)
 
     def apply_mute(self, peer, value):
@@ -294,6 +310,8 @@ class IOSCallEngine:
     async def stop(self, peer):
         def native():
             try:
+                if self.voice_io is not None:
+                    self.voice_io.stop()
                 result = self.lib.ntg_stop(self.handle, peer)
                 if result != CONNECTION_NOT_FOUND:
                     checked(result)
@@ -364,7 +382,8 @@ def install(app):
     class Engine(IOSCallEngine):
         def __init__(self, *callbacks):
             self.system_audio = False
-            super().__init__(*callbacks, lib=load_library(path), audio_session=self.set_audio)
+            super().__init__(*callbacks, lib=load_library(path), audio_session=self.set_audio,
+                             voice_io=ObjCClass('TGCallAudio').alloc().init())
 
         def set_audio(self, active):
             if not self.system_audio:

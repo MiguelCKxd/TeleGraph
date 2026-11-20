@@ -400,7 +400,36 @@ document.addEventListener('visibilitychange', () => {
   else resync().catch(() => setTimeout(() => resync().catch(() => {}), 3000));
 });
 
+let notificationRoute = null;
+let checkingNotificationRoute = false;
+async function openAndroidNotification() {
+  if (PLATFORM !== 'Android' || WINDOW_CHAT !== null || !state.started || document.hidden ||
+      state.locked || checkingNotificationRoute || !['choose_account', 'ready'].includes(state.stage)) return;
+  checkingNotificationRoute = true;
+  try {
+    const route = await api('take_notification_chat');
+    if (route) notificationRoute = route;
+    if (!notificationRoute || state.locked) return;
+    const {account, peer} = notificationRoute;
+    if (!state.accounts.some(item => item.key === account)) { notificationRoute = null; return; }
+    if (state.stage === 'choose_account') {
+      await api('choose_account', {key: account, ask: state.settings.ask_account_startup !== false});
+      return;
+    }
+    if (state.account !== account) {
+      if (!(await flushOpenDrafts())) return;
+      await api('account.select', {key: account});
+      await resync();
+    }
+    if (!state.locked && state.stage === 'ready' && state.account === account) {
+      notificationRoute = null;
+      await openChat(peer);
+    }
+  } finally { checkingNotificationRoute = false; }
+}
+
 const EVENTS = {
+  notification_route() { openAndroidNotification().catch(() => {}); },
   // A draft changed on another device (or was sent from there).
   draft({ account, peer, thread_root, record }) {
     const composer = thread_root == null ? peer : peer + '/' + thread_root;
@@ -432,6 +461,7 @@ const EVENTS = {
       if (WINDOW_CHAT === null) refreshCallState(); else openChat(WINDOW_CHAT, true);
     }
     if (!(wasReady && state.stage === 'ready')) render();
+    openAndroidNotification().catch(() => {});
   },
   connection(value) { state.connection = value; updateStatus(); drawHeaderStatus(); },
   accounts(list) { state.accounts = list; if (state.view === 'settings') render(); },
@@ -628,7 +658,7 @@ const EVENTS = {
   lock(value) {
     if (value === state.locked) return;
     if (value) document.getElementById('message-notice')?.remove();
-    if (value) state.accountRevision++;
+    if (value) { state.accountRevision++; notificationRoute = null; }
     if (value) document.querySelector('.media-viewer[open]')?.close();
     state.locked = value;
     drawNativeCall();
@@ -1223,6 +1253,10 @@ function chatTools(chat, inChat) {
     isSecret ? ['🔒 ' + t('Clave de cifrado y autodestrucción'), () => secretChatSheet(chat)] : null,
     [t('Profile'), () => openProfile(chat)],
     [t('Buscar en el chat'), async () => { if (!inChat) await openChat(chat.id, true, chat); searchInChat(); }],
+    PLATFORM === 'iOS' && !isSecret ? ['Mostrar en Apple TV', () => confirmThen(
+      '¿Mostrar en el Apple TV conectado los textos recientes de «' + chat.name + '»?',
+      () => attempt(() => api('tv_share', {peer: chat.id, account: state.account})))] : null,
+    PLATFORM === 'iOS' ? ['Desconectar Apple TV', () => attempt(() => api('tv_disconnect'))] : null,
     [t('Shared media'), () => openShared(chat, 'photos')],
     !isSecret ? [t('Pinned messages'), () => pinnedList(chat)] : null,
     !isSecret ? [t('Scheduled messages'), () => scheduledList(chat)] : null,
@@ -5670,6 +5704,32 @@ function editDisplayName() {
   });
 }
 
+async function chooseSiriChats() {
+  const account = state.account;
+  const chats = await attempt(() => api('siri_chats', {account}));
+  if (!chats || account !== state.account) return;
+  const selected = new Set(chats.filter(chat => chat.selected).map(chat => chat.id));
+  const search = h('input', {type: 'search', placeholder: t('Buscar'), 'aria-label': t('Buscar')});
+  const list = h('div', {});
+  const draw = () => {
+    const query = search.value.trim().toLocaleLowerCase();
+    list.replaceChildren(...chats.filter(chat => chat.name.toLocaleLowerCase().includes(query)).slice(0, 100).map(chat => {
+      const [row, checkbox] = check(chat.name, selected.has(chat.id));
+      checkbox.onchange = () => checkbox.checked ? selected.add(chat.id) : selected.delete(chat.id);
+      return row;
+    }));
+  };
+  search.oninput = draw;
+  draw();
+  const clear = button(t('Desmarcar todos'), () => { selected.clear(); draw(); });
+  formSheet(t('Nombres de chats para Siri'), [
+    h('p', {}, t('Siri podrá usar los nombres de los chats que selecciones en esta cuenta.')), search, list, clear,
+  ], t('Guardar'), async () => {
+    if (state.account !== account || state.locked) return false;
+    return Boolean(await attempt(() => api('siri_chats', {account, peers: [...selected]})));
+  });
+}
+
 function settingsView() {
   const settings = state.settings;
   const tab = SETTINGS_SECTIONS.some(([key]) => key === state.settingsTab) ? state.settingsTab : 'appearance';
@@ -5718,7 +5778,8 @@ function settingsView() {
       button(t('Telegram settings (synchronized)'), telegramNotifications),
       ['Android', 'iOS'].includes(PLATFORM) ? lookToggle('keep_connected', t('Keep connected in the background')) : null,
       PLATFORM === 'Android' ? note(t('Android keeps TG-ASCII connected with a permanent notification, so new messages arrive with the app closed. Uses more battery.')) : null)],
-    account: () => [myProfileSection(), accountsSection(toggle), lockSection()],
+    account: () => [myProfileSection(), accountsSection(toggle), lockSection(),
+      PLATFORM === 'iOS' ? section('Siri', button(t('Nombres de chats para Siri'), chooseSiriChats)) : null],
     premium: () => [premiumSection()],
     logos: () => [section(null, ...logoSettings())],
     advanced: () => [complexFeatures(save), section(null, lookToggle('watch_own', t('Watch with its own connection')),
@@ -5908,7 +5969,7 @@ document.addEventListener('visibilitychange', () => {
   }
   api('app_visible').then((result) => {
     if (result.locked) { if (!state.locked) { state.locked = true; state.bioTried = false; drawNativeCall(); drawGroupCall(); render(); } }
-    else if (state.started) resync().catch(() => {});
+    else if (state.started) resync().then(openAndroidNotification).catch(() => {});
   }, () => {});
 });
 
@@ -5956,6 +6017,7 @@ function chooserView() {
   }
   state.started = true;
   render();
+  openAndroidNotification().catch(() => {});
   if (WINDOW_CHAT !== null) {
     document.documentElement.classList.add('system-window');
     if (state.stage === 'ready' && !state.locked && !unavailableWindow()) openChat(WINDOW_CHAT, true);

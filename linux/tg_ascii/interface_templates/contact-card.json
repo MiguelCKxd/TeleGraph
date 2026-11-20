@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "name": "Contact card example / Ejemplo de ficha",
+  "enabled": false,
+  "appearance": {
+    "contact_card_width": 620,
+    "contact_avatar_size": 96,
+    "contact_density": "comfortable",
+    "contact_alignment": "left",
+    "contact_round_avatar": true,
+    "contact_background": "",
+    "contact_text": "",
+    "contact_accent": "",
+    "contact_border_width": 0,
+    "contact_border_color": "",
+    "contact_section_order": [
+      "info",
+      "photos",
+      "files",
+      "audio",
+      "voice",
+      "links",
+      "gifs",
+      "polls",
+      "posts",
+      "gifts",
+      "profile_music",
+      "similar",
+      "settings"
+    ],
+    "contact_hidden_sections": [],
+    "contact_action_order": [
+      "message",
+      "call",
+      "video_call",
+      "notifications",
+      "edit_contact",
+      "share",
+      "add_username",
+      "membership",
+      "edit_self",
+      "profile_design",
+      "refresh",
+      "manage"
+    ],
+    "contact_hidden_actions": []
+  }
+}

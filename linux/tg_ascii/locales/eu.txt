@@ -1,0 +1,666 @@
+0|+ Kontua
+1|Kontua
+2|Kontu ezezaguna
+3|Kontu berria
+4|Hasi saioa berriro
+5|Lineaz kanpo
+6|Itzuli beste kontu batera
+7|Saioa automatikoki gordeta
+8|Kontuak konektatuta mantentzen dira aldatzean. Aplikazioa ixtean saioak gordetzen dira.
+9|Kontu hau dagoeneko gehituta dago. Itzuli eta hautatu.
+10|Txatak
+11|Istorioak
+12|Ezarpenak
+13|Itxura
+14|Testuaren tamaina
+15|Erakutsi testua ASCII formatuan (emojiak ezkutatzen ditu)
+16|Enter teklak mezuak bidaltzen ditu
+17|Txat-zerrenda trinkoa
+18|Gorde ezarpenak
+19|Ezarpenak gordeta.
+20|Nire profila
+21|Editatu Telegram profila
+22|Izena
+23|Abizenak
+24|Biografia
+25|Erabiltzaile-izena
+26|Gorde izena eta biografia
+27|Aldatu erabiltzaile-izena
+28|Aldatu argazkia
+29|Profila eguneratuta.
+30|Izena beharrezkoa da.
+31|Erabiltzaile-izenak 5–32 letra, zenbaki edo azpimarra izan behar ditu.
+32|Hautatu PNG edo JPEG irudi bat.
+33|Irudiak
+34|Kontaktuak
+35|Gehitu kontaktua
+36|Telefonoa herrialde-kodearekin
+37|Gorde kontaktua
+38|Kontaktua gordeta.
+39|Telegramek geroago berriro saiatzeko eskatu du.
+40|Ez da zenbaki horri lotutako kontu erabilgarririk aurkitu.
+41|Txat berria
+42|Ireki txata
+43|Erabiltzaile-izena (@izena) edo telefonoa (+herrialde-kodea):
+44|Sartu @erabiltzaile-izena edo telefonoa herrialde-kodearekin.
+45|Talde berria
+46|Talde berria hautatutako kontaktuekin
+47|Taldearen izena:
+48|Hautatu parte-hartzaileak zerrendan.
+49|Idatzi izenburua eta hautatu parte-hartzaileak.
+50|Taldea sortzen...
+51|Taldea sortuta; ezin izan dira erabiltzaile batzuk gonbidatu.
+52|Telegramek ez du taldea itzuli. Freskatu berriro saiatu aurretik.
+53|Informazioa
+54|Finkatu / Desfinkatu
+55|Karpetak
+56|Txat guztiak
+57|Karpeta berria
+58|Karpeta berria txat honekin
+59|Karpetaren izena (geh. 12):
+60|Karpetaren izenak 1–12 karaktere izan behar ditu.
+61|Ez dago karpeta-identifikatzailerik erabilgarri.
+62|Hautatu gutxienez txat bat.
+63|Aldatu izena
+64|Gehitu uneko txata
+65|Kendu uneko txata
+66|Ezabatu karpeta
+67|Telegram karpeta hau ezabatu? Txatak gordeko dira.
+68|Ezin da karpeta hau ezabatu.
+69|Arrastatu fitxategi bat txatera eransteko.
+70|Arrastatzea ez dago erabilgarri ordenagailu honetan; erabili Erantsi.
+71|Hautatu txat bat lehenik eta itxaron uneko eragiketa amaitu arte.
+72|Arrastatu fitxategi bakarra mezu bakoitzeko.
+73|Emojiak
+74|[Ikusi / gorde fitxategia]
+75|Fitxategi-ikustailea
+76|Ikusi irudia / aurrebista
+77|Gorde fitxategia honela...
+78|Fitxategia gordeta.
+79|Deskargatzen...
+80|Fitxategi hau jada ez dago erabilgarri.
+81|Ez dago aurrebistarik. Fitxategia gorde dezakezu.
+82|Fitxategia handiegia da aurrebistarako. Gorde lehenik.
+83|Irudia handiegia da aurrebistarako.
+84|Eranskailuaren edo bideoaren aurrebista estatikoa.
+85|Freskatu istorioak
+86|Istorioa
+87|Egin klik bikoitza istorioa irekitzeko.
+88|Istorioa irekita.
+89|Deiak
+90|Ireki Telegram
+91|Kontaktua Telegramen ireki?
+92|Kargatzen...
+93|Gordetzen...
+94|Tokiko demoa
+95|Gordetako mezuak
+96|Diseinu-ideiak
+97|Zure Telegram. Funtsezkoa bakarrik.
+98|Konfiguratu aplikazioa (garatzailea)
+99|Zure telefono-zenbakia
+100|Telegram kodea
+101|Bi urratseko egiaztapenaren pasahitza
+102|Gogoratu aplikazio-gakoak ordenagailu honetan (zifratu gabe)
+103|Sartu + eta herrialdearen telefono-kodea. Adibidea: +34 612 345 678
+104|Sartu Telegramek bidalitako kodea.
+105|Sartu zure Telegram kodea.
+106|Jarraitu
+107|Aldatu zenbakia
+108|Hasi saioa zure kontuarekin.
+109|Kodea iraungi da. Eskatu beste bat.
+110|Saiatu berriro
+111|ELKARRIZKETAK
+112|Bilatu txatak
+113|Freskatu
+114|Hautatu txat bat
+115|Kendu fitxategia
+116|[+] Erantsi
+117|Bidali >
+118|Enter: bidali / Shift+Enter: lerro berria
+119|Egin klik txat batean irekitzeko.
+120|Txata irekita. Idatzi mezua edo erantsi fitxategia.
+121|Mezuak kargatzen...
+122|Hautatu txat bat lehenik.
+123|Hautatu fitxategia
+124|Fitxategia prest. Sakatu Bidali goian agertzen den txatera bidaltzeko.
+125|[Fitxategia]
+126|Eranskina
+127|Fitxategia igotzen:
+128|Testua luzeegia da. Muga:
+129|Hautatu fitxategi arrunt bat, ez karpeta bat.
+130|Eragiketa bat abian da. Aplikazioa itxi?
+131|Ixten...
+132|Txatak kargatzen...
+133|Ez dago mezurik txat honetan.
+134|Bidaltzen...
+135|Bidalita.
+136|Zirriborroa gordeta; egiaztatu txata berriro saiatu aurretik.
+137|Zu
+138|[Eranskina / zerbitzu-mezua]
+139|Telegramekin konektatzen...
+140|Telegramek {seconds} segundo itxaroteko eskatu du berriro saiatu aurretik.
+141|Ezin izan da eragiketa burutu ({error}).
+142|API IDak zenbaki oso positiboa izan behar du.
+143|API hash-ak 32 karaktere hamaseitar izan behar ditu. Kopiatu osorik.
+144|API ID edo hash okerra. Egiaztatu aplikazioaren kredentzialak.
+145|Telegramek ez du zenbaki hau ezagutzen. Egiaztatu zenbakia eta herrialde-kodea.
+146|Kode okerra. Saiatu berriro.
+147|Kodea iraungi da. Berrabiarazi beste bat eskatzeko.
+148|Pasahitz okerra. Saiatu berriro.
+149|Ezin duzu txat honetan idatzi.
+150|Mezuak Telegramen muga gainditzen du.
+151|Konexioak edo tokiko sarbideak huts egin du. Egiaztatu sarea eta baimenak.
+152|Saioa iraungi edo baliogabetu da. Berrabiarazi berriro saioa hasteko.
+153|Telegramek saio hau baliogabetu du. Ikusi Telegramen Ezarpenak > Gailuak.
+154|Bertsio honetan TG-ASCII aplikazioaren konfigurazioa falta da. Eskatu bertsio osoa garatzaileari.
+155|Aplikazioarekin datorren konfigurazioa baliogabea da. Jarri harremanetan garatzailearekin.
+156|Utzi
+157|Itxi
+158|Hautatu
+159|Fitxategiak
+160|Fitxategi hau ordeztu?
+161|Gorde
+162|Ireki
+163|Eranskailuak
+164|Emoji pertsonalizatuak
+165|Konektatu kontu bat Telegram paketeak kargatzeko.
+166|Azkenak
+167|Emoji batzuek Telegram Premium behar dute.
+168|Txertatu emojia
+169|Bidali eranskailua
+170|Emoji pertsonalizatua aldatu da. Txertatu berriro.
+171|Erakutsi multimedia-aurrebistak txatetan
+172|Mugarik gabeko tokiko finkapenak (sinkronizatu gabe)
+173|Finkatu lokalean / Desfinkatu lokalean
+174|Tokiko finkapenek aplikazio honetan bakarrik dute eragina. Desaktibatzean Telegramen ordena berrezartzen da.
+175|Sinkronizatu Telegram kontaktuak
+176|Telegram kontaktuak sinkronizatzen...
+177|Sinkronizatutako kontaktuak: {count}
+178|Jakinarazpenak
+179|Ordenagailu honetan
+180|Erakutsi jakinarazpenak aplikazioa martxan dagoen bitartean
+181|Erakutsi mezuen aurrebistak
+182|Jo soinua
+183|Jakinarazi irekita dagoen txatean
+184|Telegram ezarpenak (sinkronizatuak)
+185|Txat pribatuak
+186|Taldeak
+187|Kanalak
+188|Gaituta
+189|Aurrebista
+190|Soinua
+191|Isilarazi istorioak
+192|Telegramen txat bakoitzerako ezarritako salbuespenak errespetatzen dira. Jakinarazpenak gelditzen dira aplikazioa ixtean.
+193|Mezu berria
+194|Interfazearen gaia
+195|Logotipoaren gaia
+196|Iluna
+197|Argia
+198|Sistema
+199|Eguneraketak
+200|Hautatu bertsioaren ZIP fitxategia edo kontsultatu argitaratzailearen kanala.
+201|Instalatu {version} eta berrabiarazi? Kontuak eta ezarpenak gordeko dira.
+202|Eguneraketa prestatzen...
+203|Hautatu eguneraketaren ZIP fitxategia
+204|Eguneratuta zaude.
+205|Bertsio erabilgarria: {version}
+206|Deskargatu eta instalatu
+207|Eguneraketak bilatzen...
+208|Bilatu eguneraketak
+209|Instalatu bertsioaren ZIP fitxategia
+210|Eguneraketaren bertsio baliogabea.
+211|Eguneraketek HTTPS behar dute.
+212|Eguneraketak tamaina-muga gainditzen du.
+213|Argitaratzaileak ez du eguneraketa-kanalik konfiguratu oraindik. Bertsioaren ZIP fitxategia instala dezakezu.
+214|Eguneraketaren manifestu baliogabea.
+215|Eguneraketaren kontrol-batura ez dator bat.
+216|Eguneraketa-artxiboa ez da segurua.
+217|Bertsio hau beste sistema edo arkitektura baterako da.
+218|Bertsio hau ez da instalatutakoa baino berriagoa.
+219|Eguneraketak paketatutako aplikazioan instala daitezke, ez iturburu-kode moduan.
+220|Ezin da aplikazioaren karpetan idatzi. Eraman aplikazioa zure karpeta batera.
+221|Aplikazio berriak ez du abiarazte-proba gainditu. Instalatutako aplikazioa ez da aldatu.
+222|Dei natiboak ez daude erabilgarri bertsio honetan. Plataforma honetarako audio-motorra integratu eta probatu behar da lehenik.
+223|TOKIKO DEMOA
+224|Formatua
+225|Lodia
+226|Etzana
+227|Azpimarratua
+228|Marratua
+229|Ezkutuko testua
+230|Zabalera finkoa
+231|Esteka
+232|Kendu formatua
+233|Hautatu testua lehenik.
+234|Testu-formatu baliogabea.
+235|Erabili https://, http:// edo tg:// esteka bat.
+236|Kendu gainjarritako formatua lehenik.
+237|Audioa
+238|Grabatu ahots-mezua
+239|Bidali audio-fitxategia
+240|Grabatzen...
+241|Erreproduzitzen...
+242|Prest
+243|Gelditu
+244|Erreproduzitu
+245|Gehieneko grabazioa: 10 minutu. Gelditu, entzun eta bidali.
+246|Audio-osagaiak ez daude erabilgarri bertsio honetan.
+247|Bertsio honek ezin ditu Opus ahots-mezuak kodetu.
+248|Mikrofonoaren bufferra gainezka. Grabatu mezua berriro.
+249|Grabazioa hutsik dago.
+250|Audio-formatua ez da onartzen. Gorde fitxategia kanpoan irekitzeko.
+251|Aplikazioaren letra-tipoa
+252|Lehenetsia
+253|Itxi kontu honen saioa
+254|Itxi {account} kontuaren saioa? Gainerako kontuak konektatuta mantenduko dira.
+255|Ezin izan da saioa itxi. Kontua mantendu da.
+256|Ireki TeleGraph
+257|Irten TeleGraph-etik
+258|Mantendu konexioa leihoa ixtean
+259|Aplikaziotik irteteak jakinarazpenak gelditzen ditu. Leihoa ixtean aplikazioa martxan mantentzen da.
+260|Sistema-erretilua ez dago erabilgarri. Aplikazioa minimizatuta eta konektatuta dago.
+261|Itzuli txata
+262|Itzulpena
+263|Itzulpen automatikoa (Premium)
+264|Txaten itzulpen automatikoak Telegram Premium behar du.
+265|Kargatutako eta jasotako mezuak itzultzen ditu. Jatorrizkoak mantentzen dira.
+266|Itzulpen osatugabea. Saiatu berriro.
+267|Telegram AA
+268|Mezu-tresnak
+269|Laburtu Telegram AA erabiliz
+270|Transkribatu audioa
+271|Transkripzioa zain dago. Ireki ekintza hau geroago berriro.
+272|Telegramek testu hau prozesatzen du. Erabilgarritasuna eta kuotak kontuaren araberakoak dira.
+273|Erabili zirriborroan
+274|Zirriborroa aldatu da. Emaitza ez da aplikatu.
+275|Zuzendu testua
+276|Gehitu emojiak
+277|TeleGraph martxan dago dagoeneko. Ireki erretilutik edo ataza-barratik.
+278|Aplikazioaren logotipoak
+279|Hautatuta
+280|Bilatu Telegramen
+281|Bilatu txatean
+282|Partekatutako multimedia
+283|Botaren komandoak
+284|Txataren ekintzak
+285|Isilarazi
+286|Kendu isiltzea
+287|Artxibatu
+288|Atera artxibotik
+289|Gehitu karpetara
+290|Ezabatu txata
+291|Ezabatu txat hau zure kontutik? Taldeen eta kanalen kasuan elkarrizketatik aterako zara.
+292|Oraindik ez dago karpetarik. Sortu bat Karpetak atalean.
+293|Profileko argazkia
+294|Urtebetetzea
+295|Emoji-egoera
+296|Editatu kontaktua
+297|Gehitu erabiltzaile-izenaren bidez
+298|Hautatu pertsona bat, ez kanal edo talde bat.
+299|Mezu hau jada ez dago erabilgarri txat honetan.
+300|Linean
+301|Azken konexioa
+302|Duela gutxi konektatuta
+303|Azken astean konektatuta
+304|Azken hilabetean konektatuta
+305|Argazkiak
+306|Ahots-mezuak
+307|Estekak
+308|Mezuak
+309|Bilatu
+310|Gehiago
+311|Bot honek ez du komandorik argitaratu.
+312|Erantzun
+313|Erantzun mezuari
+314|Utzi erantzuna
+315|Birbidali mezua
+316|Birbidali {name} hartzaileari?
+317|Editatu mezua
+318|Ezabatu mezua
+319|Ezabatu niretzat
+320|Ezabatu guztientzat
+321|Ezabatu mezu hau guztientzat?
+322|Ezabatu mezu hau zuretzat?
+323|Irakurketa-ordua
+324|Itzulpena / AA
+325|Ordeztu eranskina
+326|Telegramek erabakitzen du mezu edo eranskin hau edita daitekeen.
+327|Mezu-burbuilak
+328|Hasi saioa QR bidez
+329|Bertsio honetan QR euskarria falta da.
+330|Telegram zure telefonoan: Ezarpenak → Gailuak → Lotu mahaigaineko gailua.
+331|Txatak / Elkarrizketa
+332|Txataren atzeko planoa
+333|Argitaratu istorioa
+334|Azalpen-testua
+335|Kontaktuak bakarrik
+336|Guztiak
+337|Lagun minak
+338|24 orduz ikusgai. Telegramek kontuaren argitaratze-mugak aplikatzen ditu.
+339|Argitaratu {file} honentzat: {audience}?
+340|Istorioa argitaratuta.
+341|Hautatu JPEG, PNG edo MP4 fitxategia.
+342|Ireki miniaplikazioa
+343|Hautatu bot bat lehenik.
+344|Bot honek ez du miniaplikazio-menurik.
+345|Ireki bot honen miniaplikazioa nabigatzailean zure Telegram kontuarekin? Telegramen funtzio natibo batzuk ez dira erabilgarri egongo.
+346|Ezin izan da nabigatzaile lehenetsia ireki.
+347| · Enkantea
+348| · Agortuta
+349|Galdetegi batean parte-hartzaileek ezin dituzte erantzunak gehitu.
+350|Gehitu kontuak leiho nagusitik.
+351|Gehitu erantzuna
+352|Gehitu paragrafoa
+353|Gehitu zeregina
+354|Telefono-zenbaki hau zure Telegrameko kontaktuetan gehitu?
+355|Helbidea (aukerakoa)
+356|Funtzio aurreratuak
+357|Botoa aldatzea baimendu
+358|Baimendutako herrialdeen kodeak, komaz bereizita (aukerakoa)
+359|Artikuluak 1 eta 32768 karaktere artean izan behar ditu.
+360|Boto anonimoak
+361|Erantzuna
+362|Aplikazioaren blokeoa
+363|Aplikazioaren blokeoa desgaituta dago.
+364|Aplikazioaren blokeoa gaituta dago abiarazte guztietarako.
+365|Aplikazioaren blokeo-ezarpenak hondatuta daude. Berrezarri app-lock.json fitxategiaren babeskopia aplikazioa ireki aurretik.
+366|Aplikazioaren pasahitza
+367|Aplikatu eremuaren aldaketa
+368|Artikulua
+369|Artikuluak
+370|Autentifikazioa bertan behera utzi da edo huts egin du.
+371|Egilea ez dago erabilgarri
+372|Erabilgarri
+373|Arakatu birsaltzeko bildumako opariak
+374|Erosi Stars / Premium · Telegram
+375|Erosi edo oparitu Stars · Fragment
+376|Deien historia
+377|Deien historia desgaituta dago. Funtzio aurreratuetan gaitu dezakezu.
+378|Katalogoa, opariak, ordainpeko erreakzioak eta erosteko esteka ofizialak.
+379|Aldatu aplikazioaren pasahitza
+380|Txataren itzulpena
+381|Kontsultatu Stars saldoa
+382|Zereginen zerrenda
+383|Zerrendako zereginen identifikatzaileek zenbaki positibo bakarrak izan behar dute.
+384|Zereginen zerrendak
+385|Aukeratu 3, 6 edo 12 hilabete.
+386|Aukeratu Markdown edo HTML.
+387|Aukeratu amaiera-data edo iraupena, ez biak.
+388|Aukeratu erantzun bat.
+389|Aukeratu 1 eta {maximum} Stars artean.
+390|Aukeratu 2 eta {maximum} erantzun artean.
+391|Aukeratu kontaktuen artean
+392|Aukeratu fitxa
+393|Aukeratu bidali nahi dituzun kontaktu-datuak.
+394|Aukeratu baliozko erantzun zuzenak.
+395|Aukeratu inkestako baliozko erantzunak.
+396|Itxi segundo kopuru hau igarotakoan (aukerakoa)
+397|Itxi inkesta
+398|Inkesta hau behin betiko itxi?
+399|Inkesta itxita
+400|Testu tolesgarria
+401|Bildumako oparia
+402|Birsaltzeko bildumako opariak
+403|Berretsi
+404|Berretsi Stars ordainketa
+405|Berretsi Telegramek erakutsitako zenbateko zehatza.
+406|Trukatu oparia Stars lortzeko
+407|Koordenatuak eskuz sartzen dira. Zuzeneko kokapena hemen berariaz eguneratzen duzunean soilik aldatzen da; aplikazio honek ez du zure gailua jarraitzen.
+408|Sortu / editatu Telegraphen
+409|Sortu eta editatu partekatutako zereginen zerrendak; sortzeko Premium behar da.
+410|Sortu eta ireki argitalpen luzeak.
+411|Sortu, bozkatu eta ikusi emaitzak.
+412|Zereginen zerrendak sortzeko Telegram Premium behar da.
+413|Aplikazioaren uneko pasahitza
+414|Iraupen pertsonalizatua…
+415|Egunak
+416|Gailuaren autentifikazioa ez dago erabilgarri. Erabili aplikazioaren pasahitza.
+417|Desgaitu guztiak
+418|Desgaitu aplikazioaren blokeoa
+419|Desgaitu esteka automatikoak
+420|Dokumentua
+421|Editatu artikulua
+422|Editatu zereginen zerrenda
+423|Editatu testu-eremuak jatorrizko artikuluaren formatua, taulak, estekak edo multimedia kendu gabe.
+424|Gaitu Txataren itzulpena Ezarpenak → Funtzio aurreratuak atalean.
+425|Gaitu aplikazioaren blokeoa
+426|Gaitu funtzio hauek Ezarpenak → Funtzio aurreratuak atalean.
+427|Gaitu funtzio hau Ezarpenak → Funtzio aurreratuak atalean botoi hau erabiltzeko.
+428|Sartu baliozko latitudea eta longitudea.
+429|Sartu zenbaki oso bat.
+430|Sartu https://telegra.ph/ artikulu baten esteka.
+431|Azalpenak galdetegietan erabil daitezke.
+432|Galdetegi batean, markatu erantzun zuzenen zenbakiak. Egin eskuineko klik testuan formatua emateko edo emoji pertsonalizatuak txertatzeko.
+433|Oparia
+434|Oparitu Premium Stars erabiliz
+435|Opariaren mezua
+436|Taldea edo kanala
+437|Ezkutatu nire profilean
+438|Ezkutatu nire izena sailkapenean
+439|Ezkutatu nire izena hartzailearen profilean
+440|Ezkutatu emaitzak inkesta itxi arte
+441|Orduak
+442|Sartu hobekuntza bat erabilgarri dagoenean
+443|Aplikazioaren pasahitz okerra.
+444|Artikuluaren eduki baliogabea.
+445|Amaiera-data baliogabea.
+446|Bildumako opariaren esteka baliogabea.
+447|Iraupen baliogabea.
+448|Gonbidapen-esteka baliogabea.
+449|Zuzeneko kokapenaren iraupen baliogabea.
+450|Inkestaren iraupen baliogabea.
+451|Fitxa baliogabea.
+452|Batu
+453|Batu talde edo kanalera
+454|Mantendu jatorrizko igorlea, hartzailea eta mezua
+455|Latitudea
+456|Latitudeak −90 eta 90 artean egon behar du; longitudeak, −180 eta 180 artean.
+457|Estekak, aipamenak eta traolak
+458|Zuzeneko kokapena
+459|Zuzenean · ordu 1
+460|Zuzenean · 15 minutu
+461|Zuzenean · 8 ordu
+462|Zuzenean · gelditu arte
+463|Kargatu deien historia haren fitxa irekitzean.
+464|Kargatu gehiago
+465|Kargatu artikulu osoa editatu aurretik.
+466|Kokapena
+467|Kokapenaren zehaztasunak 0 eta 1500 metro artean egon behar du.
+468|Kokapenak
+469|Blokeatu orain
+470|Blokeatu aplikazioa ezkutatzean
+471|Amaitu saioa leiho nagusitik.
+472|Longitudea
+473|Profilaren fitxa nagusia
+474|Mezua
+475|Minutuak
+476|Galduak
+477|Galduak soilik
+478|Aukera gehiago
+479|Erantzun anitz
+480|Nire opariak
+481|Aplikazioaren pasahitz berria
+482|Zereginen zerrenda berria
+483|Inkesta / galdetegi berria
+484|Hurrengo orria
+485|Baldintzak betetzen dituzten kanaleko harpidedunek soilik bozka dezakete.
+486|Baldintzak betetzen dituzten harpidedunek soilik bozka dezakete
+487|Zereginen zerrendaren egileak soilik edita dezake haren egitura.
+488|Zure artikuluak soilik edita ditzakezu.
+489|Zure zuzeneko kokapena soilik alda dezakezu.
+490|Ireki Telegrameko estekak, profilak eta traolen bilaketak.
+491|Telegrameko ordainketa egiaztatzeko orria ireki?
+492|Ireki txata leiho berri batean
+493|Ireki esteka
+494|Ireki mapa
+495|Ireki mezua
+496|Ireki oparien enkante ofiziala
+497|Besteek zereginak gehi ditzakete
+498|Besteek zereginak osa ditzakete
+499|Aplikaziotik kanpo: sistemaren jakinarazpenak. Barruan: abisua leiho aktiboan.
+500|Parte-hartzaileek erantzunak gehi ditzakete
+501|Opari hau behin betiko {amount} Stars bihurtu?
+502|Argazkia
+503|Lekuaren izena (aukerakoa)
+504|Itxaron berriro saiatu aurretik.
+505|Inkesta / galdetegia
+506|Inkestako boto-emaileak
+507|Inkestak eta galdetegiak
+508|Premium · Fragment
+509|Opariaren aurrebista
+510|Aurreko orria
+511|Profileko oparia
+512|Erosketak aukerakoak dira. Hartzaile eta prezio zehatzak Stars gastatu aurretik erakusten dira.
+513|Galdera
+514|Galdetegia
+515|Galdetegiaren azalpena
+516|Galdetegi moduak gutxienez erantzun zuzen bat behar du.
+517|Aipua
+518|Irakurri artikulua
+519|Eguneratu katalogoa
+520|Kontu honetarako geratzen direnak
+521|Gogoratu pasahitz hau. Telegrameko pasahitzaz bestelakoa da eta ezin da berreskuratu.
+522|Kendu erantzuna
+523|Kendu blokea
+524|Kendu profiletik
+525|Kendu azken erantzuna
+526|Kendu hautatutako blokea
+527|Hautatutako bloke osoa artikulu honetatik kendu?
+528|Erantzun hau kendu? Telegramek kentzeko baimena duzun egiaztatzen du.
+529|Elementu hau zure profiletik kendu?
+530|Errepikatu aplikazioaren pasahitza
+531|Eskaera bidali da. Administratzaile batek onartu behar du.
+532|Eskatu batzea
+533|Kendu botoa
+534|Berrikusi Stars erreakzioa
+535|Berrikusi opariaren erosketa
+536|Berrikusi lehenik opari hau transferitzeko prezioa.
+537|Berrikusi lehenik opari hau hobetzeko prezioa.
+538|Berrikusi transferentzia
+539|Eskuinetik ezkerrerako artikulua
+540|Gorde artikulua
+541|Gordeta.
+542|Bidali Stars erreakzioa
+543|Bidali Telegrameko jatorrizko artikulu bat txat edo kanal honetara. Telegramek Markdown eta HTML prozesatzen ditu.
+544|Bidali artikulua
+545|Bidali zereginen zerrenda
+546|Bidali inkesta
+547|Zerbitzu-mezua
+548|Partekatu Telegrapheko artikulua
+549|Partekatu kontaktua
+550|Partekatu kontaktuak
+551|Partekatu berariaz aukeratzen dituzun koordenatuak eta lekuak.
+552|Partekatu kokapena
+553|Koordenatu hauek txat honetan partekatu?
+554|Izen, telefono-zenbaki eta kontaktu-txartel hau txatean partekatu?
+555|Zure telefono-zenbakia bot honekin partekatu?
+556|Erakutsi gutxiago
+557|Erakutsi gehiago
+558|Erakutsi nire profilean
+559|Nahasi erantzunen ordena
+560|Stars erreakzioa
+561|Stars erreakzioak kanaleko argitalpenetan erabil daitezke.
+562|Stars eta opariak
+563|Stars, opariak eta Premium
+564|Kokapen finkoa
+565|Gelditu zuzeneko kokapena
+566|Zuzeneko kokapen hau partekatzeari utzi?
+567|Istorioak eta profileko argitalpenak
+568|Istorioak desgaituta daude. Funtzio aurreratuetan gaitu ditzakezu.
+569|Sistemaren ezarpenek jakinarazpen-bandak eta baimena kontrolatzen dituzte. Mantendu TG-ASCII atzeko planoan martxan mezu berriak jasotzeko; bertsio honetan ez daude konfiguratuta push jakinarazpenak prozesua geldituta dagoenean.
+570|Zeregina
+571|Telegram Premium · {months} hilabete
+572|Telegram Stars
+573|Telegrameko deien historia. Ahots- eta bideo-deiek dei-motor bateragarri bat behar dute.
+574|Telegramek ordainketa berretsi du.
+575|Telegramek ez du artikulu osoa itzuli. Saiatu eguneratzen.
+576|Telegrameko formatu-gida
+577|Telegrameko oparia
+578|Telegramek opariak erostea desgaitu du kontu honetarako.
+579|Telegrameko esteka
+580|Telegramek egiaztapen-urrats gehigarri bat behar du.
+581|Telegramek ordainketa-zenbateko baliogabea itzuli du.
+582|Telegrapheko artikuluaren esteka
+583|Telegrapheko artikuluak web-orri publikoak dira, Telegrameko jatorrizko artikuluetatik bereiziak. Sortu edo editatu web-editore ofizialean, eta partekatu haien esteka hemen.
+584|Zereginen zerrendaren egileak ez die besteei zereginak gehitzen uzten.
+585|Zereginen zerrendaren egileak ez die besteei zereginak osatzen uzten.
+586|Zereginen zerrendak zeregin gutxiegi edo gehiegi ditu.
+587|Pasahitzak ez datoz bat.
+588|Galdetegiaren azalpenak 200 karaktere eta bi lerro-jauzi onartzen ditu.
+589|Funtzio hauek desgaituta daude lehenespenez. Gaitu erabili ahal izateko; datuak funtzio bakoitza irekitzean kargatzen dira.
+590|Erantzun hau jada ez da existitzen.
+591|Artikulu hau beste gailu batean aldatu da. Ireki berriro editorea.
+592|Artikuluaren eremu hau jada ez dago erabilgarri.
+593|Artikuluaren eremu hau luzeegia da.
+594|Kanal honek Stars erreakzioak desgaitu ditu.
+595|Zereginen zerrenda hau beste gailu batean aldatu da. Ireki berriro editorea.
+596|Kontaktu-txartel hau luzeegia da.
+597|Eztabaida hau jada ez dago erabilgarri.
+598|Eztabaida-esteka honek ez du kanaleko argitalpenik.
+599|Opari honek ez du enkante aktiborik.
+600|Opari honek ez du kanal-erreferentziarik.
+601|Opari honek ez du mezu-erreferentziarik.
+602|Opari hau ezin da zuzenean erosi.
+603|Opari honek Telegram Premium behar du.
+604|Uneko aplikazioak ez du esteka hau onartzen.
+605|Blokeo honek interfazerako sarbidea babesten du. Ez ditu Telegrameko saio-fitxategiak zifratzen. Mantendu zure gailuko kontua eta diskoa babestuta.
+606|Mezu hau jada ez dago erabilgarri forma honetan.
+607|Mezu hau ez da artikulu bat.
+608|Ordainketaren berrespen hau iraungi da. Berrikusi prezioa berriro.
+609|Ordainketa hau Telegrameko erosketa-orri ofizialean osatu behar da.
+610|Inkesta honek ez du erantzunetan aldaketarik onartzen.
+611|Inkesta honek ez du erantzun berririk onartzen.
+612|Inkesta honek ez du zure botoa aldatzen edo kentzen uzten.
+613|Inkesta honek erantzunen muga iritsi du.
+614|Inkesta hau anonimoa da.
+615|Inkesta hau itxita dago.
+616|Argitalpen hau jada ez dago erabilgarri.
+617|Zeregin hau jada ez da existitzen.
+618|Izenburua
+619|Guztira
+620|Touch ID ez dago erabilgarri edo ez dago konfiguratuta
+621|Transferitu oparia
+622|Bildumako opari hau {recipient} erabiltzaileari transferitu? Jabea aldatuko da.
+623|Transferitu @username erabiltzaileari
+624|Itzuli hautatutako txataren historia Telegram Premium erabiliz.
+625|Kokapena ez dago erabilgarri
+626|Desblokeatu
+627|Desblokeatu aplikazioa jarraitzeko.
+628|Desblokeatu zure mezuak
+629|Eguneratu kokapena
+630|Hobekuntzaren Stars kostua
+631|Hobetu oparia
+632|Erabili gutxienez 8 karaktere.
+633|Erabili gailuaren autentifikazioa
+634|Opari honetarako aurrez ordaindutako hobekuntza erabili?
+635|Erabili bi letrako herrialde-kodeak, komaz bereizita.
+636|Erabiltzailea
+637|Egiaztapena
+638|Bideoa
+639|Ikusi eta argitaratu istorioak haien atala irekitzean soilik.
+640|Ikusi bildumako oparia Telegramen
+641|Ikusi nire profila eta eduki publikoa
+642|Ikusi boto-emaileak
+643|Bozkatu
+644|Inkestaren sortzaileak hautatutako herrialdeetan soilik bozka daiteke.
+645|Windows Hello lanpetuta dago
+646|Sistemaren gidalerroek Windows Hello desgaitu dute
+647|Windows Hello ez dago konfiguratuta
+648|Windows Hello ez dago erabilgarri
+649|Windows Hello: ez dago gailurik erabilgarri
+650|Dagoeneko talde edo kanal honetako kidea zara.
+651|Ezin duzu inkesta hau itxi.
+652|Opari hau erosteko mugara iritsi zara.
+653|Inkesta hau argitaratu baino gutxienez 24 ordu lehenago batuta egon behar zenuen.
+654|Talde pribatu baterako gonbidapen-esteka behar duzu.
+655|Zure telefono-zenbakia ez dago erabilgarri.
+656|[Artikulua]
+657|[Audioa]
+658|[Dokumentua]
+659|[Argazkia]
+660|[Bideoa]
+661|vCard (aukerakoa)
+662|{count} Telegram Stars
+663|{count} boto
+664|{field}: erabili 1 eta {maximum} karaktere artean.
+665|{title}\nHartzailea: {recipient}\nGuztira: {amount} Telegram Stars\n\nErosketa hau berretsi?

@@ -5,8 +5,6 @@ iOS / Mac: an AVFoundation camera screen, and Core Image for a picture.
 Both give the core the text of the code, or None.
 """
 
-# Returned instead of a code while Google's scanner module is still being installed.
-PREPARING = '\x00preparing'
 CAMERA_DENIED = '\x00camera-denied'
 
 
@@ -61,7 +59,7 @@ def install_ios(app):
     from threading import Timer
     from concurrent.futures import ThreadPoolExecutor
     from rubicon.objc import Block, NSObject, ObjCClass, ObjCInstance, ObjCProtocol, objc_method
-    from rubicon.objc.runtime import load_library
+    from rubicon.objc.runtime import SEL, load_library
 
     load_library('AVFoundation')
     load_library('CoreImage')
@@ -198,7 +196,7 @@ def install_ios(app):
                 from tg_ascii.i18n import tr
                 cancel.setTitle_forState_(tr('Cancel'), 0)
                 cancel.setTitleColor_forState_(ObjCClass('UIColor').whiteColor, 0)
-                cancel.addTarget_action_forControlEvents_(delegate, 'cancel:', 1 << 6)  # TouchUpInside
+                cancel.addTarget_action_forControlEvents_(delegate, SEL('cancel:'), 1 << 6)  # TouchUpInside
                 cancel.translatesAutoresizingMaskIntoConstraints = False
                 view.addSubview_(cancel)
                 cancel.centerXAnchor.constraintEqualToAnchor_(view.centerXAnchor).active = True

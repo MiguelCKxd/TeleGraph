@@ -1,0 +1,23 @@
+# Publisher / CI only. End users do not install these tools.
+pyinstaller==6.22.3
+Telethon==1.45.0
+prompt-toolkit==3.0.53
+Pillow==13.0.0
+tkinterdnd2==0.6.4
+sounddevice==0.5.6
+soundfile==0.14.0
+pystray==0.19.5
+qrcode==8.2
+pyphen==0.18.1
+pyobjc-framework-UserNotifications>=10; sys_platform == "darwin"
+pyobjc-framework-LocalAuthentication>=10; sys_platform == "darwin"
+winrt-Windows.UI.Notifications>=2,<4; sys_platform == "win32"
+winrt-Windows.Data.Xml.Dom>=2,<4; sys_platform == "win32"
+winrt-Windows.Foundation>=2,<4; sys_platform == "win32"
+winrt-Windows.Foundation.Collections>=2,<4; sys_platform == "win32"
+winrt-Windows.Networking.PushNotifications>=2,<4; sys_platform == "win32"
+pyobjc-framework-Contacts>=10; sys_platform == "darwin"
+winrt-Windows.ApplicationModel.Contacts>=2,<4; sys_platform == "win32"
+# 1.5.5 complex feature "GPU video in group calls" (SDL2)
+pysdl2==0.9.17
+pysdl2-dll==2.32.0

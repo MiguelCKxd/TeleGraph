@@ -1,0 +1,666 @@
+0|+ Account
+1|Account
+2|Account sconosciuto
+3|Nuovo account
+4|Accedi di nuovo
+5|Non in linea
+6|Torna a un altro account
+7|Sessione salvata automaticamente
+8|Gli account restano connessi durante il passaggio. La chiusura dell’app conserva le sessioni.
+9|Questo account è già stato aggiunto. Torna indietro e selezionalo.
+10|Chat
+11|Storie
+12|Impostazioni
+13|Aspetto
+14|Dimensione del testo
+15|Mostra il testo in ASCII (nasconde le emoji)
+16|Invio invia i messaggi
+17|Elenco chat compatto
+18|Salva impostazioni
+19|Impostazioni salvate.
+20|Il mio profilo
+21|Modifica profilo Telegram
+22|Nome
+23|Cognome
+24|Biografia
+25|Nome utente
+26|Salva nome e biografia
+27|Cambia nome utente
+28|Cambia foto
+29|Profilo aggiornato.
+30|Il nome è obbligatorio.
+31|Il nome utente deve contenere da 5 a 32 lettere, numeri o trattini bassi.
+32|Scegli un’immagine PNG o JPEG.
+33|Immagini
+34|Contatti
+35|Aggiungi contatto
+36|Telefono con prefisso internazionale
+37|Salva contatto
+38|Contatto salvato.
+39|Telegram richiede di riprovare più tardi.
+40|Nessun account accessibile trovato per questo numero.
+41|Nuova chat
+42|Apri chat
+43|Nome utente (@nome) o telefono (+prefisso):
+44|Inserisci un @nomeutente o un telefono con prefisso internazionale.
+45|Nuovo gruppo
+46|Nuovo gruppo con i contatti selezionati
+47|Nome del gruppo:
+48|Seleziona i partecipanti dall’elenco.
+49|Inserisci un titolo e seleziona i partecipanti.
+50|Creazione del gruppo…
+51|Gruppo creato; non è stato possibile invitare alcuni utenti.
+52|Telegram non ha restituito il gruppo. Aggiorna prima di riprovare.
+53|Informazioni
+54|Fissa / Non fissare
+55|Cartelle
+56|Tutte le chat
+57|Nuova cartella
+58|Nuova cartella con questa chat
+59|Nome della cartella (max. 12):
+60|Il nome della cartella deve contenere da 1 a 12 caratteri.
+61|Non ci sono identificativi di cartella disponibili.
+62|Seleziona almeno una chat.
+63|Rinomina
+64|Aggiungi chat attuale
+65|Rimuovi chat attuale
+66|Elimina cartella
+67|Eliminare questa cartella Telegram? Le chat verranno conservate.
+68|Questa cartella non può essere eliminata.
+69|Trascina un file nella chat per allegarlo.
+70|Il trascinamento non è disponibile su questo computer; usa Allega.
+71|Scegli prima una chat e attendi il completamento dell’operazione in corso.
+72|Trascina un solo file per messaggio.
+73|Emoji
+74|[Visualizza / salva file]
+75|Visualizzatore di file
+76|Visualizza immagine / anteprima
+77|Salva file con nome…
+78|File salvato.
+79|Download in corso…
+80|Questo file non è più disponibile.
+81|Nessuna anteprima disponibile. Puoi salvare il file.
+82|Il file è troppo grande per l’anteprima. Salvalo prima.
+83|L’immagine è troppo grande per l’anteprima.
+84|Anteprima statica dell’adesivo o del video.
+85|Aggiorna storie
+86|Storia
+87|Fai doppio clic per aprire una storia.
+88|Storia aperta.
+89|Chiamate
+90|Apri Telegram
+91|Aprire questo contatto in Telegram?
+92|Caricamento…
+93|Salvataggio…
+94|Demo locale
+95|Messaggi salvati
+96|Idee di design
+97|Il tuo Telegram. Solo l’essenziale.
+98|Configura applicazione (sviluppatore)
+99|Il tuo numero di telefono
+100|Codice Telegram
+101|Password della verifica in due passaggi
+102|Ricorda le chiavi dell’app su questo computer (non cifrate)
+103|Includi + e il prefisso internazionale. Esempio: +39 312 345 6789
+104|Inserisci il codice che ti ha inviato Telegram.
+105|Inserisci il codice Telegram.
+106|Continua
+107|Cambia numero
+108|Accedi con il tuo account.
+109|Il codice è scaduto. Richiedine uno nuovo.
+110|Riprova
+111|CONVERSAZIONI
+112|Cerca chat
+113|Aggiorna
+114|Scegli una chat
+115|Rimuovi file
+116|[+] Allega
+117|Invia >
+118|Invio: invia / Maiusc+Invio: nuova riga
+119|Fai clic su una chat per aprirla.
+120|Chat aperta. Scrivi un messaggio o allega un file.
+121|Caricamento dei messaggi…
+122|Scegli prima una chat.
+123|Scegli file
+124|File pronto. Premi Invia per inviarlo alla chat indicata sopra.
+125|[File]
+126|Allegato
+127|Caricamento del file:
+128|Testo troppo lungo. Limite:
+129|Scegli un file normale, non una cartella.
+130|C’è un’operazione in corso. Chiudere l’app?
+131|Chiusura…
+132|Caricamento delle chat…
+133|Nessun messaggio in questa chat.
+134|Invio in corso…
+135|Inviato.
+136|Bozza conservata; controlla la chat prima di riprovare.
+137|Tu
+138|[Allegato / messaggio di servizio]
+139|Connessione a Telegram…
+140|Telegram richiede di attendere {seconds} secondi prima di riprovare.
+141|Impossibile completare l’operazione ({error}).
+142|L’API ID deve essere un intero positivo.
+143|L’API hash deve contenere 32 caratteri esadecimali. Copialo per intero.
+144|API ID o hash errato. Controlla le credenziali dell’app.
+145|Telegram non riconosce questo numero. Controlla numero e prefisso.
+146|Codice errato. Riprova.
+147|Il codice è scaduto. Riavvia per richiederne uno nuovo.
+148|Password errata. Riprova.
+149|Non puoi scrivere in questa chat.
+150|Il messaggio supera il limite di Telegram.
+151|Connessione o accesso locale non riuscito. Controlla rete e autorizzazioni.
+152|La sessione è scaduta o è stata revocata. Riavvia per accedere di nuovo.
+153|Telegram ha invalidato questa sessione. Controlla Impostazioni > Dispositivi in Telegram.
+154|Questa versione non contiene la configurazione di TG-ASCII. Chiedi allo sviluppatore una versione completa.
+155|La configurazione inclusa nell’app non è valida. Contatta lo sviluppatore.
+156|Annulla
+157|Chiudi
+158|Seleziona
+159|File
+160|Sostituire questo file?
+161|Salva
+162|Apri
+163|Adesivi
+164|Emoji personalizzate
+165|Connetti un account per caricare i pacchetti Telegram.
+166|Recenti
+167|Alcune emoji richiedono Telegram Premium.
+168|Inserisci emoji
+169|Invia adesivo
+170|L’emoji personalizzata è cambiata. Inseriscila di nuovo.
+171|Mostra le anteprime dei media nelle chat
+172|Chat fissate locali illimitate (non sincronizzate)
+173|Fissa localmente / Rimuovi fissaggio locale
+174|Il fissaggio locale riguarda solo questa app. Disattivandolo si ripristina l’ordine di Telegram.
+175|Sincronizza contatti Telegram
+176|Sincronizzazione dei contatti Telegram…
+177|Contatti sincronizzati: {count}
+178|Notifiche
+179|Su questo computer
+180|Mostra notifiche mentre l’app è in esecuzione
+181|Mostra anteprime dei messaggi
+182|Riproduci un suono
+183|Notifica per la chat aperta
+184|Impostazioni Telegram (sincronizzate)
+185|Chat private
+186|Gruppi
+187|Canali
+188|Abilitato
+189|Anteprima
+190|Suono
+191|Silenzia storie
+192|Le eccezioni per chat impostate in Telegram vengono rispettate. Le notifiche si interrompono quando esci dall’app.
+193|Nuovo messaggio
+194|Tema dell’interfaccia
+195|Tema del logo
+196|Scuro
+197|Chiaro
+198|Sistema
+199|Aggiornamenti
+200|Scegli uno ZIP della versione o controlla il canale dell’autore.
+201|Installare {version} e riavviare? Account e impostazioni verranno conservati.
+202|Preparazione dell’aggiornamento…
+203|Scegli ZIP di aggiornamento
+204|Hai già la versione più recente.
+205|Versione disponibile: {version}
+206|Scarica e installa
+207|Ricerca di aggiornamenti…
+208|Cerca aggiornamenti
+209|Installa ZIP della versione
+210|Versione di aggiornamento non valida.
+211|Gli aggiornamenti richiedono HTTPS.
+212|L’aggiornamento supera il limite di dimensione.
+213|L’autore non ha ancora configurato un canale di aggiornamento. Puoi installare uno ZIP della versione.
+214|Manifesto di aggiornamento non valido.
+215|La somma di controllo dell’aggiornamento non corrisponde.
+216|Archivio di aggiornamento non sicuro.
+217|Questa versione è destinata a un altro sistema o architettura.
+218|Questa versione non è più recente di quella installata.
+219|Gli aggiornamenti si installano nell’app distribuita, non nella versione sorgente.
+220|La cartella dell’app non è scrivibile. Sposta l’app in una cartella di tua proprietà.
+221|La nuova app non ha superato il controllo di avvio. L’app installata non è stata modificata.
+222|Le chiamate native non sono disponibili in questa versione. Occorre prima integrare e provare un motore audio per questa piattaforma.
+223|DEMO LOCALE
+224|Formato
+225|Grassetto
+226|Corsivo
+227|Sottolineato
+228|Barrato
+229|Spoiler
+230|Monospazio
+231|Collegamento
+232|Rimuovi formattazione
+233|Seleziona prima il testo.
+234|Formattazione del testo non valida.
+235|Usa un collegamento https://, http:// o tg://.
+236|Rimuovi prima la formattazione sovrapposta.
+237|Audio
+238|Registra messaggio vocale
+239|Invia file audio
+240|Registrazione…
+241|Riproduzione…
+242|Pronto
+243|Ferma
+244|Riproduci
+245|Registrazione massima: 10 minuti. Ferma, ascolta l’anteprima e invia.
+246|I componenti audio non sono disponibili in questa versione.
+247|Questa versione non può codificare messaggi vocali Opus.
+248|Perdita di dati del microfono. Registra di nuovo il messaggio.
+249|La registrazione è vuota.
+250|Formato audio non supportato. Salva il file per aprirlo esternamente.
+251|Carattere dell’app
+252|Predefinito
+253|Disconnetti questo account
+254|Disconnettere {account}? Gli altri account resteranno connessi.
+255|Disconnessione non riuscita. L’account è stato mantenuto.
+256|Apri TeleGraph
+257|Esci da TeleGraph
+258|Mantieni la connessione quando chiudi la finestra
+259|Uscire interrompe le notifiche. Chiudere la finestra mantiene l’app in esecuzione.
+260|Area di notifica non disponibile. L’app è ridotta a icona e resta connessa.
+261|Traduci chat
+262|Traduzione
+263|Traduzione automatica (Premium)
+264|La traduzione automatica della chat richiede Telegram Premium.
+265|Traduce i messaggi caricati e quelli in arrivo. Gli originali vengono conservati.
+266|Traduzione incompleta. Riprova.
+267|IA di Telegram
+268|Strumenti del messaggio
+269|Riassumi con l’IA di Telegram
+270|Trascrivi audio
+271|Trascrizione in attesa. Riapri questa azione più tardi.
+272|Telegram elabora questo testo. Disponibilità e quote dipendono dal tuo account.
+273|Usa nella bozza
+274|La bozza è cambiata. Il risultato non è stato applicato.
+275|Correggi testo
+276|Aggiungi emoji
+277|TeleGraph è già in esecuzione. Aprilo dall’area di notifica o dalla barra delle applicazioni.
+278|Loghi dell’app
+279|Selezionato
+280|Cerca in Telegram
+281|Cerca nella chat
+282|Media condivisi
+283|Comandi del bot
+284|Azioni della chat
+285|Silenzia
+286|Riattiva notifiche
+287|Archivia
+288|Rimuovi dall’archivio
+289|Aggiungi a cartella
+290|Elimina chat
+291|Eliminare questa chat dal tuo account? Per gruppi e canali questo comporta anche l’uscita dalla conversazione.
+292|Nessuna cartella. Creane una nella sezione Cartelle.
+293|Foto del profilo
+294|Compleanno
+295|Stato emoji
+296|Modifica contatto
+297|Aggiungi tramite nome utente
+298|Scegli una persona, non un canale o un gruppo.
+299|Questo messaggio non è più disponibile nella chat.
+300|In linea
+301|Ultimo accesso
+302|Ultimo accesso di recente
+303|Ultimo accesso entro una settimana
+304|Ultimo accesso entro un mese
+305|Foto
+306|Messaggi vocali
+307|Collegamenti
+308|Messaggi
+309|Cerca
+310|Altro
+311|Questo bot non ha pubblicato comandi.
+312|Rispondi
+313|Risposta al messaggio
+314|Annulla risposta
+315|Inoltra messaggio
+316|Inoltrare a {name}?
+317|Modifica messaggio
+318|Elimina messaggio
+319|Elimina per me
+320|Elimina per tutti
+321|Eliminare questo messaggio per tutti?
+322|Eliminare questo messaggio per te?
+323|Ora di lettura
+324|Traduzione / IA
+325|Sostituisci allegato
+326|Telegram determina se il messaggio o l’allegato può essere modificato.
+327|Fumetti dei messaggi
+328|Accedi tramite QR
+329|Questa versione non supporta i codici QR.
+330|Telegram sul telefono: Impostazioni → Dispositivi → Collega dispositivo desktop.
+331|Chat / Conversazione
+332|Sfondo della chat
+333|Pubblica storia
+334|Didascalia
+335|Solo contatti
+336|Tutti
+337|Amici più stretti
+338|Visibile per 24 ore. Telegram applica i limiti di pubblicazione del tuo account.
+339|Pubblicare {file} per {audience}?
+340|Storia pubblicata.
+341|Scegli un file JPEG, PNG o MP4.
+342|Apri Mini App
+343|Scegli prima un bot.
+344|Questo bot non ha un menu Mini App.
+345|Aprire la Mini App di questo bot nel browser con il tuo account Telegram? Alcune funzioni native di Telegram potrebbero non essere disponibili.
+346|Impossibile aprire il browser predefinito.
+347| · Asta
+348| · Esaurito
+349|Un quiz non può consentire ai partecipanti di aggiungere risposte.
+350|Aggiungi gli account dalla finestra principale.
+351|Aggiungi risposta
+352|Aggiungi paragrafo
+353|Aggiungi attività
+354|Aggiungere questo numero ai tuoi contatti Telegram?
+355|Indirizzo (facoltativo)
+356|Funzioni avanzate
+357|Consenti di cambiare il voto
+358|Codici dei paesi consentiti, separati da virgole (facoltativo)
+359|Un articolo deve contenere da 1 a 32768 caratteri.
+360|Voti anonimi
+361|Risposta
+362|Blocco dell’app
+363|Il blocco dell’app è disattivato.
+364|Il blocco dell’app è attivo a ogni avvio.
+365|Le impostazioni di blocco sono danneggiate. Ripristina la copia di app-lock.json prima di aprire l’app.
+366|Password dell’app
+367|Applica modifica al campo
+368|Articolo
+369|Articoli
+370|Autenticazione annullata o non riuscita.
+371|Autore non disponibile
+372|Disponibili
+373|Sfoglia i regali da collezione in rivendita
+374|Acquista Stelle / Premium · Telegram
+375|Acquista o regala Stelle · Fragment
+376|Registro chiamate
+377|Il registro chiamate è disattivato. Puoi attivarlo in Funzioni avanzate.
+378|Catalogo, regali, reazioni a pagamento e link di acquisto ufficiali.
+379|Cambia password dell’app
+380|Traduzione delle chat
+381|Controlla saldo Stelle
+382|Lista di attività
+383|Gli identificatori delle attività devono essere numeri positivi univoci.
+384|Liste di attività
+385|Scegli 3, 6 o 12 mesi.
+386|Scegli Markdown o HTML.
+387|Scegli una data di chiusura o una durata, non entrambe.
+388|Scegli una risposta.
+389|Scegli da 1 a {maximum} Stelle.
+390|Scegli da 2 a {maximum} risposte.
+391|Scegli dai contatti
+392|Scegli scheda
+393|Scegli i dati di contatto da inviare.
+394|Scegli risposte corrette valide.
+395|Scegli risposte valide per il sondaggio.
+396|Chiudi dopo questo numero di secondi (facoltativo)
+397|Chiudi sondaggio
+398|Chiudere definitivamente questo sondaggio?
+399|Sondaggio chiuso
+400|Testo espandibile
+401|Regalo da collezione
+402|Regali da collezione in rivendita
+403|Conferma
+404|Conferma pagamento in Stelle
+405|Conferma l’importo esatto mostrato da Telegram.
+406|Converti regalo in Stelle
+407|Le coordinate vengono inserite manualmente. La posizione in tempo reale cambia solo quando la aggiorni esplicitamente qui; questa app non traccia il dispositivo.
+408|Crea / modifica su Telegraph
+409|Crea e modifica liste condivise; per crearle serve Premium.
+410|Crea e apri pubblicazioni lunghe.
+411|Crea, vota e visualizza i risultati.
+412|Per creare liste di attività serve Telegram Premium.
+413|Password attuale dell’app
+414|Durata personalizzata…
+415|Giorni
+416|L’autenticazione del dispositivo non è disponibile. Usa la password dell’app.
+417|Disattiva tutte
+418|Disattiva blocco dell’app
+419|Disattiva link automatici
+420|Documento
+421|Modifica articolo
+422|Modifica lista di attività
+423|Modifica i campi di testo conservando formattazione, tabelle, link e media dell’articolo originale.
+424|Attiva Traduzione delle chat in Impostazioni → Funzioni avanzate.
+425|Attiva blocco dell’app
+426|Attiva queste funzioni in Impostazioni → Funzioni avanzate.
+427|Attiva questa funzione in Impostazioni → Funzioni avanzate per usare questo pulsante.
+428|Inserisci latitudine e longitudine valide.
+429|Inserisci un numero intero.
+430|Inserisci un link a un articolo di https://telegra.ph/.
+431|Le spiegazioni sono disponibili per i quiz.
+432|Per un quiz, seleziona i numeri delle risposte corrette. Fai clic destro sul testo per formattarlo o inserire emoji personalizzate.
+433|Regalo
+434|Regala Premium con Stelle
+435|Messaggio del regalo
+436|Gruppo o canale
+437|Nascondi dal mio profilo
+438|Nascondi il mio nome in classifica
+439|Nascondi il mio nome sul profilo del destinatario
+440|Nascondi risultati fino alla chiusura del sondaggio
+441|Ore
+442|Includi un miglioramento quando disponibile
+443|Password dell’app errata.
+444|Contenuto dell’articolo non valido.
+445|Data di chiusura non valida.
+446|Link al regalo da collezione non valido.
+447|Durata non valida.
+448|Link d’invito non valido.
+449|Durata della posizione in tempo reale non valida.
+450|Durata del sondaggio non valida.
+451|Scheda non valida.
+452|Unisciti
+453|Unisciti al gruppo o canale
+454|Conserva mittente, destinatario e messaggio originali
+455|Latitudine
+456|La latitudine deve essere tra −90 e 90; la longitudine tra −180 e 180.
+457|Link, menzioni e hashtag
+458|Posizione in tempo reale
+459|In tempo reale · 1 ora
+460|In tempo reale · 15 minuti
+461|In tempo reale · 8 ore
+462|In tempo reale · fino all’interruzione
+463|Carica il registro chiamate quando apri la scheda.
+464|Carica altro
+465|Carica l’articolo completo prima di modificarlo.
+466|Posizione
+467|La precisione della posizione deve essere tra 0 e 1500 metri.
+468|Posizioni
+469|Blocca ora
+470|Blocca quando nascondi l’app
+471|Esci dagli account dalla finestra principale.
+472|Longitudine
+473|Scheda principale del profilo
+474|Messaggio
+475|Minuti
+476|Persa
+477|Solo perse
+478|Altre opzioni
+479|Risposte multiple
+480|I miei regali
+481|Nuova password dell’app
+482|Nuova lista di attività
+483|Nuovo sondaggio / quiz
+484|Pagina successiva
+485|Possono votare solo gli iscritti al canale che soddisfano i requisiti.
+486|Possono votare solo gli iscritti che soddisfano i requisiti
+487|Solo l’autore della lista può modificarne la struttura.
+488|Puoi modificare solo i tuoi articoli.
+489|Puoi modificare solo la tua posizione in tempo reale.
+490|Apri link Telegram, profili e ricerche di hashtag.
+491|Aprire la pagina di verifica del pagamento di Telegram?
+492|Apri chat in una nuova finestra
+493|Apri link
+494|Apri mappa
+495|Apri messaggio
+496|Apri asta ufficiale del regalo
+497|Altri possono aggiungere attività
+498|Altri possono completare attività
+499|Fuori dall’app: notifiche di sistema. Dentro: un avviso nella finestra attiva.
+500|I partecipanti possono aggiungere risposte
+501|Convertire definitivamente questo regalo in {amount} Stelle?
+502|Foto
+503|Nome del luogo (facoltativo)
+504|Attendi prima di riprovare.
+505|Sondaggio / quiz
+506|Votanti del sondaggio
+507|Sondaggi e quiz
+508|Premium · Fragment
+509|Anteprima regalo
+510|Pagina precedente
+511|Regalo del profilo
+512|Gli acquisti sono facoltativi. Il destinatario e il prezzo esatti vengono mostrati prima di spendere Stelle.
+513|Domanda
+514|Quiz
+515|Spiegazione del quiz
+516|La modalità quiz richiede almeno una risposta corretta.
+517|Citazione
+518|Leggi articolo
+519|Aggiorna catalogo
+520|Rimanenti per questo account
+521|Ricorda questa password. È separata da quella di Telegram e non può essere recuperata.
+522|Rimuovi risposta
+523|Rimuovi blocco
+524|Rimuovi dal profilo
+525|Rimuovi ultima risposta
+526|Rimuovi blocco selezionato
+527|Rimuovere l’intero blocco selezionato da questo articolo?
+528|Rimuovere questa risposta? Telegram verifica se puoi rimuoverla.
+529|Rimuovere questo elemento dal profilo?
+530|Ripeti password dell’app
+531|Richiesta inviata. Un amministratore deve approvarla.
+532|Richiedi di unirti
+533|Ritira voto
+534|Rivedi reazione con Stelle
+535|Rivedi acquisto del regalo
+536|Controlla prima il prezzo di trasferimento di questo regalo.
+537|Controlla prima il prezzo di miglioramento di questo regalo.
+538|Rivedi trasferimento
+539|Articolo da destra a sinistra
+540|Salva articolo
+541|Salvato.
+542|Invia reazione con Stelle
+543|Invia un articolo nativo Telegram a questa chat o canale. Markdown e HTML vengono interpretati da Telegram.
+544|Invia articolo
+545|Invia lista di attività
+546|Invia sondaggio
+547|Messaggio di servizio
+548|Condividi articolo Telegraph
+549|Condividi contatto
+550|Condividi contatti
+551|Condividi coordinate e luoghi che scegli esplicitamente.
+552|Condividi posizione
+553|Condividere queste coordinate con questa chat?
+554|Condividere questo nome, numero e scheda di contatto con la chat?
+555|Condividere il tuo numero con questo bot?
+556|Mostra meno
+557|Mostra altro
+558|Mostra sul mio profilo
+559|Mescola l’ordine delle risposte
+560|Reazione con Stelle
+561|Le reazioni con Stelle sono disponibili nei post dei canali.
+562|Stelle e regali
+563|Stelle, regali e Premium
+564|Posizione statica
+565|Interrompi posizione in tempo reale
+566|Interrompere la condivisione di questa posizione in tempo reale?
+567|Storie e post del profilo
+568|Le storie sono disattivate. Puoi attivarle in Funzioni avanzate.
+569|Le impostazioni di sistema controllano i banner e il consenso. Mantieni TG-ASCII in esecuzione in background per ricevere nuovi messaggi; il push a processo fermo non è configurato in questa versione.
+570|Attività
+571|Telegram Premium · {months} mesi
+572|Stelle Telegram
+573|Registro chiamate Telegram. Le chiamate vocali e video richiedono un motore di chiamata compatibile.
+574|Telegram ha confermato il pagamento.
+575|Telegram non ha restituito l’articolo completo. Prova ad aggiornarlo.
+576|Guida alla formattazione di Telegram
+577|Regalo Telegram
+578|Telegram ha disattivato gli acquisti di regali per questo account.
+579|Link Telegram
+580|Telegram richiede un ulteriore passaggio di verifica.
+581|Telegram ha restituito un importo di pagamento non valido.
+582|Link all’articolo Telegraph
+583|Gli articoli Telegraph sono pagine web pubbliche, separate dagli articoli nativi Telegram. Creali o modificali nell’editor web ufficiale, poi condividi qui il link.
+584|L’autore della lista non permette agli altri di aggiungere attività.
+585|L’autore della lista non permette agli altri di completare attività.
+586|La lista contiene troppo poche o troppe attività.
+587|Le password non corrispondono.
+588|La spiegazione del quiz ammette 200 caratteri e due interruzioni di riga.
+589|Queste funzioni sono disattivate per impostazione predefinita. Attivale per usarle; i dati vengono caricati all’apertura di ogni funzione.
+590|Questa risposta non esiste più.
+591|Questo articolo è cambiato su un altro dispositivo. Riapri l’editor.
+592|Questo campo dell’articolo non è più disponibile.
+593|Questo campo dell’articolo è troppo lungo.
+594|Questo canale ha disattivato le reazioni con Stelle.
+595|Questa lista è cambiata su un altro dispositivo. Riapri l’editor.
+596|Questa scheda di contatto è troppo lunga.
+597|Questa discussione non è più disponibile.
+598|Questo link alla discussione non contiene un post del canale.
+599|Questo regalo non ha un’asta attiva.
+600|Questo regalo non ha un riferimento al canale.
+601|Questo regalo non ha un riferimento al messaggio.
+602|Questo regalo non è disponibile per l’acquisto diretto.
+603|Questo regalo richiede Telegram Premium.
+604|Questa versione dell’app non supporta questo link.
+605|Questo blocco protegge l’accesso all’interfaccia. Non cifra i file di sessione Telegram. Proteggi l’account del dispositivo e il disco.
+606|Questo messaggio non è più disponibile in questa forma.
+607|Questo messaggio non è un articolo.
+608|Questa conferma di pagamento è scaduta. Controlla di nuovo il prezzo.
+609|Questo pagamento deve essere completato sulla pagina ufficiale di acquisto di Telegram.
+610|Questo sondaggio non consente modifiche alle risposte.
+611|Questo sondaggio non accetta nuove risposte.
+612|Questo sondaggio non consente di cambiare o ritirare il voto.
+613|Questo sondaggio ha raggiunto il limite di risposte.
+614|Questo sondaggio è anonimo.
+615|Questo sondaggio è chiuso.
+616|Questo post non è più disponibile.
+617|Questa attività non esiste più.
+618|Titolo
+619|Totale
+620|Touch ID non è disponibile o non è configurato
+621|Trasferisci regalo
+622|Trasferire questo regalo da collezione a {recipient}? Cambierà il proprietario.
+623|Trasferisci a @username
+624|Traduci la cronologia della chat selezionata con Telegram Premium.
+625|Posizione non disponibile
+626|Sblocca
+627|Sblocca l’app per continuare.
+628|Sblocca i tuoi messaggi
+629|Aggiorna posizione
+630|Stelle per il miglioramento
+631|Migliora regalo
+632|Usa almeno 8 caratteri.
+633|Usa autenticazione del dispositivo
+634|Usare il miglioramento prepagato per questo regalo?
+635|Usa codici paese di due lettere separati da virgole.
+636|Utente
+637|Verifica
+638|Video
+639|Visualizza e pubblica storie solo quando apri la loro sezione.
+640|Visualizza il collezionabile su Telegram
+641|Visualizza il mio profilo e i contenuti pubblici
+642|Visualizza votanti
+643|Vota
+644|Il voto è limitato ai paesi scelti dall’autore del sondaggio.
+645|Windows Hello è occupato
+646|Windows Hello è disattivato dai criteri di sistema
+647|Windows Hello non è configurato
+648|Windows Hello non è disponibile
+649|Windows Hello: nessun dispositivo disponibile
+650|Fai già parte di questo gruppo o canale.
+651|Non puoi chiudere questo sondaggio.
+652|Hai raggiunto il limite di acquisto di questo regalo.
+653|Devi esserti unito almeno 24 ore prima della pubblicazione del sondaggio.
+654|Per un gruppo privato serve un link d’invito.
+655|Il tuo numero di telefono non è disponibile.
+656|[Articolo]
+657|[Audio]
+658|[Documento]
+659|[Foto]
+660|[Video]
+661|vCard (facoltativa)
+662|{count} Stelle Telegram
+663|{count} voti
+664|{field}: usa da 1 a {maximum} caratteri.
+665|{title}\nDestinatario: {recipient}\nTotale: {amount} Stelle Telegram\n\nConfermi l’acquisto?

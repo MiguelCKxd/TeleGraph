@@ -1,7 +1,7 @@
 [tool.briefcase]
 project_name = "TG-ASCII"
 bundle = "org.tgas"
-version = "3.0.1"
+version = "3.1.0"
 url = "https://github.com/MiguelCKxd/TeleGraph"
 license.file = "LICENSE"
 author = "TeleGraph"

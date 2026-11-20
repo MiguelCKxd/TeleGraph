@@ -17,6 +17,8 @@ static NSNumber *positiveID(id value) {
 - (void)didReceiveNotificationRequest:(UNNotificationRequest *)request
                   withContentHandler:(void (^)(UNNotificationContent *))handler {
     UNMutableNotificationContent *content = [request.content mutableCopy];
+    // Only this extension may designate a preview as a CarPlay message.
+    if ([content.categoryIdentifier isEqualToString:@"TeleGraphMessage"]) content.categoryIdentifier = @"";
     NSDictionary *payload = content.userInfo;
     NSDictionary *custom = payload[@"custom"];
     NSDictionary *aps = payload[@"aps"];
@@ -72,6 +74,13 @@ static NSNumber *positiveID(id value) {
     INPersonHandle *handle = [[INPersonHandle alloc] initWithValue:identity type:INPersonHandleTypeUnknown];
     INPerson *person = [[INPerson alloc] initWithPersonHandle:handle nameComponents:nil displayName:name image:image contactIdentifier:nil customIdentifier:identity];
     INSendMessageIntent *intent = [[INSendMessageIntent alloc] initWithRecipients:nil outgoingMessageType:INOutgoingMessageTypeOutgoingMessageText content:nil speakableGroupName:nil conversationIdentifier:thread serviceName:@"TeleGraph" sender:person attachments:nil];
+    if (messageKey && [arguments isKindOfClass:NSArray.class] && [arguments.firstObject isKindOfClass:NSString.class] &&
+        [NSBundle.mainBundle.infoDictionary[@"TeleGraphCarPlayEnabled"] boolValue]) {
+        NSMutableDictionary *info = [content.userInfo mutableCopy];
+        info[@"TeleGraphMessageRoute"] = @[account, peer, positiveID(custom[@"msg_id"])];
+        content.userInfo = info;
+        content.categoryIdentifier = @"TeleGraphMessage";
+    }
     content.title = name;
     content.threadIdentifier = thread;
     INInteraction *interaction = [[INInteraction alloc] initWithIntent:intent response:nil];

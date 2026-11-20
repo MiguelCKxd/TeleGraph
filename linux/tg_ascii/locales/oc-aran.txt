@@ -1,0 +1,666 @@
+0|+ Compde
+1|Compde
+2|Compde desconeishut
+3|Compde nau
+4|Torna a iniciar era session
+5|Sense connexion
+6|Torna a un aute compde
+7|Session sauvada automaticament
+8|Es compdes demoren connectadi en cambiar. Barrar era aplicacion conserve es sessions.
+9|Aguest compde ja ei hijut. Torna entà darrèr e selecciona-lo.
+10|Chats
+11|Istòries
+12|Ajustaments
+13|Aparença
+14|Dimension deth tèxte
+15|Mòstra eth tèxte en ASCII (amague es emojis)
+16|Enter envie messatges
+17|Lista de chats compacta
+18|Sauva es ajustaments
+19|Ajustaments sauvadi.
+20|Eth mèn perfil
+21|Edite eth perfil de Telegram
+22|Nòm
+23|Cognòms
+24|Biografia
+25|Nòm d'usatgèr
+26|Sauva eth nòm e era biografia
+27|Càmbia eth nòm d'usatgèr
+28|Càmbia era fòto
+29|Perfil actualizat.
+30|Eth nòm ei obligatòri.
+31|Eth nòm d'usatgèr a d'auer 5–32 letres, nombres o guionets baishi.
+32|Triga ua imatge PNG o JPEG.
+33|Imatges
+34|Contactes
+35|Hig un contacte
+36|Telefòn damb prefixe deth país
+37|Sauva eth contacte
+38|Contacte sauvat.
+39|Telegram demane que tornes a provar-ac mès tard.
+40|Non s'a trobat cap compde accessible damb aguest numèro.
+41|Chat nau
+42|Daurís eth chat
+43|Usatgèr (@nòm) o telefòn (+prefixe):
+44|Introdusís un @usatgèr o telefòn damb prefixe deth país.
+45|Grop nau
+46|Grop nau damb es contactes seleccionadi
+47|Nòm deth grop:
+48|Selecciona es participants ena lista.
+49|Escriu un títol e selecciona es participants.
+50|En tot crear eth grop...
+51|Grop creat; non s'a pogut convidar quauqui usatgèrs.
+52|Telegram non a retornat eth grop. Actualiza abans de tornar a provar-ac.
+53|Informacion
+54|Fixa / Desfixa
+55|Dorsièrs
+56|Toti es chats
+57|Dorsièr nau
+58|Dorsièr nau damb aguest chat
+59|Nòm deth dorsièr (max. 12):
+60|Eth nòm deth dorsièr a d'auer 1–12 caractèrs.
+61|Non i a identificadors de dorsièr disponibles.
+62|Selecciona aumens un chat.
+63|Càmbia eth nòm
+64|Hig eth chat actuau
+65|Trè eth chat actuau
+66|Suprimís eth dorsièr
+67|Vòs suprimir aguest dorsièr de Telegram? Es chats se conservaràn.
+68|Aguest dorsièr non se pòt suprimir.
+69|Arrossèga un fichèr ath chat entà adjuntar-lo.
+70|Arrossegar non ei disponible en aguest ordenador; utiliza Adjunta.
+71|Triga prumèr un chat e demora que s'acabe era operacion actuau.
+72|Arrossèga un unic fichèr per messatge.
+73|Emojis
+74|[Veir / sauvar eth fichèr]
+75|Visualizador de fichèrs
+76|Veir era imatge / previsualizacion
+77|Sauva eth fichèr coma...
+78|Fichèr sauvat.
+79|En tot descargar...
+80|Aguest fichèr ja non ei disponible.
+81|Non i a cap previsualizacion. Pòs sauvar eth fichèr.
+82|Eth fichèr ei massa gran entà previsualizar-lo. Sauva-lo prumèr.
+83|Era imatge ei massa grana entà previsualizar-la.
+84|Previsualizacion estatica der adesiu o deth vidèo.
+85|Actualiza es istòries
+86|Istòria
+87|Hè doble clic entà daurir ua istòria.
+88|Istòria daurida.
+89|Trucades
+90|Daurís Telegram
+91|Vòs daurir aguest contacte en Telegram?
+92|En tot cargar...
+93|En tot sauvar...
+94|Demostracion locau
+95|Messatges sauvadi
+96|Idèes de dessenh
+97|Eth tòn Telegram. Sonque çò essenciau.
+98|Configura era aplicacion (desvolopaire)
+99|Eth tòn numèro de telefòn
+100|Còdi de Telegram
+101|Senhau de verificacion en dus passi
+102|Remembra es claus dera aplicacion en aguest ordenador (sense chifrar)
+103|Inclodís + e eth prefixe deth país. Exemple: +34 612 345 678
+104|Introdusís eth còdi que t'a enviat Telegram.
+105|Introdusís eth tòn còdi de Telegram.
+106|Contunha
+107|Càmbia eth numèro
+108|Inícia era session damb eth tòn pròpri compde.
+109|Eth còdi a caducat. Demana-ne un de nau.
+110|Torna a provar-ac
+111|CONVERSACIONS
+112|Cèrca chats
+113|Actualiza
+114|Triga un chat
+115|Trè eth fichèr
+116|[+] Adjunta
+117|Envia >
+118|Enter: enviar / Shift+Enter: linha naua
+119|Hè clic en un chat entà daurir-lo.
+120|Chat daurit. Escriu un messatge o adjunta un fichèr.
+121|En tot cargar es messatges...
+122|Triga prumèr un chat.
+123|Triga un fichèr
+124|Fichèr prèst. Prem Envia entà enviar-lo ath chat indicat dessús.
+125|[Fichèr]
+126|Fichèr adjunt
+127|En tot pujar eth fichèr:
+128|Tèxte massa long. Limit:
+129|Triga un fichèr normau, non pas un dorsièr.
+130|I a ua operacion en cors. Vòs barrar era aplicacion?
+131|En tot barrar...
+132|En tot cargar es chats...
+133|Non i a messatges en aguest chat.
+134|En tot enviar...
+135|Enviat.
+136|Borrolhon conservat; revisa eth chat abans de tornar a provar-ac.
+137|Tu
+138|[Adjunt / messatge de servici]
+139|En tot connectar damb Telegram...
+140|Telegram demane demorar {seconds} segondes abans de tornar a provar-ac.
+141|Non s'a pogut completar era operacion ({error}).
+142|Er API ID a d'èster un nombre entièr positiu.
+143|Er API hash a d'auer 32 caractèrs exadecimaus. Còpia-lo sancer.
+144|API ID o hash incorrècte. Revisa es credenciaus dera aplicacion.
+145|Telegram non reconeish aguest numèro. Revisa eth numèro e eth prefixe deth país.
+146|Còdi incorrècte. Torna a provar-ac.
+147|Eth còdi a caducat. Reinícia entà demanar-ne un de nau.
+148|Senhau incorrècte. Torna a provar-ac.
+149|Non pòs escríuer en aguest chat.
+150|Eth messatge supère eth limit de Telegram.
+151|A falhat era connexion o er accès locau. Revisa era ret e es permissions.
+152|Era session a caducat o s'a revocat. Reinícia entà iniciar-la de nau.
+153|Telegram a invalidat aguesta session. Revisa Ajustaments > Dispositius en Telegram.
+154|En aguesta version manque era configuracion de TG-ASCII. Demana ua version completa ath desvolopaire.
+155|Era configuracion includida ena aplicacion non ei valida. Contacta damb eth desvolopaire.
+156|Anulla
+157|Barra
+158|Selecciona
+159|Fichèrs
+160|Vòs remplaçar aguest fichèr?
+161|Sauva
+162|Daurís
+163|Adesius
+164|Emojis personalizadi
+165|Connecta un compde entà cargar es paquets de Telegram.
+166|Recents
+167|Quauqui emojis requerissen Telegram Premium.
+168|Inserís un emoji
+169|Envia un adesiu
+170|Er emoji personalizat a cambiat. Inserís-lo de nau.
+171|Mòstra es previsualizacions multimèdia laguens des chats
+172|Chats fixadi locaument sense limit (non sincronizadi)
+173|Fixa locaument / Desfixa locaument
+174|Es fixacions locaus afecten sonque aguesta aplicacion. En desactivar-les se restaure er orde de Telegram.
+175|Sincroniza es contactes de Telegram
+176|En tot sincronizar es contactes de Telegram...
+177|Contactes sincronizadi: {count}
+178|Notificacions
+179|En aguest ordenador
+180|Mòstra notificacions mentre era aplicacion sigue en marcha
+181|Mòstra previsualizacions des messatges
+182|Reproduís un son
+183|Notifica eth chat daurit
+184|Ajustaments de Telegram (sincronizadi)
+185|Chats privats
+186|Grops
+187|Canaus
+188|Activat
+189|Previsualizacion
+190|Son
+191|Silencia es istòries
+192|Se respècten es excepcions de cada chat configurades en Telegram. Es notificacions s'arturen en barrar era aplicacion.
+193|Messatge nau
+194|Tèma dera interfàcia
+195|Tèma deth logotip
+196|Escur
+197|Clar
+198|Sistèma
+199|Actualizacions
+200|Triga eth ZIP d'ua version o consulta eth canau der editor.
+201|Vòs installar {version} e reiniciar? Se conservaràn es compdes e es ajustaments.
+202|En tot preparar era actualizacion...
+203|Triga eth ZIP dera actualizacion
+204|Ja as era darrèra version.
+205|Version disponibla: {version}
+206|Descarga e installa
+207|En tot cercar actualizacions...
+208|Cèrca actualizacions
+209|Installa eth ZIP dera version
+210|Version d'actualizacion non valida.
+211|Es actualizacions requerissen HTTPS.
+212|Era actualizacion supère eth limit de dimension.
+213|Er editor encara non a configurat un canau d'actualizacion. Pòs installar eth ZIP d'ua version.
+214|Manifèst d'actualizacion non valid.
+215|Era soma de contraròtle dera actualizacion non coïncidís.
+216|Archiu d'actualizacion insegur.
+217|Aguesta version ei entà un aute sistèma o arquitectura.
+218|Aguesta version non ei mès naua qu'era installada.
+219|Es actualizacions se pòden installar ena aplicacion empaquetada, non pas en mòde còdi hònt.
+220|Non se pòt escríuer en dorsièr dera aplicacion. Desplaça-la tà un dorsièr tòn.
+221|Era aplicacion naua non a superat era pròva d'inici. Era aplicacion installada non s'a modificat.
+222|Es trucades natives non son disponibles en aguesta version. Cau integrar e provar prumèr un motor d'àudio entà aguesta plataforma.
+223|DEMOSTRACION LOCAU
+224|Format
+225|Negreta
+226|Italica
+227|Soslinhat
+228|Barrat
+229|Tèxte amagat
+230|Monoespai
+231|Ligam
+232|Suprimís eth format
+233|Selecciona prumèr eth tèxte.
+234|Format de tèxte non valid.
+235|Utiliza un ligam https://, http:// o tg://.
+236|Suprimís prumèr eth format superpausat.
+237|Àudio
+238|Enregistra un messatge de votz
+239|Envia un fichèr d'àudio
+240|En tot enregistrar...
+241|En tot reproduïr...
+242|Prèst
+243|Artura
+244|Reproduís
+245|Enregistrament maxim: 10 minutes. Artura, escota e dempús envia.
+246|Es components d'àudio non son disponibles en aguesta version.
+247|Aguesta version non pòt codificar messatges de votz Opus.
+248|Desbordament deth micròfon. Torna a enregistrar eth messatge.
+249|Er enregistrament ei uet.
+250|Format d'àudio non compatible. Sauva eth fichèr entà daurir-lo dehòra dera aplicacion.
+251|Letra dera aplicacion
+252|Per defècte
+253|Barra era session d'aguest compde
+254|Vòs barrar era session de {account}? Es auti compdes demoraràn connectadi.
+255|Non s'a pogut barrar era session. Eth compde s'a conservat.
+256|Daurís TeleGraph
+257|Ges de TeleGraph
+258|Mantier era connexion en barrar era hièstra
+259|Gésser arture es notificacions. Barrar era hièstra manten era aplicacion en marcha.
+260|Era zòna de notificacions non ei disponibla. Era aplicacion ei minimizada e demore connectada.
+261|Tradusís eth chat
+262|Traduccion
+263|Traduccion automatica (Premium)
+264|Era traduccion automatica des chats requerís Telegram Premium.
+265|Tradusís es messatges cargadi e es que arriben. Es originaus se consèrven.
+266|Traduccion incompleta. Torna a provar-ac.
+267|IA de Telegram
+268|Airines de messatge
+269|Resumís damb era IA de Telegram
+270|Transcriu er àudio
+271|Transcripcion pendenta. Torna a daurir aguesta accion mès tard.
+272|Telegram procèsse aguest tèxte. Era disponibilitat e es quòtes depenen deth tòn compde.
+273|Utiliza en borrolhon
+274|Eth borrolhon a cambiat. Eth resultat non s'a aplicat.
+275|Revise eth tèxte
+276|Hig emojis
+277|TeleGraph ja ei en marcha. Daurís-lo dera zòna de notificacions o dera barra de prètzhèts.
+278|Logotips dera aplicacion
+279|Seleccionat
+280|Cèrca en Telegram
+281|Cèrca en chat
+282|Multimèdia compartida
+283|Comandes deth bòt
+284|Accions deth chat
+285|Silencia
+286|Reactiva eth son
+287|Archiva
+288|Trè der archiu
+289|Hig a un dorsièr
+290|Suprimís eth chat
+291|Vòs suprimir aguest chat deth tòn compde? En grops e canaus abandonaràs era conversacion.
+292|Encara non i a dorsièrs. Crèa-ne un en Dorsièrs.
+293|Fòto de perfil
+294|Anniversari
+295|Estat damb emoji
+296|Edite eth contacte
+297|Hig per nòm d'usatgèr
+298|Triga ua persona, non pas un canau o un grop.
+299|Aguest messatge ja non ei disponible en aguest chat.
+300|En linha
+301|Darrèra connexion
+302|Connexion recenta
+303|Connexion pendent era darrèra setmana
+304|Connexion pendent eth darrèr mes
+305|Fòtos
+306|Messatges de votz
+307|Ligams
+308|Messatges
+309|Cèrca
+310|Mès
+311|Aguest bòt non a publicat cap comanda.
+312|Respon
+313|Respon ath messatge
+314|Anulla era responsa
+315|Reenvia eth messatge
+316|Vòs reenviar a {name}?
+317|Edite eth messatge
+318|Suprimís eth messatge
+319|Suprimís entà jo
+320|Suprimís entà toti
+321|Vòs suprimir aguest messatge entà toti?
+322|Vòs suprimir aguest messatge entà tu?
+323|Ora de lectura
+324|Traduccion / IA
+325|Remplaça er adjunt
+326|Telegram decidís s'aguest messatge o adjunt se pòt editar.
+327|Bofòles de messatge
+328|Inícia era session damb QR
+329|Aguesta version non includís supòrt QR.
+330|Telegram en tòn telefòn: Ajustaments → Dispositius → Liga un dispositiu d'escriptòri.
+331|Chats / Conversacion
+332|Hons deth chat
+333|Publica ua istòria
+334|Legenda
+335|Sonque contactes
+336|Toti
+337|Amics pròches
+338|Visibla pendent 24 ores. Telegram aplique es limits de publicacion deth tòn compde.
+339|Vòs publicar {file} entà {audience}?
+340|Istòria publicada.
+341|Triga un fichèr JPEG, PNG o MP4.
+342|Daurís era miniaplicacion
+343|Triga prumèr un bòt.
+344|Aguest bòt non a menú de miniaplicacion.
+345|Vòs daurir era miniaplicacion d'aguest bòt en navegador damb eth tòn compde de Telegram? Quauques foncions natives de Telegram poirien non èster disponibles.
+346|Non s'a pogut daurir eth navegador per defècte.
+347| · Subasta
+348| · Agotat
+349|Un qüestionari non pòt perméter qu'es participants i higuen responses.
+350|Hig compdes des dera hièstra principau.
+351|Híger responsa
+352|Híger paragraf
+353|Híger prètzhèt
+354|Híger aguest numèro de telefòn as tòns contactes de Telegram?
+355|Adreça (opcionau)
+356|Foncions auançades
+357|Perméter cambiar eth vòt
+358|Còdis de païsi permetudi, separadi per virgules (opcionau)
+359|Un article a d'auer entre 1 e 32768 caractèrs.
+360|Vòts anonims
+361|Responsa
+362|Blocatge dera aplicacion
+363|Eth blocatge dera aplicacion ei desactivat.
+364|Eth blocatge dera aplicacion ei activat cada còp que s'engegue.
+365|Era configuracion deth blocatge dera aplicacion ei damatjada. Restaura era còpia de seguretat de app-lock.json abans de daurir era aplicacion.
+366|Senhau dera aplicacion
+367|Aplicar eth cambi deth camp
+368|Article
+369|Articles
+370|Era autenticacion s'a anullat o non a capitat.
+371|Autor non disponible
+372|Disponible
+373|Explorar es presents de colleccion en revenda
+374|Crompar Stars / Premium · Telegram
+375|Crompar o regalar Stars · Fragment
+376|Istoriau de trucades
+377|Er istoriau de trucades ei desactivat. Lo pòs activar en Foncions auançades.
+378|Catalòg, presents, reaccions de pagament e ligams oficiaus de crompa.
+379|Cambiar eth senhau dera aplicacion
+380|Traduccion deth chat
+381|Consultar eth sòlde de Stars
+382|Lista de prètzhèts
+383|Es identificadors des prètzhèts dera lista an d'èster numèros positius e unics.
+384|Listes de prètzhèts
+385|Triga 3, 6 o 12 mesi.
+386|Triga Markdown o HTML.
+387|Triga ua data de barrament o ua durada, non totes dues.
+388|Triga ua responsa.
+389|Triga entre 1 e {maximum} Stars.
+390|Triga entre 2 e {maximum} responses.
+391|Trigar des contactes
+392|Trigar pestanha
+393|Triga es donades deth contacte que vòs enviar.
+394|Triga responses corrèctes valides.
+395|Triga responses valides dera enquèsta.
+396|Barrar dempús d'aguesta quantitat de segons (opcionau)
+397|Barrar enquèsta
+398|Barrar aguesta enquèsta definitivament?
+399|Enquèsta barrada
+400|Tèxte plegable
+401|Present de colleccion
+402|Presents de colleccion en revenda
+403|Confirmar
+404|Confirmar eth pagament damb Stars
+405|Confirma er impòrt exacte que mòstre Telegram.
+406|Convertir eth present en Stars
+407|Es coordenades s'introdusissen a man. Ua ubicacion en dirècte sonque cambie quan l'actualizes explicitament ací; aguesta aplicacion non seguís eth tòn dispositiu.
+408|Crear / editar en Telegraph
+409|Crear e editar listes de prètzhèts compartides; entà crear-ne cau Premium.
+410|Crear e daurir publicacions longues.
+411|Crear, votar e veir es resultats.
+412|Entà crear listes de prètzhèts cau Telegram Premium.
+413|Senhau actuau dera aplicacion
+414|Durada personalizada…
+415|Dies
+416|Era autenticacion deth dispositiu non ei disponibla. Utiliza eth senhau dera aplicacion.
+417|Desactivar tot
+418|Desactivar eth blocatge dera aplicacion
+419|Desactivar es ligams automatics
+420|Document
+421|Editar article
+422|Editar lista de prètzhèts
+423|Editar es camps de tèxte sense suprimir eth format, es taules, es ligams o es mèdias der article originau.
+424|Activa Traduccion deth chat en Configuracion → Foncions auançades.
+425|Activar eth blocatge dera aplicacion
+426|Activa aguestes foncions en Configuracion → Foncions auançades.
+427|Activa aguesta foncion en Configuracion → Foncions auançades entà utilizar aguest boton.
+428|Introdusís ua latitud e ua longitud valides.
+429|Introdusís un numèro entièr.
+430|Introdusís eth ligam d'un article de https://telegra.ph/.
+431|Es explicacions son disponibles entàs qüestionaris.
+432|Entà un qüestionari, mèrca es numèros des responses corrèctes. Hè clic damb eth boton dret sus eth tèxte entà dar-li format o inserir emoji personalizadi.
+433|Present
+434|Regalar Premium damb Stars
+435|Messatge deth present
+436|Grop o canau
+437|Amagar deth mèn perfil
+438|Amagar eth mèn nòm ena classificacion
+439|Amagar eth mèn nòm en perfil deth destinatari
+440|Amagar es resultats enquia que se barre era enquèsta
+441|Ores
+442|Includir ua melhora quan sigue disponibla
+443|Senhau dera aplicacion incorrècte.
+444|Contengut der article invalid.
+445|Data de barrament invalida.
+446|Ligam de present de colleccion invalid.
+447|Durada invalida.
+448|Ligam d'invitacion invalid.
+449|Durada dera ubicacion en dirècte invalida.
+450|Durada dera enquèsta invalida.
+451|Pestanha invalida.
+452|Aderir
+453|Aderir ath grop o canau
+454|Mantier er emissor, eth destinatari e eth messatge originaus
+455|Latitud
+456|Era latitud a d'èster entre −90 e 90; era longitud, entre −180 e 180.
+457|Ligams, mencions e etiquetes
+458|Ubicacion en dirècte
+459|En dirècte · 1 ora
+460|En dirècte · 15 menutes
+461|En dirècte · 8 ores
+462|En dirècte · enquia arturar-la
+463|Cargar er istoriau de trucades quan daurisses era sua pestanha.
+464|Cargar-ne mès
+465|Carga er article complet abans d'editar-lo.
+466|Ubicacion
+467|Era precision dera ubicacion a d'èster entre 0 e 1500 mètres.
+468|Ubicacions
+469|Blocar ara
+470|Blocar quan s'amague era aplicacion
+471|Barrar era session des dera hièstra principau.
+472|Longitud
+473|Pestanha principau deth perfil
+474|Messatge
+475|Menutes
+476|Perdudes
+477|Sonque perdudes
+478|Mès opcions
+479|Responses multiples
+480|Es mèns presents
+481|Senhau nau dera aplicacion
+482|Lista de prètzhèts naua
+483|Enquèsta / qüestionari nau
+484|Pagina següenta
+485|Sonque pòden votar es abonats deth canau que complissen es requisits.
+486|Sonque pòden votar es abonats que complissen es requisits
+487|Sonque er autor dera lista de prètzhèts ne pòt editar era estructura.
+488|Sonque pòs editar es tòns pròpris articles.
+489|Sonque pòs cambiar era tua pròpria ubicacion en dirècte.
+490|Daurir ligams de Telegram, perfils e recèrques d'etiquetes.
+491|Daurir era pagina de verificacion deth pagament de Telegram?
+492|Daurir eth chat en ua hièstra naua
+493|Daurir ligam
+494|Daurir mapa
+495|Daurir messatge
+496|Daurir era subasta oficiau deth present
+497|D'auti pòden híger prètzhèts
+498|D'auti pòden completar prètzhèts
+499|Dehòra dera aplicacion: notificacions deth sistèma. Laguens: un avís ena hièstra activa.
+500|Es participants pòden híger responses
+501|Convertir definitivament aguest present en {amount} Stars?
+502|Fotografia
+503|Nòm deth lòc (opcionau)
+504|Demora abans de tornar-ac a sajar.
+505|Enquèsta / qüestionari
+506|Votants dera enquèsta
+507|Enquèstes e qüestionaris
+508|Premium · Fragment
+509|Previsualizar eth present
+510|Pagina anteriora
+511|Present deth perfil
+512|Es crompes son opcionaus. Eth destinatari e eth prètz exactes se mòstren abans de gastar cap Star.
+513|Pregunta
+514|Qüestionari
+515|Explicacion deth qüestionari
+516|Eth mòde qüestionari requerís aumens ua responsa corrècta.
+517|Citacion
+518|Lieger article
+519|Actualizar eth catalòg
+520|Restants entà aguest compde
+521|Bremba aguest senhau. Ei independent deth tòn senhau de Telegram e non se pòt recuperar.
+522|Suprimir responsa
+523|Suprimir blòc
+524|Suprimir deth perfil
+525|Suprimir era darrèra responsa
+526|Suprimir eth blòc seleccionat
+527|Suprimir tot eth blòc seleccionat d'aguest article?
+528|Suprimir aguesta responsa? Telegram verifique se la pòs suprimir.
+529|Suprimir aguest element deth tòn perfil?
+530|Repetir eth senhau dera aplicacion
+531|Demana enviada. Un administrador l'a d'aprovar.
+532|Demanar era adesion
+533|Retirar eth vòt
+534|Revisar era reaccion damb Stars
+535|Revisar era crompa deth present
+536|Revisa prumèr eth prètz deth transferiment d'aguest present.
+537|Revisa prumèr eth prètz dera melhora d'aguest present.
+538|Revisar eth transferiment
+539|Article de dreta a quèrra
+540|Desar article
+541|Desat.
+542|Enviar reaccion damb Stars
+543|Envia un article natiu de Telegram ad aguest chat o canau. Telegram interprete eth Markdown e er HTML.
+544|Enviar article
+545|Enviar lista de prètzhèts
+546|Enviar enquèsta
+547|Messatge de servici
+548|Compartir article de Telegraph
+549|Compartir contacte
+550|Compartir contactes
+551|Compartir es coordenades e es lòcs que trigues explicitament.
+552|Compartir ubicacion
+553|Compartir aguestes coordenades damb aguest chat?
+554|Compartir aguest nòm, numèro de telefòn e ficha de contacte damb eth chat?
+555|Compartir eth tòn numèro de telefòn damb aguest bòt?
+556|Mostrar-ne mens
+557|Mostrar-ne mès
+558|Mostrar en mèn perfil
+559|Barrejar er orde des responses
+560|Reaccion damb Stars
+561|Es reaccions damb Stars son disponibles enes publicacions des canaus.
+562|Stars e presents
+563|Stars, presents e Premium
+564|Ubicacion fixa
+565|Arturar era ubicacion en dirècte
+566|Arturar era comparticion d'aguesta ubicacion en dirècte?
+567|Istòries e publicacions deth perfil
+568|Es istòries son desactivades. Les pòs activar en Foncions auançades.
+569|Era configuracion deth sistèma contròtle es bandères de notificacions e eth permís. Mantien TG-ASCII en foncionament en dusau plan entà recéber messatges naui; es notificacions push damb eth procès arturat non son configurades en aguesta version.
+570|Prètzhèt
+571|Telegram Premium · {months} mesi
+572|Telegram Stars
+573|Istoriau de trucades de Telegram. Es trucades de votz e vidèo requerissen un motor de trucades compatible.
+574|Telegram a confirmat eth pagament.
+575|Telegram non a retornat er article complet. Saja d'actualizar-lo.
+576|Guida de format de Telegram
+577|Present de Telegram
+578|Telegram a desactivat era crompa de presents entà aguest compde.
+579|Ligam de Telegram
+580|Telegram requerís un pas addicionau de verificacion.
+581|Telegram a retornat un impòrt de pagament invalid.
+582|Ligam der article de Telegraph
+583|Es articles de Telegraph son pagines web publiques, separades des articles natius de Telegram. Crea-les o edita-les en editor web oficiau e dempús compartís eth sòn ligam ací.
+584|Er autor dera lista non permet que d'auti i higuen prètzhèts.
+585|Er autor dera lista non permet que d'auti i complèten prètzhèts.
+586|Era lista a un nombre de prètzhèts massa petit o massa gran.
+587|Es senhaus non coincidissen.
+588|Era explicacion deth qüestionari permet 200 caractèrs e dus sauts de linha.
+589|Aguestes foncions son desactivades per defècte. Activa-les entà utilizar-les; es donades se carguen quan daurisses cada foncion.
+590|Aguesta responsa ja non existís.
+591|Aguest article a cambiat en un aute dispositiu. Torna a daurir er editor.
+592|Aguest camp der article ja non ei disponible.
+593|Aguest camp der article ei massa long.
+594|Aguest canau a desactivat es reaccions damb Stars.
+595|Aguesta lista de prètzhèts a cambiat en un aute dispositiu. Torna a daurir er editor.
+596|Aguesta ficha de contacte ei massa longa.
+597|Aguesta discussion ja non ei disponibla.
+598|Aguest ligam de discussion non a cap publicacion de canau.
+599|Aguest present non a cap subasta activa.
+600|Aguest present non a cap referéncia de canau.
+601|Aguest present non a cap referéncia de messatge.
+602|Aguest present non ei disponible entà ua crompa dirècta.
+603|Aguest present requerís Telegram Premium.
+604|Era aplicacion actuau non admet aguest ligam.
+605|Aguest blocatge protegís er accès ara interfície. Non chifre es fichèrs de session de Telegram. Mantien protegits eth compde deth tòn dispositiu e eth disc.
+606|Aguest messatge ja non ei disponible d'aguesta forma.
+607|Aguest messatge non ei un article.
+608|Aguesta confirmacion de pagament a caducat. Torna a revisar eth prètz.
+609|Aguest pagament s'a de completar ena pagina oficiau de crompa de Telegram.
+610|Aguesta enquèsta non admet cambis enes sues responses.
+611|Aguesta enquèsta non admet responses naues.
+612|Aguesta enquèsta non permet cambiar ne retirar eth tòn vòt.
+613|Aguesta enquèsta a artenhut eth sòn limit de responses.
+614|Aguesta enquèsta ei anonima.
+615|Aguesta enquèsta ei barrada.
+616|Aguesta publicacion ja non ei disponibla.
+617|Aguest prètzhèt ja non existís.
+618|Títol
+619|Totau
+620|Touch ID non ei disponible o non ei configurat
+621|Transferir eth present
+622|Transferir aguest present de colleccion a {recipient}? Açò ne cambie eth proprietari.
+623|Transferir a @username
+624|Traduïr er istoriau deth chat seleccionat damb Telegram Premium.
+625|Ubicacion non disponibla
+626|Desblocar
+627|Desblòca era aplicacion entà contunhar.
+628|Desblocar es tòns messatges
+629|Actualizar era ubicacion
+630|Stars dera melhora
+631|Melhorar eth present
+632|Utiliza aumens 8 caractèrs.
+633|Utilizar era autenticacion deth dispositiu
+634|Utilizar era melhora prepagada entad aguest present?
+635|Utiliza còdis de país de dues letres separadi per virgules.
+636|Usatgèr
+637|Verificacion
+638|Vidèo
+639|Veir e publicar istòries sonque quan daurisses era sua seccion.
+640|Veir eth present de colleccion en Telegram
+641|Veir eth mèn perfil e eth contengut public
+642|Veir es votants
+643|Votar
+644|Era votacion ei restringida as païsi seleccionadi peth creador dera enquèsta.
+645|Windows Hello ei ocupat
+646|Windows Hello ei desactivat pera politica deth sistèma
+647|Windows Hello non ei configurat
+648|Windows Hello non ei disponible
+649|Windows Hello: non i a cap dispositiu disponible
+650|Ja hès part d'aguest grop o canau.
+651|Non pòs barrar aguesta enquèsta.
+652|As artenhut eth limit de crompa d'aguest present.
+653|T'i cau auer aderit 24 ores abans que se publiquèsse aguesta enquèsta.
+654|Te cau un ligam d'invitacion entà un grop privat.
+655|Eth tòn numèro de telefòn non ei disponible.
+656|[Article]
+657|[Àudio]
+658|[Document]
+659|[Fotografia]
+660|[Vidèo]
+661|vCard (opcionau)
+662|{count} Telegram Stars
+663|{count} vòts
+664|{field}: utiliza entre 1 e {maximum} caractèrs.
+665|{title}\nDestinatari: {recipient}\nTotau: {amount} Telegram Stars\n\nConfirmar aguesta crompa?

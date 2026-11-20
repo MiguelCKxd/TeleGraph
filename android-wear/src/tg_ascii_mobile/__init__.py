@@ -1,4 +1,4 @@
 """TeleGraph for Android and iOS."""
 from tg_ascii import __version__ as CORE_VERSION
 
-__version__ = '3.0.1'
+__version__ = '3.1.0'

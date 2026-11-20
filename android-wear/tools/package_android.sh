@@ -5,8 +5,7 @@ here=${0:A:h:h}
 cd "$here"
 app=${APP:-tg_ascii_mobile}
 export APP=$app
-export PATH=$HOME/Developer/tg-ascii/mobile/pybin:$PATH
-export ANDROID_HOME=$HOME/Developer/tg-ascii/mobile/android-sdk
+export ANDROID_HOME=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}
 
 case "$app" in
   tg_ascii_mobile) name=Android; package=org.tgas.android ;;
@@ -31,7 +30,7 @@ build_number=$(<build-number)
 unsigned="$here/dist/$formal_name-$version.apk"
 tools=( "$ANDROID_HOME"/build-tools/*(N/on) )
 sdk_tools=${tools[-1]}
-release_dir=${TELEGRAPH_APK_DIR:-"$HOME/Developer/tg-ascii/entregas"}
+release_dir=${TELEGRAPH_APK_DIR:-"$here/dist/apk"}
 mkdir -p "$release_dir"
 out="$release_dir/TeleGraph-$name-$version-$build_number.apk"
 
@@ -50,7 +49,7 @@ trap 'rm -r "$working"' EXIT
 python3 tools/check_android_pages.py "$unsigned"
 "$sdk_tools/zipalign" -P 16 -f 4 "$unsigned" "$working/aligned.apk"
 set -a
-source "$HOME/Developer/tg-ascii/mobile/keys/tg-ascii-android.properties"
+source "${TELEGRAPH_ANDROID_SIGNING_CONFIG:?Set the path to your private Android signing configuration}"
 set +a
 "$sdk_tools/apksigner" sign --ks "$TGAS_KEYSTORE" --ks-key-alias "$TGAS_KEY_ALIAS" \
   --ks-pass env:TGAS_STORE_PASSWORD --key-pass env:TGAS_KEY_PASSWORD \

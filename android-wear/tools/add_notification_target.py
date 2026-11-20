@@ -26,6 +26,7 @@ def add_notification_target(xcode, version, build, bundle):
         'CFBundleIdentifier': '$(PRODUCT_BUNDLE_IDENTIFIER)', 'CFBundleName': name,
         'CFBundleDisplayName': 'TeleGraph', 'CFBundleExecutable': '$(EXECUTABLE_NAME)',
         'CFBundlePackageType': 'XPC!', 'CFBundleInfoDictionaryVersion': '6.0',
+        'TeleGraphCarPlayEnabled': bool(entitlements.get('com.apple.developer.carplay-communication')),
         'CFBundleShortVersionString': str(version), 'CFBundleVersion': str(build),
         'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.usernotifications.service',
                         'NSExtensionPrincipalClass': name}}))
@@ -51,11 +52,10 @@ def add_notification_target(xcode, version, build, bundle):
     obj(7, 'PBXContainerItemProxy', f'containerPortal = {root}; proxyType = 1; remoteGlobalIDString = {uid(12)}; remoteInfo = {name};')
     obj(8, 'PBXTargetDependency', f'target = {uid(12)}; targetProxy = {uid(7)};')
     team = re.search(r'DEVELOPMENT_TEAM = ([A-Z0-9]+);', text)
-    if not team:
-        raise ValueError('No signing team in the iPhone project')
+    team_id = team[1] if team else ''
     settings = (f'PRODUCT_NAME = {name}; PRODUCT_BUNDLE_IDENTIFIER = {bundle}.notificationservice; '
                 f'INFOPLIST_FILE = {name}/Info.plist; CODE_SIGN_ENTITLEMENTS = {name}/Extension.entitlements; '
-                f'DEVELOPMENT_TEAM = {team[1]}; ')
+                f'DEVELOPMENT_TEAM = "{team_id}"; ')
     settings += ('SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; '
                  'TARGETED_DEVICE_FAMILY = "1,2"; IPHONEOS_DEPLOYMENT_TARGET = 15.0; '
                  'SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; CLANG_ENABLE_OBJC_ARC = YES; '

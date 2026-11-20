@@ -51,6 +51,20 @@ class TgAsciiMobile(toga.App):
         from .runtime import get_core
         system = system_name()
         self.core = get_core(data_folder(self.paths.data, system), system, device_locale())
+        if system == 'iOS':
+            from rubicon.objc import ObjCClass
+            try:
+                vocabulary = ObjCClass('TGSiriVocabulary')
+            except NameError:
+                pass
+            else:
+                self.core.loop.call_soon_threadsafe(self.core.siri_vocabulary.attach, vocabulary, self.core)
+            try:
+                self.core.tv_link = ObjCClass('TGTVLink')
+            except NameError:
+                pass  # An older native build can still run the mobile interface.
+            else:
+                self.core.tv_link.start()
         port = self.core.port
         self.webview = toga.WebView(style=Pack(flex=1, background_color=BACKGROUND))
         self.main_window = toga.MainWindow(title=self.formal_name)

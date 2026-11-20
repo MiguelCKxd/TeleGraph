@@ -52,7 +52,9 @@ class ScannerLifecycleTests(unittest.TestCase):
         import ctypes
         # install_ios looks up the system main queue through ctypes.
         library = SimpleNamespace(_handle=ctypes.CDLL(None)._handle)
-        with patch.dict(sys.modules, {'rubicon.objc': objc, 'rubicon.objc.runtime': SimpleNamespace(load_library=lambda name: library)}), \
+        cancel_selector = object()
+        selector = MagicMock(return_value=cancel_selector)
+        with patch.dict(sys.modules, {'rubicon.objc': objc, 'rubicon.objc.runtime': SimpleNamespace(load_library=lambda name: library, SEL=selector)}), \
              patch('ctypes.c_char', MagicMock(in_dll=lambda *args: ctypes.c_byte())), \
              patch('concurrent.futures.ThreadPoolExecutor', return_value=SimpleNamespace(submit=camera.append)):
             qr_native.install_ios(app)
@@ -62,6 +64,8 @@ class ScannerLifecycleTests(unittest.TestCase):
                 ui.pop(0)()
                 delegate = delegates[-1]
                 self.assertIsNotNone(delegate)
+                selector.assert_called_with('cancel:')
+                classes['UIButton'].buttonWithType_.return_value.addTarget_action_forControlEvents_.assert_called_with(delegate, cancel_selector, 1 << 6)
                 camera.pop(0)()
                 if expected is None:
                     delegate.cancel_(None)

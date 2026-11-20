@@ -4,7 +4,7 @@ import sys
 import tempfile
 from types import SimpleNamespace as NS
 from unittest import IsolatedAsyncioTestCase, TestCase
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 from tg_ascii_mobile.siri import identifier, perform
 
@@ -41,27 +41,43 @@ class SiriProjectTests(TestCase):
 
 class SiriMessagingTests(IsolatedAsyncioTestCase):
     def setUp(self):
+        self.available = Mock(return_value=True)
         self.backend = NS(send=AsyncMock(), mark_read=AsyncMock())
         self.core = NS(locked=False, account='active', stage='ready', backend=self.backend,
                        chats=[NS(id=17, name='Ana'), NS(id=18, name='Ana')])
 
     async def test_resolution_disambiguates_and_sending_requires_active_recipient(self):
-        results = await perform(self.core, {'op': 'resolve', 'name': 'ana'})
+        results = await perform(self.core, {'op': 'resolve', 'name': 'ana'}, self.available)
         self.assertEqual([item['id'] for item in results], [identifier('active', 17), identifier('active', 18)])
         for account in ['previous', 'active']:
             request = {'op': 'send', 'conversation': identifier(account, 17), 'text': 'hello'}
             if account == 'previous':
                 with self.assertRaises(ValueError):
-                    await perform(self.core, request)
+                    await perform(self.core, request, self.available)
             else:
-                await perform(self.core, request)
+                await perform(self.core, request, self.available)
         self.backend.send.assert_awaited_once_with(17, 'hello')
 
     async def test_mark_read_is_bounded_and_lock_prevents_sending_and_reading(self):
         request = {'op': 'read', 'ids': [identifier('active', 18, i) for i in (5, 3)]}
-        await perform(self.core, request)
+        await perform(self.core, request, self.available)
         self.backend.mark_read.assert_awaited_once_with(18, 5)
         self.core.locked = True
         for op in ('send', 'search', 'read', 'resolve'):
             with self.assertRaises(PermissionError):
-                await perform(self.core, {'op': op})
+                await perform(self.core, {'op': op}, self.available)
+
+    async def test_no_resolution_search_or_mutation_with_unavailable_protected_data(self):
+        self.available.return_value = False
+        for op in ('resolve', 'search', 'read', 'send'):
+            with self.assertRaises(PermissionError):
+                await perform(self.core, {'op': op}, self.available)
+
+    async def test_protection_is_rechecked_before_mutating_telegram(self):
+        for request in ({'op': 'send', 'conversation': identifier('active', 17), 'text': 'example'},
+                        {'op': 'read', 'ids': [identifier('active', 17, 12)]}):
+            self.available.side_effect = [True, False]
+            with self.assertRaises(PermissionError):
+                await perform(self.core, request, self.available)
+        self.backend.send.assert_not_awaited()
+        self.backend.mark_read.assert_not_awaited()

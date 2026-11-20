@@ -61,3 +61,5 @@ def render_wallpaper(wallpaper, path, destination, size=(900,1200)):
         image=fill_image(settings,size);image.paste((0,0,0),(0,0,*size),mask)
     image.save(destination,format='JPEG',quality=90)
     return Path(destination)
+
+

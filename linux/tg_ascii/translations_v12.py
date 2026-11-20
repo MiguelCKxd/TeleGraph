@@ -1,0 +1,57 @@
+"""Offline call controls and experimental push settings for release 1.2a.
+
+English, Spanish, Russian, Polish, Catalan, Ukrainian, simplified Chinese,
+Korean, Japanese, Italian, Portuguese, Greek, Basque, Galician, Aranese,
+Aragonese. Valencian shares the common Catalan terms.
+"""
+LANGUAGES = ('es', 'ru', 'pl', 'ca', 'uk', 'zh-Hans', 'ko', 'ja', 'it', 'pt', 'el', 'eu', 'gl', 'oc-aran', 'an')
+ALIASES = {'Configurar push en funciones complejas': 'Configure push in Complex features'}
+
+ROWS = '''
+Calls and video|Llamadas y vídeo|Звонки и видео|Połączenia i wideo|Trucades i vídeo|Дзвінки та відео|通话与视频|통화 및 영상|通話とビデオ|Chiamate e video|Chamadas e vídeo|Κλήσεις και βίντεο|Deiak eta bideoa|Chamadas e vídeo|Trucades e vidèo|Clamadas y video
+Windows push notifications|Notificaciones push de Windows|Push-уведомления Windows|Powiadomienia push Windows|Notificacions push de Windows|Push-сповіщення Windows|Windows 推送通知|Windows 푸시 알림|Windows プッシュ通知|Notifiche push di Windows|Notificações push do Windows|Ειδοποιήσεις push των Windows|Windowsen push jakinarazpenak|Notificacións push de Windows|Notificacions push de Windows|Notificacions push de Windows
+Configure push in Complex features|Configurar push en funciones complejas|Настроить push в дополнительных функциях|Skonfiguruj push w funkcjach zaawansowanych|Configura push a Funcions avançades|Налаштувати push у додаткових функціях|在高级功能中配置推送|고급 기능에서 푸시 설정|高度な機能でプッシュを設定|Configura push nelle funzioni avanzate|Configurar push nas funções avançadas|Ρύθμιση push στις σύνθετες λειτουργίες|Konfiguratu push funtzio aurreratuetan|Configurar push nas funcións avanzadas|Configurar push en foncions auançades|Configurar push en funcions abanzadas
+Call|Llamar|Позвонить|Zadzwoń|Truca|Зателефонувати|呼叫|전화 걸기|発信|Chiama|Ligar|Κλήση|Deitu|Chamar|Trucar|Clamar
+Video call|Videollamada|Видеозвонок|Połączenie wideo|Videotrucada|Відеодзвінок|视频通话|영상 통화|ビデオ通話|Videochiamata|Videochamada|Βιντεοκλήση|Bideodeia|Videochamada|Videotrucada|Videoclamada
+Microphone|Micrófono|Микрофон|Mikrofon|Micròfon|Мікрофон|麦克风|마이크|マイク|Microfono|Microfone|Μικρόφωνο|Mikrofonoa|Micrófono|Micròfon|Microfono
+Speaker|Altavoz|Динамик|Głośnik|Altaveu|Динамік|扬声器|스피커|スピーカー|Altoparlante|Altifalante|Ηχείο|Bozgorailua|Altofalante|Nautparlaire|Altavoz
+Camera|Cámara|Камера|Kamera|Càmera|Камера|摄像头|카메라|カメラ|Fotocamera|Câmara|Κάμερα|Kamera|Cámara|Camèra|Camara
+Answer with video|Responder con vídeo|Ответить с видео|Odbierz z wideo|Respon amb vídeo|Відповісти з відео|以视频接听|영상으로 받기|ビデオで応答|Rispondi con video|Atender com vídeo|Απάντηση με βίντεο|Erantzun bideoarekin|Responder con vídeo|Respóner damb vidèo|Responder con video
+Mute microphone|Silenciar micrófono|Выключить микрофон|Wycisz mikrofon|Silencia el micròfon|Вимкнути мікрофон|关闭麦克风|마이크 음소거|マイクをミュート|Disattiva microfono|Silenciar microfone|Σίγαση μικροφώνου|Isilarazi mikrofonoa|Silenciar micrófono|Silenciar eth micròfon|Silenciar microfono
+Unmute microphone|Activar micrófono|Включить микрофон|Włącz mikrofon|Activa el micròfon|Увімкнути мікрофон|开启麦克风|마이크 음소거 해제|マイクのミュートを解除|Attiva microfono|Ativar microfone|Ενεργοποίηση μικροφώνου|Aktibatu mikrofonoa|Activar micrófono|Activar eth micròfon|Activar microfono
+Hang up|Colgar|Завершить звонок|Rozłącz|Penja|Завершити дзвінок|挂断|통화 종료|通話を終了|Riaggancia|Desligar|Τερματισμός κλήσης|Amaitu deia|Colgar|Penjar|Colgar
+Decline|Rechazar|Отклонить|Odrzuć|Rebutja|Відхилити|拒绝|거절|拒否|Rifiuta|Recusar|Απόρριψη|Ukatu|Rexeitar|Refusar|Refusar
+Stop camera|Apagar cámara|Выключить камеру|Wyłącz kamerę|Apaga la càmera|Вимкнути камеру|关闭摄像头|카메라 끄기|カメラをオフ|Disattiva fotocamera|Desligar câmara|Απενεργοποίηση κάμερας|Itzali kamera|Apagar cámara|Atudar era camèra|Amortar camara
+Start camera|Encender cámara|Включить камеру|Włącz kamerę|Encén la càmera|Увімкнути камеру|开启摄像头|카메라 켜기|カメラをオン|Attiva fotocamera|Ligar câmara|Ενεργοποίηση κάμερας|Piztu kamera|Acender cámara|Alugar era camèra|Encender camara
+Incoming call|Llamada entrante|Входящий звонок|Połączenie przychodzące|Trucada entrant|Вхідний дзвінок|来电|수신 전화|着信|Chiamata in arrivo|Chamada recebida|Εισερχόμενη κλήση|Sarrerako deia|Chamada entrante|Trucada entranta|Clamada entrant
+Calling…|Llamando…|Вызов…|Dzwonienie…|S’està trucant…|Виклик…|正在呼叫…|전화 거는 중…|発信中…|Chiamata in corso…|A ligar…|Γίνεται κλήση…|Deitzen…|Chamando…|En tot trucar…|Clamando…
+Ringing…|Sonando…|Идёт гудок…|Dzwoni…|Està sonant…|Іде гудок…|正在响铃…|벨 울리는 중…|呼び出し中…|Sta squillando…|A chamar…|Κουδουνίζει…|Jotzen…|Soando…|En tot sonar…|Sonando…
+Connecting…|Conectando…|Подключение…|Łączenie…|S’està connectant…|Підключення…|正在连接…|연결 중…|接続中…|Connessione…|A ligar…|Σύνδεση…|Konektatzen…|Conectando…|En tot connectar…|Connectando…
+Reconnecting…|Reconectando…|Переподключение…|Ponowne łączenie…|S’està reconnectant…|Повторне підключення…|正在重新连接…|다시 연결 중…|再接続中…|Riconnessione…|A voltar a ligar…|Επανασύνδεση…|Berriro konektatzen…|Conectando de novo…|En tot tornar a connectar…|Tornando a connectar…
+Call ended|Llamada finalizada|Звонок завершён|Połączenie zakończone|Trucada finalitzada|Дзвінок завершено|通话已结束|통화 종료됨|通話が終了しました|Chiamata terminata|Chamada terminada|Η κλήση τερματίστηκε|Deia amaitu da|Chamada rematada|Trucada acabada|Clamada rematada
+Call failed|La llamada ha fallado|Ошибка звонка|Połączenie nieudane|La trucada ha fallat|Помилка дзвінка|通话失败|통화 실패|通話に失敗しました|Chiamata non riuscita|A chamada falhou|Η κλήση απέτυχε|Deiak huts egin du|A chamada fallou|Era trucada a fallat|A clamada ha fallau
+Call engine ready|Motor de llamadas preparado|Модуль звонков готов|Silnik połączeń gotowy|Motor de trucades preparat|Модуль дзвінків готовий|通话引擎已就绪|통화 엔진 준비됨|通話エンジンの準備完了|Motore chiamate pronto|Motor de chamadas pronto|Η μηχανή κλήσεων είναι έτοιμη|Deien motorra prest|Motor de chamadas preparado|Motor de trucades prèst|Motor de clamadas presto
+Call engine is not installed.|El motor de llamadas no está instalado.|Модуль звонков не установлен.|Silnik połączeń nie jest zainstalowany.|El motor de trucades no està instal·lat.|Модуль дзвінків не встановлено.|未安装通话引擎。|통화 엔진이 설치되어 있지 않습니다.|通話エンジンがインストールされていません。|Il motore delle chiamate non è installato.|O motor de chamadas não está instalado.|Η μηχανή κλήσεων δεν είναι εγκατεστημένη.|Deien motorra ez dago instalatuta.|O motor de chamadas non está instalado.|Eth motor de trucades non ei installat.|O motor de clamadas no ye instalau.
+Enable calls in Complex features. Microphone and camera start only when you call or answer.|Activa las llamadas en Funciones complejas. El micrófono y la cámara se inician sólo al llamar o responder.|Включите звонки в дополнительных функциях. Микрофон и камера включаются только при звонке или ответе.|Włącz połączenia w funkcjach zaawansowanych. Mikrofon i kamera uruchamiają się tylko podczas dzwonienia lub odbierania.|Activa les trucades a Funcions avançades. El micròfon i la càmera només s’inicien en trucar o respondre.|Увімкніть дзвінки в додаткових функціях. Мікрофон і камера вмикаються лише під час виклику або відповіді.|在高级功能中启用通话。麦克风和摄像头仅在拨打或接听时启动。|고급 기능에서 통화를 켜세요. 마이크와 카메라는 전화를 걸거나 받을 때만 시작됩니다.|高度な機能で通話を有効にしてください。マイクとカメラは発信または応答時にのみ起動します。|Abilita le chiamate nelle funzioni avanzate. Microfono e fotocamera si attivano solo quando chiami o rispondi.|Ative as chamadas nas funções avançadas. O microfone e a câmara só iniciam ao ligar ou atender.|Ενεργοποιήστε τις κλήσεις στις σύνθετες λειτουργίες. Το μικρόφωνο και η κάμερα ξεκινούν μόνο όταν καλείτε ή απαντάτε.|Aktibatu deiak funtzio aurreratuetan. Mikrofonoa eta kamera deitzean edo erantzutean soilik abiarazten dira.|Activa as chamadas nas funcións avanzadas. O micrófono e a cámara só se inician ao chamar ou responder.|Activa es trucades en Foncions auançades. Eth micròfon e era camèra s’inicien sonque en trucar o respóner.|Activa as clamadas en Funcions abanzadas. O microfono y a camara s’inician nomás en clamar u responder.
+Requires a configured Windows push identity. Normal notifications remain available.|Requiere una identidad push de Windows configurada. Las notificaciones normales siguen disponibles.|Требуется настроенная push-идентификация Windows. Обычные уведомления остаются доступными.|Wymaga skonfigurowanej tożsamości push Windows. Zwykłe powiadomienia pozostają dostępne.|Cal una identitat push de Windows configurada. Les notificacions normals continuen disponibles.|Потрібна налаштована push-ідентифікація Windows. Звичайні сповіщення залишаються доступними.|需要已配置的 Windows 推送标识。普通通知仍然可用。|설정된 Windows 푸시 ID가 필요합니다. 일반 알림은 계속 사용할 수 있습니다.|Windows プッシュのID設定が必要です。通常の通知は引き続き利用できます。|Richiede un’identità push di Windows configurata. Le notifiche normali restano disponibili.|Requer uma identidade push do Windows configurada. As notificações normais continuam disponíveis.|Απαιτείται ρυθμισμένη ταυτότητα push των Windows. Οι κανονικές ειδοποιήσεις παραμένουν διαθέσιμες.|Windowsen push identitatea konfiguratuta egon behar da. Jakinarazpen arruntek erabilgarri jarraitzen dute.|Require unha identidade push de Windows configurada. As notificacións normais seguen dispoñibles.|Requerís ua identitat push de Windows configurada. Es notificacions normaus demoren disponibles.|Requiere una identidat push de Windows configurada. As notificacions normals continan disponibles.
+macOS push notifications|Notificaciones push de macOS|Push-уведомления macOS|Powiadomienia push macOS|Notificacions push de macOS|Push-сповіщення macOS|macOS 推送通知|macOS 푸시 알림|macOS プッシュ通知|Notifiche push di macOS|Notificações push do macOS|Ειδοποιήσεις push του macOS|macOSen push jakinarazpenak|Notificacións push de macOS|Notificacions push de macOS|Notificacions push de macOS
+Requires a configured macOS push identity. Normal notifications remain available.|Requiere una identidad push de macOS configurada. Las notificaciones normales siguen disponibles.|Требуется настроенная push-идентификация macOS. Обычные уведомления остаются доступными.|Wymaga skonfigurowanej tożsamości push macOS. Zwykłe powiadomienia pozostają dostępne.|Cal una identitat push de macOS configurada. Les notificacions normals continuen disponibles.|Потрібна налаштована push-ідентифікація macOS. Звичайні сповіщення залишаються доступними.|需要已配置的 macOS 推送标识。普通通知仍然可用。|설정된 macOS 푸시 ID가 필요합니다. 일반 알림은 계속 사용할 수 있습니다.|macOS プッシュのID設定が必要です。通常の通知は引き続き利用できます。|Richiede un’identità push di macOS configurata. Le notifiche normali restano disponibili.|Requer uma identidade push do macOS configurada. As notificações normais continuam disponíveis.|Απαιτείται ρυθμισμένη ταυτότητα push του macOS. Οι κανονικές ειδοποιήσεις παραμένουν διαθέσιμες.|macOSen push identitatea konfiguratuta egon behar da. Jakinarazpen arruntek erabilgarri jarraitzen dute.|Require unha identidade push de macOS configurada. As notificacións normais seguen dispoñibles.|Requerís ua identitat push de macOS configurada. Es notificacions normaus demoren disponibles.|Requiere una identidat push de macOS configurada. As notificacions normals continan disponibles.
+'''
+
+
+def _rows():
+    for line in ROWS.strip().splitlines():
+        row = line.split('|')
+        if len(row) != 16 or not all(row):
+            raise ValueError('Invalid 1.2 translation row: ' + row[0])
+        yield row
+
+
+KEYS = [row[0] for row in _rows()]
+
+
+def extend(catalogues):
+    for english, *values in _rows():
+        for language, value in zip(LANGUAGES, values):
+            catalogues.setdefault(language, {})[english] = value
+        catalogues.setdefault('ca-valencia', {})[english] = values[3]

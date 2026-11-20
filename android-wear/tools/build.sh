@@ -16,8 +16,7 @@ mode=${2:-debug}
 app=${APP:-tg_ascii_mobile}   # tg_ascii_watch: Wear OS
 cd "$here"
 B=../beeware-venv/bin/briefcase
-export PATH=$HOME/Developer/tg-ascii/mobile/pybin:$PATH
-export ANDROID_HOME=$HOME/Developer/tg-ascii/mobile/android-sdk
+export ANDROID_HOME=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}
 
 tools/sync_core.sh
 xattr -cr src icons 2>/dev/null || true

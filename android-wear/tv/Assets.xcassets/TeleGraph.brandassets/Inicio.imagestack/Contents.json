@@ -1,0 +1,14 @@
+{
+  "layers": [
+    {
+      "filename": "Marca.imagestacklayer"
+    },
+    {
+      "filename": "Fondo.imagestacklayer"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}
