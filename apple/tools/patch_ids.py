@@ -302,6 +302,13 @@ def android_calls_dependency(text, directory):
 if platform == 'android':
     import shutil
     gradle = build / 'android' / 'gradle' / 'app' / 'build.gradle'
+    # Chaquopy starts pip in the generated Gradle project, outside the source tree.
+    pip_options = gradle.with_name('pip-options.txt')
+    args = pip_options.read_text().splitlines()
+    for index, option in enumerate(args[1:], 1):
+        if args[index - 1] == '--find-links' and option == 'wheels':
+            args[index] = str(Path(__file__).resolve().parents[1] / 'wheels')
+    pip_options.write_text('\n'.join(args) + '\n')
     text = gradle.read_text()
     text = re.sub(r'applicationId "[^"]+"', f'applicationId "{ANDROID_ID}"', text)
     text = re.sub(r'versionCode \d+', f'versionCode {VERSION_CODE}', text)

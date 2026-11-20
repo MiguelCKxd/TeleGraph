@@ -19,7 +19,7 @@ Para generar tu propio cliente, registra tu aplicación en Telegram y guarda los
 
 ## Android y Wear OS
 
-Configura `ANDROID_HOME` con la ubicación del Android SDK. Las ruedas adicionales de Python están en `wheels/`. Puedes compilar los dos destinos desde la carpeta móvil.
+Configura `ANDROID_HOME` con la ubicación del Android SDK y comprueba que `python3.12` está en el `PATH` para Chaquopy. Las ruedas adicionales de Python están en `wheels/`. Puedes compilar los dos destinos desde la carpeta móvil.
 
 ```sh
 tools/build.sh android debug
