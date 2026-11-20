@@ -12,7 +12,8 @@ web = HERE / 'src' / 'tg_ascii_mobile' / 'web' / 'icons'
 alt.mkdir(parents=True, exist_ok=True)
 web.mkdir(parents=True, exist_ok=True)
 for name, arguments in LEGACY.items():
-    image = source_image(*arguments)
+    # Light lettering must retain the same stroke edges as the iOS asset catalogue.
+    image = source_image(*arguments, size=1024 if arguments[1] == 'light' else 512)
     image.resize((1024, 1024), Image.Resampling.LANCZOS).save(alt / f'{name}-1024.png')
     image.resize((128, 128), Image.Resampling.LANCZOS).save(web / f'{name}.png', optimize=True)
     round_image = circular(image)

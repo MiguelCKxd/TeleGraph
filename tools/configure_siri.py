@@ -1,0 +1,30 @@
+"""Install the in-process UIKit SiriKit handler in the generated phone target."""
+import os
+from pathlib import Path
+import plistlib
+import shutil
+
+
+def configure_siri(xcode):
+    phone = xcode / 'TGASCII'
+    source = Path(__file__).parent / 'ios' / 'TeleGraphSiri.m'
+    shutil.copyfile(source, phone / source.name)
+    main = phone / 'main.m'
+    include = '#import "TeleGraphSiri.m"'
+    text = main.read_text()
+    if include not in text:
+        main.write_text(f'#import <UIKit/UIKit.h>\n{include}\n' + text)
+    plist = phone / 'TGASCII-Info.plist'
+    info = plistlib.loads(plist.read_bytes())
+    actions = {'INSendMessageIntent', 'INSearchForMessagesIntent', 'INSetMessageAttributeIntent'}
+    info['INIntentsSupported'] = sorted(actions | set(info.get('INIntentsSupported', ())))
+    info['NSSiriUsageDescription'] = 'Allow Siri to send messages and read messages from your TeleGraph account when you ask.'
+    plist.write_bytes(plistlib.dumps(info))
+    path = xcode / 'TeleGraphPush.entitlements'
+    entitlements = plistlib.loads(path.read_bytes())
+    entitlements['com.apple.developer.siri'] = True
+    if os.environ.get('TELEGRAPH_CARPLAY') == '1':
+        entitlements['com.apple.developer.carplay-communication'] = True
+    else:
+        entitlements.pop('com.apple.developer.carplay-communication', None)
+    path.write_bytes(plistlib.dumps(entitlements))

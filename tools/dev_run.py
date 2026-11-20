@@ -13,7 +13,7 @@ from tg_ascii_mobile.core import Core  # noqa: E402
 core = Core(Path(sys.argv[1]), 'macOS-dev', sys.argv[2] if len(sys.argv) > 2 else 'es-ES')
 
 
-def show_notification(account, peer, title, body, count, sound):
+def show_notification(account, peer, title, body, count, sound, **details):
     if account == core.account:
         core.emit('toast', {'text': f'{title} · {body}'})
 
