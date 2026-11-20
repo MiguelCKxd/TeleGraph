@@ -1,3 +1,5 @@
+import asyncio
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -89,3 +91,85 @@ class LocalNotificationTests(IsolatedAsyncioTestCase):
         self.backend.notification_policy.side_effect = policy
         await self.core.notify('qa', 42, self.message)
         self.core.native_notify.assert_not_called()
+
+    async def test_foreground_group_uses_sender_and_routes_banner_to_main_window(self):
+        self.core.in_background = False
+        self.message.sender_id, self.message.text = 701, 'mensaje'
+        self.core.chats = [SimpleNamespace(id=-99, name='Grupo', muted=False)]
+        self.backend.notification_policy.return_value = {'enabled': True, 'preview': True, 'sound': True}
+        main, secondary = asyncio.Queue(), asyncio.Queue()
+        secondary.window_account = 'qa'
+        self.core.subscribers = {main, secondary}
+        await self.core.notify('qa', -99, self.message)
+        packet = json.loads(main.get_nowait())
+        self.assertEqual(packet['type'], 'message_notice')
+        self.assertEqual(packet['data'], {'account': 'qa', 'peer': -99, 'title': 'QA', 'sender': 701,
+                                         'conversation': 'Grupo', 'body': 'mensaje'})
+        self.assertTrue(secondary.empty())
+        self.core.native_notify.assert_not_called()
+        self.core.open_peer = -99
+        await self.core.notify('qa', -99, self.message)
+        self.assertTrue(main.empty())
+
+    async def test_duplicate_android_notice_skips_avatar_download(self):
+        self.core.system = 'Android'
+        self.message.id, self.message.text = 11, 'texto'
+        self.backend.client = SimpleNamespace(download_profile_photo=AsyncMock(return_value=b'avatar'))
+        self.backend.notification_policy.return_value = {'enabled': True, 'preview': True, 'sound': True}
+        await self.core.notify('qa', 42, self.message)
+        await self.core.notify('qa', 42, self.message)
+        self.backend.client.download_profile_photo.assert_awaited_once()
+        self.core.native_notify.assert_called_once()
+
+    async def test_disabling_notices_during_avatar_fetch_allows_a_later_retry(self):
+        self.core.system = 'Android'
+        self.message.id, self.message.text = 12, 'texto'
+        async def disable(*args, **kwargs):
+            self.core.prefs.values['notifications'] = False
+            return b'avatar'
+        self.backend.client = SimpleNamespace(download_profile_photo=AsyncMock(side_effect=disable))
+        self.backend.notification_policy.return_value = {'enabled': True, 'preview': True, 'sound': True}
+        await self.core.notify('qa', 42, self.message)
+        self.core.native_notify.assert_not_called()
+        self.core.prefs.values.update(notifications=True, notify_preview=False)
+        await self.core.notify('qa', 42, self.message)
+        self.backend.client.download_profile_photo.assert_awaited_once()
+        self.core.native_notify.assert_called_once()
+        self.assertFalse(self.core.native_notify.call_args.kwargs)
+
+    async def test_background_avatar_comes_from_sending_account_and_hidden_preview_omits_it(self):
+        self.message.sender_id, self.message.text = 701, 'mensaje'
+        folder = self.core.root / 'mobile-avatars' / 'qa'
+        folder.mkdir(parents=True)
+        (folder / '701.jpg').write_bytes(b'cached jpeg')
+        self.backend.notification_policy.return_value = {'enabled': True, 'preview': True, 'sound': True}
+        await self.core.notify('qa', -99, self.message)
+        self.assertEqual(self.core.native_notify.call_args.kwargs,
+                         {'sender': '701', 'picture': b'cached jpeg', 'conversation': ''})
+        self.core.prefs.values['notify_preview'] = False
+        await self.core.notify('qa', -99, self.message)
+        self.assertFalse(self.core.native_notify.call_args.kwargs)
+        self.assertNotIn('mensaje', self.core.native_notify.call_args.args)
+
+
+class NotificationExtensionCacheTests(TestCase):
+    def test_removing_account_or_disabling_previews_removes_its_photos_and_policy_access(self):
+        import plistlib
+        from tg_ascii_mobile.ios_notice_cache import NoticeCache
+        with TemporaryDirectory() as tmp:
+            cache = NoticeCache(tmp)
+            core = SimpleNamespace(accounts=SimpleNamespace(entries={'a': {}, 'b': {}}, identities={'a': 7, 'b': 8}),
+                                   prefs=SimpleNamespace(values={}), _push_logging_out=set(), lock_record=lambda: None)
+            cache.sync(core)
+            cache.thumbnail(7, 42, b'photo for account 7')
+            cache.thumbnail(8, 42, b'photo for account 8')
+            core._push_logging_out.add('a')
+            cache.sync(core)
+            self.assertFalse((cache.root / '7').exists())
+            self.assertEqual((cache.root / '8/42.jpg').read_bytes(), b'photo for account 8')
+            core.prefs.values['notify_preview'] = False
+            cache.sync(core)
+            self.assertFalse((cache.root / '8').exists())
+            self.assertEqual(plistlib.loads((cache.root / 'policy.plist').read_bytes())['accounts'], [])
+            cache.thumbnail(8, 42, b'stale fetch')
+            self.assertFalse((cache.root / '8').exists())

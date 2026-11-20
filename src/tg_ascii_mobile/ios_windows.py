@@ -104,6 +104,14 @@ def install(app):
         value = info.objectForKey_('account') if info is not None else None
         return str(value) if value is not None else ''
 
+    def scanner_window(peer, account):
+        for window, _, other_peer, activity in _windows.values():
+            if (peer == other_peer and account_of(activity) == account and window.windowScene
+                    and window.windowScene.activationState == 0):
+                return window
+        return None
+    app.qr_chat_window = scanner_window
+
     from rubicon.objc import ObjCProtocol
 
     class TGChatSceneDelegate(UIResponder, protocols=(ObjCProtocol('UIWindowSceneDelegate'),)):
@@ -120,6 +128,9 @@ def install(app):
             web.setOpaque_(False)
             web.backgroundColor = color
             web.scrollView.bounces = False
+            pinch = web.scrollView.pinchGestureRecognizer
+            if pinch is not None:
+                pinch.enabled = False
             controller.view = web
             window.rootViewController = controller
             self.window = window

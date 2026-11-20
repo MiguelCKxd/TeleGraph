@@ -23,6 +23,8 @@ import time
 import types
 from weakref import WeakValueDictionary
 
+from .stories import MobileStories
+from .wallpapers import ChatWallpapers
 from .native_logos import NAMES, NATIVE_LOGOS
 
 SAVE_DELAY = 3.0
@@ -132,7 +134,7 @@ def _safe_mimetypes():
         mimetypes.init()
 
 
-class Core:
+class Core(MobileStories, ChatWallpapers):
     def __init__(self, data_dir, system, locale=''):
         self.root = Path(data_dir)
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -252,6 +254,8 @@ class Core:
         for queue in tuple(self.subscribers):
             event = data
             account = getattr(queue, 'window_account', None)
+            if kind == 'message_notice' and account is not None:
+                continue
             inactive = account is not None and account != self.account
             if inactive:
                 if kind not in ('stage', 'lock'):
@@ -314,6 +318,8 @@ class Core:
         from tg_ascii.local_state import LocalPins
         self.local_pins = LocalPins(self.root)
         self.prefs = Preferences(self.root)
+        if getattr(self, 'native_display_name', None):
+            self.native_display_name(self.prefs.values.get('app_display_name'))
         if first_run:
             language = self.guess_language(LANGUAGES)
             if language:
@@ -585,7 +591,7 @@ class Core:
         text = message.raw_text or '' if audio.get('voice') else message.text
         return {'id': message.id, 'sender': self.text(message.sender), 'text': self.text(text),
                 'caption': self.text(message.raw_text or '') if visual else None, 'visual': visual,
-                'w': width, 'h': height,
+                'w': width, 'h': height, 'album': str(message.grouped_id) if message.grouped_id is not None else None,
                 'time': clock, 'date': stamp, 'out': message.outgoing, 'kind': message.media_kind,
                 'filename': message.filename, 'size': message.size, 'reply_to': message.reply_to_id,
                 'thread_root': message.thread_id,
@@ -669,7 +675,7 @@ class Core:
         keys = ('language', 'theme', 'font_size', 'enter_send', 'offline_copy', 'ascii_text',
                 'show_seconds', 'notifications', 'notify_preview', 'bubbles', 'compact',
                 'ask_account_startup', 'animated_emoji', 'reduce_animations', 'notify_sound', 'notify_active', 'inline_media',
-                'local_pins', 'accent_color', 'text_color', 'background_color', 'bubble_radius', 'button_radius', 'menu_radius')
+                'local_pins', 'app_display_name', 'bubble_in_color', 'bubble_out_color', 'accent_color', 'text_color', 'background_color', 'bubble_radius', 'button_radius', 'menu_radius')
         snapshot = {key: self.prefs.values.get(key) for key in keys}
         snapshot['advanced_features'] = mobile_features(self.prefs.values)
         snapshot['quick_reaction'] = self.default_reaction(self.account)
@@ -723,11 +729,9 @@ class Core:
         return delivery
 
     async def notify(self, key, peer, message):
-        """A system notification for an incoming message: always with the app in the
-        background; in the foreground only for the other accounts (this one updates
-        the screen). Follows the notification settings, muted chats and the lock."""
+        """Apply the account's notification policy before choosing the presentation."""
         from tg_ascii.i18n import tr
-        if self.native_notify is None or message.outgoing or message.service or not self.prefs:
+        if message.outgoing or message.service or not self.prefs:
             return
         values = self.prefs.values
         # As on desktop: with the app in front, other chats notify; the chat being
@@ -744,15 +748,18 @@ class Core:
         if getattr(message, 'read', False):
             return
         title = message.sender or ''
+        conversation = ''
         if key == self.account:
             chat = next((item for item in self.chats if item.id == peer), None)
             if chat is not None:
                 if chat.muted:
                     return
-                title = self.text(chat.name) or title
+                conversation = self.text(chat.name) if peer < 0 else ''
+                title = title or self.text(chat.name)
         if len(self.accounts.entries if self.accounts else ()) > 1:
             label = next((item.get('alias') or item.get('label') for item in self.account_list() if item['key'] == key), '')
-            title = f'{title} · {label}' if label else title
+            if label:
+                conversation = f'{conversation} · {label}' if conversation else label
         service = self.accounts.services.get(key) if self.accounts else None
         backend = getattr(service, 'backend', None)
         if backend is None:
@@ -761,32 +768,71 @@ class Core:
             policy = await backend.notification_policy(peer, platform=self.system)
         except Exception:
             policy = {'enabled': True, 'preview': False, 'sound': False}
-        values = self.prefs.values
-        if not policy['enabled'] or not values.get('notifications', True) or reading_here():
+        sender_id = getattr(message, 'sender_id', None) or (peer if peer > 0 else None)
+        def allowed():
+            return (policy['enabled'] and self.prefs.values.get('notifications', True)
+                    and not reading_here() and key not in self._push_logging_out and self.accounts
+                    and self.accounts.services.get(key) is service and service.backend is backend)
+
+        def banner_visible():
+            return (not self.in_background and not self.locked and
+                    any(getattr(q, 'window_account', None) is None for q in self.subscribers))
+
+        if not allowed() or (not banner_visible() and self.native_notify is None):
             return
-        if (key in self._push_logging_out or not self.accounts
-                or self.accounts.services.get(key) is not service or service.backend is not backend):
-            return
-        protected = self.lock_record() is not None
-        if protected:
-            title = 'TeleGraph'
-        private = protected or not values.get('notify_preview', True) or not policy['preview']
-        body = tr('New message') if private else (self.text(preview_text(message)) or tr('New message'))
         receipt = (key, peer, getattr(message, 'id', None))
         track = self.system == 'Android' and isinstance(receipt[2], int)
         if track and not self.claim_android_notification(receipt):
             return
-        count = self.notify_counts.get((key, peer), 0) + 1
+        delivered = False
         try:
-            result = self.native_notify(key, peer, title or 'TeleGraph', body[:400], count,
-                                        policy['sound'] and values.get('notify_sound', True) is not False)
-            if isawaitable(result):
-                await result
-        except (Exception, asyncio.CancelledError):
-            if track:
+            picture = None
+            if (self.in_background and sender_id and policy['preview'] and self.lock_record() is None
+                    and self.prefs.values.get('notify_preview', True)):
+                # An avatar must belong to the same Telegram account as the message.
+                path = self.root / 'mobile-avatars' / key / f'{int(sender_id)}.jpg'
+                try:
+                    if path.is_file() and time.time() - path.stat().st_mtime < 3 * 86400:
+                        picture = await asyncio.to_thread(path.read_bytes)
+                    else:
+                        picture = await asyncio.wait_for(backend.client.download_profile_photo(
+                            int(sender_id), file=bytes, download_big=False), 2)
+                except Exception:
+                    pass  # Missing photos and slow connections still deliver the message.
+            # Account, visibility and preview settings can change while the photo loads.
+            banner = banner_visible()
+            if not allowed() or (not banner and self.native_notify is None):
+                return
+            values = self.prefs.values
+            protected = self.lock_record() is not None
+            if protected:
+                title = 'TeleGraph'
+            private = protected or not values.get('notify_preview', True) or not policy['preview']
+            cache = getattr(self, 'ios_notice_cache', None)
+            if cache and picture and not private:
+                try:
+                    cache.thumbnail(self.accounts.identities.get(key), sender_id, picture)
+                except OSError:
+                    pass
+            body = tr('New message') if private else (self.text(preview_text(message)) or tr('New message'))
+            count = self.notify_counts.get((key, peer), 0) + 1
+            if banner:
+                self.emit('message_notice', {'account': key, 'peer': peer, 'title': title or 'TeleGraph',
+                                             'body': body[:400], 'sender': None if private else sender_id,
+                                             'conversation': '' if private else conversation})
+            else:
+                details = {} if private or not sender_id else {'sender': str(sender_id), 'picture': picture,
+                                                               'conversation': conversation}
+                result = self.native_notify(key, peer, title or 'TeleGraph', body[:400], count,
+                                            policy['sound'] and values.get('notify_sound', True) is not False,
+                                            **details)
+                if isawaitable(result):
+                    await result
+            delivered = True
+        finally:
+            if track and not delivered:
                 with self.android_receipts() as db:
                     db.execute('DELETE FROM receipts WHERE account=? AND peer=? AND msg=?', receipt)
-            raise
         self.notify_counts[(key, peer)] = count
         return True
 
@@ -1167,7 +1213,7 @@ class Core:
         from tg_ascii.devices import set_session_flags
         return await set_session_flags(self.client_for(), hash, calls, secret_chats)
 
-    async def api_scan_qr(self):
+    async def api_scan_qr(self, window_peer=None, window_account=None):
         """Read a QR code with the device camera (native scanner). Returns its text,
         and whether it is a Telegram login code."""
         from tg_ascii.devices import login_token
@@ -1175,9 +1221,19 @@ class Core:
             raise RuntimeError('unavailable')
         future = self.loop.create_future()
         self.expect_external(180)
-        self.native_scan(lambda text: self.loop.call_soon_threadsafe(lambda: future.done() or future.set_result(text)))
-        text = await future
-        from .qr_native import PREPARING
+        def received(text):
+            self.loop.call_soon_threadsafe(lambda: future.done() or future.set_result(text))
+        cancel = (self.native_scan(received, window_peer, window_account) if window_peer is not None and self.system == 'iOS'
+                  else self.native_scan(received))
+        try:
+            text = await asyncio.wait_for(future, timeout=180)
+        finally:
+            if future.cancelled() and callable(cancel):
+                cancel()
+        from .qr_native import CAMERA_DENIED, PREPARING
+        if text == CAMERA_DENIED:
+            from tg_ascii.i18n import tr
+            raise RuntimeError(tr('Camera permission denied.'))
         if text == PREPARING:
             from tg_ascii.i18n import tr
             raise RuntimeError(tr('Preparing the QR scanner. Try again in a few seconds.'))
@@ -2956,6 +3012,17 @@ class Core:
         self.__dict__.setdefault('fresh_avatars', set()).add(int(peer))
 
     async def avatar_file(self, peer, big=False):
+        account = self.account
+        result = await self._avatar_file(peer, big)
+        cache = getattr(self, 'ios_notice_cache', None)
+        if cache and not big and self.accounts and self.account == account:
+            try:
+                cache.thumbnail(self.accounts.identities.get(account), peer, result)
+            except OSError:
+                pass
+        return result
+
+    async def _avatar_file(self, peer, big=False):
         """Profile photo of a chat/person, small or full size (cached a few days; None if it has none)."""
         folder = self.root / 'mobile-avatars' / self.account
         stem = f'{int(peer)}-big' if big else f'{int(peer)}'
@@ -3149,6 +3216,10 @@ class Core:
         for key, default in self.APPEARANCE.items():
             if isinstance(stored.get(key), type(default)):
                 values[key] = stored[key]
+        # Older installs kept peer choices in the primary account's appearance file.
+        if self.account != 'account':
+            values['chats'] = values['chat_sync'] = {}
+        values['chat_wallpapers'] = self.chat_wallpapers(self.account)
         folder = self.root / 'mobile-backgrounds'
         values['chats'] = {str(peer): name for peer, name in values['chats'].items()
                            if name == 'interface' or (folder / str(name)).is_file()}
@@ -3180,9 +3251,14 @@ class Core:
         other_windows = [item for item in stored_windows if isinstance(item, dict)
                          and item.get('account') and item['account'] != self.account]
         saved = {**values, 'windows': other_windows + values['windows']}
+        saved.pop('chat_wallpapers', None)
+        if self.account != 'account':
+            legacy = self.stored_appearance()
+            for key in ('chats', 'chat_sync'):
+                saved[key] = legacy.get(key, {})
         temporary.write_text(json.dumps(saved), 'utf-8')
         temporary.replace(path)
-        self.prune_backgrounds(values)
+        self.prune_backgrounds(saved)
         self.emit('appearance', values)
         self.publish_wear_appearance()
         return values
@@ -3429,10 +3505,11 @@ class Core:
             self.emit('appearance', current)
         return current
 
-    async def api_chat_background(self, peer, value, sync=''):
+    async def api_chat_background(self, peer, value, sync='', account=None):
         """value: 'interface' (same picture as the interface) or '' (none). Removing a
         synchronised one also removes it in Telegram (sync: 'devices' / 'both')."""
         current = self.appearance()
+        self.check_active_account(account)
         key = str(int(peer))
         if value == 'interface':
             current['chats'][key] = 'interface'
@@ -4725,6 +4802,8 @@ class Core:
                                if key in MOBILE_FEATURES or key in MOBILE_FEATURES_OFF})
                 changes['mobile_features'] = stored
             self.prefs.save(changes)
+            if 'app_display_name' in changes and getattr(self, 'native_display_name', None):
+                self.native_display_name(self.prefs.values.get('app_display_name'))
             if 'local_pins' in changes:
                 if changes['local_pins'] and self.chats and self.account not in self.local_pins.values:
                     self.local_pins.save_order(self.account, [c.id for c in self.chats if c.pinned])
@@ -4976,6 +5055,8 @@ class Core:
             await self.close_call_manager()
         self._push_logging_out.add(key)
         try:
+            if getattr(self, 'ios_notice_cache', None):
+                self.ios_notice_cache.sync(self)
             await self.unregister_push_account(key)
             state = await self.accounts.logout(key)
         finally:
@@ -4985,6 +5066,7 @@ class Core:
                     with self.android_receipts() as db:
                         db.execute('DELETE FROM receipts WHERE account=?', (key,))
                 self.purge_account_drafts(key)
+                self.purge_chat_wallpapers(key)
                 if self.__dict__.get('_translations', (None,))[0] == key:
                     self.__dict__.pop('_translations', None)
                 for suffix in ('.json', '.invalid.json', '.sqlite3', '.sqlite3-journal'):
@@ -5121,6 +5203,9 @@ class Core:
     async def sync_push_registration(self):
         from telethon import functions
 
+        cache = getattr(self, 'ios_notice_cache', None)
+        if cache:
+            cache.sync(self)
         async with self._push_gate:
             info = getattr(self, '_push_token', None)
             if not info or self.accounts is None:

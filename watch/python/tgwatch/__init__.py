@@ -250,8 +250,11 @@ async def _ensure_client():
             options['connection'] = _websocket_connection()
         elif transport == 'http':
             options['connection'] = _url_session_connection()
+        from rubicon.objc import ObjCClass
+        bundle = ObjCClass('NSBundle').mainBundle
+        version = str(bundle.objectForInfoDictionaryKey_('CFBundleShortVersionString'))
         _client = TelegramClient(os.path.join(_root, 'watch'), API_ID, API_HASH, device_model='TG-ASCII Apple Watch',
-                                 system_version='watchOS', app_version='3.0.0', **options)
+                                 system_version='watchOS', app_version=version, **options)
     if not _client.is_connected():
         await asyncio.wait_for(_client.connect(), 40)
     if _secret_mgr is None:

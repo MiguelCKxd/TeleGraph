@@ -54,6 +54,25 @@ class TgAsciiMobile(toga.App):
         port = self.core.port
         self.webview = toga.WebView(style=Pack(flex=1, background_color=BACKGROUND))
         self.main_window = toga.MainWindow(title=self.formal_name)
+        def update_title(name):
+            title = name or 'TeleGraph'
+            def apply():
+                self.main_window.title = title
+                if system == 'Android':
+                    from java import jclass
+                    self._impl.native.setTitle(title)
+                    self._impl.native.setTaskDescription(jclass('android.app.ActivityManager$TaskDescription')(title))
+                elif system == 'iOS':
+                    scene = self.main_window._impl.native.windowScene
+                    if scene is not None:
+                        scene.title = title
+            if system == 'iOS':
+                self.on_main_thread(apply)
+            else:
+                self.loop.call_soon_threadsafe(apply)
+        self.core.native_display_name = update_title
+        if self.core.prefs:
+            update_title(self.core.prefs.values.get('app_display_name'))
         self.main_window.content = self.webview
         self.adapt_chrome(system)
         self.main_window.show()
@@ -195,6 +214,9 @@ class TgAsciiMobile(toga.App):
                 web = self.webview._impl.native
                 web.scrollView.contentInsetAdjustmentBehavior = 2  # Never
                 web.scrollView.bounces = False
+                pinch = web.scrollView.pinchGestureRecognizer
+                if pinch is not None:
+                    pinch.enabled = False
                 web.setOpaque_(False)
                 web.backgroundColor = color
                 self.install_ios_opener()
@@ -822,4 +844,6 @@ def main():
     if system_name() == 'iOS':
         from .notify_native import install_apns_delegate
         install_apns_delegate(app)
+        from . import siri
+        siri.install(app)
     return app
