@@ -88,6 +88,7 @@ class Message:
     thread_id: int | None = None
     edited_at: datetime | None = None
     webpage: object = None  # a link preview (types.WebPage), not an attachment
+    grouped_id: int | None = None
 
 
 class DemoBackend(DemoFeatures):
@@ -296,7 +297,7 @@ class TelegramBackend(CommunityManagement, AdvancedMessagingMixin, PeerTools, Bo
                            if getattr(getattr(msg, 'replies', None), 'comments', False) and getattr(msg.replies, 'channel_id', None) else None,
                        thread_id=getattr(getattr(msg, 'reply_to', None), 'reply_to_top_id', None)
                            or getattr(getattr(msg, 'reply_to', None), 'reply_to_msg_id', None),
-                       webpage=preview)
+                       webpage=preview, grouped_id=getattr(msg, 'grouped_id', None))
 
     async def resolve_missing_senders(self,messages):
         from .sender_identity import resolve

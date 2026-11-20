@@ -61,6 +61,9 @@ class DesktopSettings:
         body.bind('<Configure>',resized)
         appearance=sections['Apariencia'];chats=sections['Chats'];account=sections['Cuenta'];logos=sections['App logos']
         self.add_language_picker(appearance)
+        display_name = tk.StringVar(value=self.preferences.values.get('app_display_name', ''))
+        ttk.Label(appearance, text=caption('App display name', 'Nombre visible de la app')).pack(anchor='w')
+        ttk.Entry(appearance, textvariable=display_name).pack(fill='x')
         choices={}
         for key,label,parent in [('theme','Interface theme',appearance),('logo_theme','Logo theme',logos)]:
             ttk.Label(parent,text=tr(label)).pack(anchor='w',pady=(10,2))
@@ -70,7 +73,13 @@ class DesktopSettings:
         size=tk.IntVar(value=self.preferences.values['font_size'])
         ttk.Label(appearance,text=tr('Tamaño del texto')).pack(anchor='w',pady=(10,2))
         ttk.Spinbox(appearance,from_=10,to=20,textvariable=size,width=6).pack(anchor='w')
-        colors={key:tk.StringVar(value=self.preferences.values.get(key,'')) for key in ('text_color','background_color','accent_color')}
+        color_options = {
+            'text_color': (tr('Text color'), 'text'), 'background_color': (tr('Background color'), 'bg'),
+            'accent_color': (tr('Accent color'), 'strong'),
+            'bubble_in_color': (caption('Incoming bubble color', 'Color de burbujas recibidas'), 'panel'),
+            'bubble_out_color': (caption('Outgoing bubble color', 'Color de burbujas enviadas'), 'selected'),
+        }
+        colors={key:tk.StringVar(value=self.preferences.values.get(key,'')) for key in color_options}
         from .appearance import app_palette
         preview=tk.Label(appearance,text=f'{APP_NAME}  > Hello / Hola',padx=12,pady=18);preview.pack(fill='x',pady=8)
         def preview_colors():
@@ -78,11 +87,11 @@ class DesktopSettings:
             palette=app_palette(values);preview.configure(bg=palette['bg'],fg=palette['text'])
         def pick_color(key):
             palette=app_palette(self.preferences.values)
-            value=colorchooser.askcolor(color=colors[key].get() or palette[{'text_color':'text','background_color':'bg','accent_color':'strong'}[key]],parent=self.root,title=tr({'text_color':'Text color','background_color':'Background color','accent_color':'Accent color'}[key]))[1]
+            value=colorchooser.askcolor(color=colors[key].get() or palette[color_options[key][1]],parent=self.root,title=color_options[key][0])[1]
             if value:colors[key].set(value.lower());preview_colors()
-        for key,label in [('text_color','Text color'),('background_color','Background color'),('accent_color','Accent color')]:
+        for key, (label, _) in color_options.items():
             row=FlowFrame(appearance);row.pack(fill='x',pady=3)
-            ttk.Button(row,text=tr(label),command=lambda k=key:pick_color(k)).pack(side='left')
+            ttk.Button(row,text=label,command=lambda k=key:pick_color(k)).pack(side='left')
             ttk.Button(row,text=tr('Default'),command=lambda k=key:(colors[k].set(''),preview_colors())).pack(side='left')
         choices['theme'].bind('<<ComboboxSelected>>',lambda _:preview_colors());preview_colors()
         background=tk.StringVar(value=self.preferences.values.get('interface_background',''))
@@ -304,6 +313,10 @@ class DesktopSettings:
             try:
                 values={**effects.read_values(),**{k:v.get() for k,v in flags.items()},**{k:v.get() for k,v in colors.items()},**{k:v.get() for k,v in radii.items()},**{k:('dark','light','system')[v.current()] for k,v in choices.items()},'font_size':size.get(),'font_family':families[font_choice.current()-1] if font_choice.current()>0 else ''}
                 if not 10<=values['font_size']<=20 or any(not 0<=values[k]<=24 for k in radii):raise ValueError(tr('Value out of range.'))
+                name = display_name.get().strip()
+                if len(name) > 64 or (name and not name.isprintable()):
+                    raise ValueError(tr('Value out of range.'))
+                values['app_display_name'] = name
                 values['interface_background']=background.get()
                 for key,(box,options) in option_values.items():
                     if box.winfo_exists() and box.current()>=0:values[key]=options[box.current()]

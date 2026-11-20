@@ -1413,5 +1413,6 @@
   "Keep more loaded": "إبقاء محتوى أكثر محمّلًا",
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "يعمل TeleGraph كتطبيق مراسلة مثبّت: تبقى صور الملفات الشخصية والرسائل الحديثة والمعاينات وبيانات جهات الاتصال جاهزة على هذا الجهاز وتُفتح الشاشات بها فورًا. لا يُطلب من جديد إلا ما هو جديد فعلًا. يستخدم مساحة تخزين وذاكرة أكثر.",
   "Prepare content at startup": "تجهيز المحتوى عند البدء",
-  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "بعد تحميل قائمة المحادثات تُجهَّز في الخلفية صور الملفات الشخصية وآخر رسائل المحادثات الأولى ومعايناتها والرموز التعبيرية. يستهلك بيانات وبطارية أكثر عند البدء."
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "بعد تحميل قائمة المحادثات تُجهَّز في الخلفية صور الملفات الشخصية وآخر رسائل المحادثات الأولى ومعايناتها والرموز التعبيرية. يستهلك بيانات وبطارية أكثر عند البدء.",
+  "Accent color": "لون التمييز"
 }

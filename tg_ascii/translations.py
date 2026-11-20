@@ -559,3 +559,13 @@ CATALOGUES['es'].update({
     'Move pin up': 'Subir chat fijado', 'Move pin down': 'Bajar chat fijado',
     'Unlimited local pins (device only)': 'Fijados ilimitados solo en este dispositivo',
 })
+
+for _language, _accent_label in {
+    'ru': 'Акцентный цвет', 'pl': 'Kolor akcentu', 'ca': "Color d'accent",
+    'ca-valencia': "Color d'accent", 'uk': 'Акцентний колір',
+    'zh-Hans': '强调色', 'ko': '강조 색상', 'ja': 'アクセントカラー', 'it': 'Colore principale',
+    'pt': 'Cor de destaque', 'el': 'Χρώμα έμφασης', 'eu': 'Nabarmentzeko kolorea',
+    'gl': 'Cor de realce', 'oc-aran': 'Color d’accent', 'an': 'Color d’accento',
+    'de': 'Akzentfarbe',
+}.items():
+    CATALOGUES[_language]['Accent color'] = _accent_label

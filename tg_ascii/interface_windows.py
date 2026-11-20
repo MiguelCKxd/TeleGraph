@@ -1116,12 +1116,7 @@ def open_linked_app_window(app,initial_chat=None):
                        service=AccountsView(owner.service, app.ui_account, pinned=initial_chat is not None),
                        linked_owner=owner, window_slot=f'window-{slot}', chat_target=initial_chat)
         owner._app_windows.append(view)
-        if initial_chat is not None:
-            labels = getattr(getattr(owner, 'service', None), 'labels', {})
-            label = labels.get(app.ui_account, tr('Cuenta'))
-            root.title(initial_chat.name + ' · ' + label + ' · ' + APP_NAME)
-        else:
-            root.title(APP_NAME + ' · ' + caption('Linked window', 'Ventana vinculada'))
+        owner.update_window_titles()
         return view
     except BaseException:
         root.destroy()

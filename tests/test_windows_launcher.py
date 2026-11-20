@@ -5,6 +5,48 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
+
+
+class PinnedIconNoticeTest(unittest.TestCase):
+    """Order of the shell notices that makes the pinned taskbar button show a new logo."""
+
+    def update(self, outcomes):
+        from tg_ascii import windows_launcher as shell
+        notices = []
+        windll = mock.MagicMock()
+        windll.ole32.CoInitializeEx.return_value = 0
+        windll.shell32.SHGetFolderPathW.return_value = -1  # Only the pinned folder below exists.
+        windll.shell32.SHChangeNotify.side_effect = (
+            lambda event, flags, item, other: notices.append((event, flags, getattr(item, 'value', item))))
+        def update_link(path, executable, icon):
+            outcome = outcomes[path.name]
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+        with tempfile.TemporaryDirectory() as folder:
+            pins = Path(folder) / 'Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar'
+            pins.mkdir(parents=True)
+            for name in outcomes:
+                (pins / name).write_bytes(b'')
+            with mock.patch.object(shell.C, 'windll', windll, create=True), \
+                 mock.patch.dict(os.environ, {'APPDATA': folder}), \
+                 mock.patch.object(shell, '_update_link', side_effect=update_link):
+                shell.update_shortcuts(Path('TeleGraph.exe'), Path('icon.ico'))
+            return notices, pins
+
+    def test_icon_cache_is_dropped_before_the_changed_pin_is_announced(self):
+        # Without the first notice Windows 11 kept the previous logo on the pin for minutes.
+        notices, pins = self.update({'TeleGraph.lnk': True, 'Browser.lnk': False})
+        self.assertEqual(notices, [(0x08000000, 0x1000, None), (0x2000, 0x2005, str(pins / 'TeleGraph.lnk'))])
+
+    def test_unchanged_links_send_no_notice(self):
+        notices, _ = self.update({'TeleGraph.lnk': False, 'Browser.lnk': False})
+        self.assertEqual(notices, [])
+
+    def test_a_failing_link_does_not_hide_the_others(self):
+        notices, pins = self.update({'TeleGraph.lnk': True, 'Locked.lnk': OSError('read-only')})
+        self.assertEqual(notices, [(0x08000000, 0x1000, None), (0x2000, 0x2005, str(pins / 'TeleGraph.lnk'))])
 
 
 @unittest.skipUnless(sys.platform == 'win32', 'requires the real Windows Shell')
@@ -59,6 +101,7 @@ class WindowsLauncherTest(unittest.TestCase):
                     files.append(icon)
                     self.assertTrue(shell._update_link(link, executable, icon))
                     self.assertFalse(shell._update_link(link, executable, icon))
+                    shell._announce([link])
                     self.assertEqual(shortcut(inspect).splitlines(), [shell.APP_ID, str(icon) + ',0'])
                     shell.set_window_icon(root, png, False)
                     root.update()

@@ -169,19 +169,15 @@ class Desktop(DesktopFeatures):
         self.root = root
         self.root._lock_app_owner = linked_owner or self
         self.root._app_instance = self
-        self.root.title(f'TeleGraph {__edition__}')
-        if linked_owner is None:
-            # 1.5.4: an independent window shows its own name.
-            from .saved_windows import window_title
-            title = window_title(data_root())
-            if title:
-                self.root.title(title)
         self.root.geometry('680x720' if self._chat_only else '1040x720')
         self.root.minsize(360 if self._chat_only else 480, 360)
         self.root.configure(bg=BG)
         self.root.report_callback_exception = lambda kind, exc, trace: messagebox.showerror('TeleGraph', error_message(exc), parent=self.root)
         self.preferences = linked_owner.preferences if linked_owner is not None else Preferences(demo=demo)
+        self._title_chat = chat_target
         if linked_owner is None:
+            self.update_window_titles()
+            self.preferences.listeners.append(self.update_window_titles)
             from . import resources, menu_style, decode_pool, gpu_video
             resources.configure(self.preferences.values)
             decode_pool.configure(self.preferences.values)
@@ -264,13 +260,13 @@ class Desktop(DesktopFeatures):
         install_indicator(self)
         root.protocol('WM_DELETE_WINDOW', self.close if linked_owner is not None else self.window_close)
         root.bind('<Control-q>', lambda _: self.close())
-        root.bind('<FocusIn>', lambda _: self.root.after_idle(self.acknowledge_visible), add='+')
+        from .read_visibility import schedule as schedule_read, watch as watch_reading
+        root.bind('<FocusIn>', lambda _: schedule_read(self, 0), add='+')
         # 1.5.0.2: also after reopening the window and as a periodic safety net.
-        root.bind('<Map>', lambda event: self.root.after(200, self.acknowledge_visible) if event.widget is root else None, add='+')
-        from .read_visibility import watch as watch_reading
+        root.bind('<Map>', lambda event: schedule_read(self, 200) if event.widget is root else None, add='+')
         watch_reading(self)
         if sys.platform == 'darwin':
-            root.bind('<Command-q>', lambda _: self.close())
+            root.bind('<Command-q>', self.mac_quit)
             root.bind('<Command-w>', lambda _: self.close() if linked_owner is not None else self.window_close())
             if linked_owner is None:
                 self._install_macos_dock_handler()
@@ -282,6 +278,20 @@ class Desktop(DesktopFeatures):
             self.begin_startup(configure)
         else:
             self.login_stage('ready')
+
+    def update_window_titles(self):
+        from .saved_windows import window_title
+        name = self.preferences.values.get('app_display_name') or APP_NAME
+        self.root.title(window_title(data_root(), name) or f'{name} {__edition__}')
+        for view in getattr(self, '_app_windows', []):
+            if view.closed:
+                continue
+            if view._title_chat is None:
+                from .interface_layout import caption
+                view.root.title(name + ' · ' + caption('Linked window', 'Ventana vinculada'))
+            else:
+                labels = getattr(self.service, 'labels', {})
+                view.root.title(view._title_chat.name + ' · ' + labels.get(view.ui_account, tr('Cuenta')) + ' · ' + name)
 
     def begin_startup(self, configure=False):
         if (not getattr(self, '_window_startup_done', False) and getattr(self, '_linked_owner', None) is None
@@ -684,7 +694,8 @@ class Desktop(DesktopFeatures):
             self.build_account_bar(self.container)
             self.notebook = ttk.Notebook(self.container)
             # Back on the Chats tab: messages that arrived meanwhile are now on screen.
-            self.notebook.bind('<<NotebookTabChanged>>', lambda _: self.root.after(120, self.acknowledge_visible), add='+')
+            from .read_visibility import schedule as schedule_read
+            self.notebook.bind('<<NotebookTabChanged>>', lambda _: schedule_read(self, 120), add='+')
             self.notebook.pack(fill='both', expand=True)
             self.chat_page = ttk.Frame(self.notebook, padding=(0, 4))
             self.story_page = ttk.Frame(self.notebook, padding=16)
@@ -1646,6 +1657,8 @@ class Desktop(DesktopFeatures):
         for view in children:
             view.finish_close(None)
         self.closed = True
+        from .read_visibility import stop as stop_reading
+        stop_reading(self)
         if getattr(self, '_linked_owner', None) is not None:
             windows = getattr(self._linked_owner, '_app_windows', [])
             if self in windows:
