@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from threading import Event
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -126,17 +127,16 @@ class WindowsLockTests(unittest.TestCase):
 
     def test_instance_server_and_wake(self):
         from tg_ascii.desktop import _start_instance_server, _wake_existing_instance
-        root = SimpleNamespace(after=lambda delay, cb: cb(), _app_instance=SimpleNamespace(reopened=False, reopen_window=lambda: None))
-        def reopen():
-            root._app_instance.reopened = True
-        root._app_instance.reopen_window = reopen
+        reopened = Event()
+        root = SimpleNamespace(after=lambda delay, cb: cb(),
+                               _app_instance=SimpleNamespace(reopen_window=reopened.set))
 
         with tempfile.TemporaryDirectory() as folder:
             self.assertFalse(_wake_existing_instance(folder))
             cleanup = _start_instance_server(root, folder)
             try:
                 self.assertTrue(_wake_existing_instance(folder))
-                self.assertTrue(root._app_instance.reopened)
+                self.assertTrue(reopened.wait(2), "The requested window did not reopen")
             finally:
                 cleanup()
             self.assertFalse((Path(folder) / 'desktop.port').exists())

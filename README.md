@@ -1,18 +1,16 @@
 # TeleGraph para escritorio
 
-Esta rama contiene el código de escritorio de TeleGraph 3.0.1. La versión del árbol figura en `pyproject.toml`. Para instalar la aplicación, elige la descarga que corresponda a tu sistema. [Descargas](https://github.com/MiguelCKxd/TeleGraph/releases)
+Esta rama contiene el código de escritorio de TeleGraph 3.1.0. La versión del árbol figura en `pyproject.toml`. Para instalar la aplicación, elige la descarga que corresponda a tu sistema. [Descargas](https://github.com/MiguelCKxd/TeleGraph/releases)
 
 ## Primer inicio en las descargas de escritorio de GitHub
 
-En Windows, macOS y Linux, abre TeleGraph e introduce el **API ID** y el **API hash** de tu aplicación de Telegram. El botón **my.telegram.org/apps** abre el sitio de Telegram donde puedes registrar o consultar tu aplicación. A continuación, inicia sesión en tu cuenta por el procedimiento habitual. [Administrar tu aplicación](https://my.telegram.org/apps)
+Abre TeleGraph, introduce tu número con prefijo internacional y el código que te envíe Telegram. Si activaste la verificación en dos pasos, introduce también tu contraseña. Cada instalación guarda su propia sesión.
 
-La casilla para recordar las claves es opcional. Si la marcas, TeleGraph guarda la identidad de aplicación en un archivo privado de tu perfil local, sin cifrar, una vez completado el inicio de sesión. Si la dejas desmarcada tendrás que volver a introducir las claves la próxima vez que abras el programa.
+En Debian o Ubuntu, instala el archivo de tu arquitectura con `sudo apt install ./TeleGraph-3.1.0-linux-amd64.deb` para un PC Intel/AMD o `sudo apt install ./TeleGraph-3.1.0-linux-arm64.deb` para ARM64. APT conserva las actualizaciones de instalaciones existentes.
 
-En Debian o Ubuntu, instala el archivo de tu arquitectura con `sudo apt install ./TeleGraph-3.0.1-linux-amd64.deb` para un PC Intel/AMD o `sudo apt install ./TeleGraph-3.0.1-linux-arm64.deb` para ARM64. APT conserva las actualizaciones de instalaciones existentes.
+## Compilar la versión 3.1
 
-## Compilar la versión 3.0
-
-Usa un Python con Tk, instala las dependencias descritas abajo y ejecuta `python tools/build_release.py --user-api --output releases` para construir la edición pública. El empaquetador excluye el módulo con las credenciales del editor. Al iniciar la aplicación, el usuario introduce su propia API. En Windows, la arquitectura del intérprete determina la de la descarga.
+Para crear tu distribución, registra tu aplicación en Telegram, prepara el entorno Python y ejecuta `python tools/build_release.py --output releases`. El empaquetador incorpora la identidad que le proporciones al compilar. Las personas que instalen tu distribución accederán con su cuenta. [Registrar una aplicación](https://core.telegram.org/api/obtaining_api_id).
 
 Para trabajar con los tres chats de demostración, prepara un entorno virtual con Python 3.12 y Tk.
 

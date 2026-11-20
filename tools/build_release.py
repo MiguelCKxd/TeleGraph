@@ -518,7 +518,7 @@ def main():
     parser = argparse.ArgumentParser(description='Generar TeleGraph para el sistema actual. Solo para el desarrollador.')
     parser.add_argument('--output', type=Path, default=ROOT / 'releases')
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument('--user-api', action='store_true', help='Pedir a cada usuario su API ID y hash al iniciar la edición pública')
+    mode.add_argument('--user-api', action='store_true', help='Crear una variante de desarrollo que pide API ID y hash al iniciar')
     mode.add_argument('--demo-only', action='store_true', help='Compilar solo la demo; sin acceso a cuentas')
     parser.add_argument('--mac-push-profile', type=Path,
                         help='Perfil APNs para macOS. Los ZIP con perfil de desarrollo se marcan DEVELOPMENT.')
