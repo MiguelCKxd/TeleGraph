@@ -14,7 +14,6 @@ from concurrent.futures.process import BrokenProcessPool
 import multiprocessing
 import os
 import pickle
-import sys
 import threading
 
 FEATURE = 'process_decoding'
@@ -45,31 +44,13 @@ def parallelism(default=2):
     return workers() if active() else default
 
 
-def _watch_mac_parent():
-    # Cocoa can terminate the GUI outside Tk's shutdown path. A frozen worker
-    # then keeps its own Dock presence until it exits, even while idle.
-    parent = multiprocessing.parent_process()
-
-    def wait_for_parent():
-        while os.getppid() == parent.pid:
-            parent.join(timeout=2)
-            if not parent.is_alive():
-                break
-        os._exit(0)  # Only this disposable decoder process.
-
-    threading.Thread(target=wait_for_parent, name='decoder-parent', daemon=True).start()
-
-
 def _get_pool():
     global _pool
     with _lock:
         if _stopping:
             raise asyncio.CancelledError
         if _pool is None:
-            _pool = ProcessPoolExecutor(
-                max_workers=workers(), mp_context=multiprocessing.get_context('spawn'),
-                initializer=_watch_mac_parent if sys.platform == 'darwin' else None,
-            )
+            _pool = ProcessPoolExecutor(max_workers=workers(), mp_context=multiprocessing.get_context('spawn'))
         return _pool
 
 

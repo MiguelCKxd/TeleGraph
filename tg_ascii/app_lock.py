@@ -9,7 +9,6 @@ import hmac
 import json
 import queue
 import secrets
-import sys
 import threading
 import time
 import tkinter as tk
@@ -121,7 +120,7 @@ class UnlockPanel:
         except InvalidLock as error:
             self.record=None;self.status.configure(text=str(error));self.submit.configure(state='disabled');self.entry.configure(state='disabled')
         ttk.Button(self.body,text=tr('Quit TeleGraph'),command=quit_app).pack(fill='x',pady=8)
-        window.protocol('WM_DELETE_WINDOW', window.withdraw if sys.platform == 'darwin' else quit_app)
+        window.protocol('WM_DELETE_WINDOW',quit_app)
         window.bind('<Destroy>',self.destroyed,add='+')
         self.entry.bind('<Return>',lambda _:self.attempt());self.entry.focus_set()
         self.timer=window.after(60,self.poll)
@@ -204,9 +203,6 @@ def startup_gate(root,store,start):
     def ready():
         root._startup_private_notices=None
         return start()
-    if sys.platform == 'darwin':
-        root.createcommand('::tk::mac::ReopenApplication', root.deiconify)
-        root.createcommand('::tk::mac::Quit', root.destroy)
     return UnlockPanel(root,store,ready,root.destroy)
 
 

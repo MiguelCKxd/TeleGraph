@@ -59,7 +59,7 @@ class DesktopCustomization:
         owner = getattr(self, '_linked_owner', None) or self
         if owner.closing or owner.closed:
             return
-        if question is not None and not messagebox.askyesno(APP_NAME, question, parent=self.root):
+        if not messagebox.askyesno(APP_NAME, question, parent=self.root):
             return
         app_lifecycle.request(mode)
         owner.close()
@@ -70,10 +70,6 @@ class DesktopCustomization:
         self._lifecycle_close('restart', caption(
             'Restart TG-ASCII now? Drafts are saved and sessions are kept.',
             '¿Reiniciar TG-ASCII ahora? Se guardan los borradores y se conservan las sesiones.'))
-
-    def mac_quit(self, *_):
-        self._lifecycle_close('quit', None)
-        return 'break'
 
     def quit_completely(self):
         self._lifecycle_close('quit', caption(

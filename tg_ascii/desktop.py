@@ -266,7 +266,7 @@ class Desktop(DesktopFeatures):
         root.bind('<Map>', lambda event: schedule_read(self, 200) if event.widget is root else None, add='+')
         watch_reading(self)
         if sys.platform == 'darwin':
-            root.bind('<Command-q>', self.mac_quit)
+            root.bind('<Command-q>', lambda _: self.close())
             root.bind('<Command-w>', lambda _: self.close() if linked_owner is not None else self.window_close())
             if linked_owner is None:
                 self._install_macos_dock_handler()

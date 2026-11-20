@@ -224,17 +224,9 @@ class AudioTests(unittest.TestCase):
 class BackgroundTests(unittest.TestCase):
     def test_failed_tray_keeps_window_reachable(self):
         ui = SimpleNamespace(demo=True, closed=False, closing=False, background=SimpleNamespace(ready=False), root=Mock(), status=Mock())
-        with patch('tg_ascii.desktop_tools.sys.platform', 'linux'):
-            DesktopTools.hide_if_tray_ready(ui)
+        DesktopTools.hide_if_tray_ready(ui)
         ui.root.iconify.assert_called_once()
         ui.root.withdraw.assert_not_called()
-
-    def test_mac_x_hides_without_a_tray_icon_or_disconnect(self):
-        ui = SimpleNamespace(demo=True, closed=False, closing=False, background=None, root=Mock(), popups=[], service=Mock())
-        with patch('tg_ascii.desktop_tools.sys.platform', 'darwin'):
-            DesktopTools.hide_if_tray_ready(ui)
-        ui.root.withdraw.assert_called_once()
-        ui.service.close.assert_not_called()
 
     def test_ready_tray_hides_window_without_disconnect(self):
         ui = SimpleNamespace(demo=True, closed=False, closing=False, background=SimpleNamespace(ready=True), root=Mock(), popups=[], service=Mock())
