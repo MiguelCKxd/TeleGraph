@@ -42,14 +42,26 @@ def android_push(context, payload):
     import asyncio
     import json
     hint = json.loads(str(payload))
-    if 'badge_sent_at' in hint:
-        job = asyncio.run_coroutine_threadsafe(core.sync_android_badge(hint['badge_sent_at']), core.loop)
+    from tg_ascii.push_notifications import parse_hint
+    # Jobs enqueued by older versions may still carry a maintenance route.
+    kind = hint.get('loc_key', '')
+    if not isinstance(kind, str) or kind in ('SESSION_REVOKE', 'MESSAGE_MUTED', 'DC_UPDATE') or kind.startswith(
+            ('READ_', 'DELETE_', 'PHONE_CALL')):
+        return 1
+    route = parse_hint(str(payload))
+    if route is not None and route.peer is not None and route.message_id is not None:
+        return core.receive_push_payload(str(payload)).result(timeout=30)
+    if 'badge_sent_at' in hint and not hint.get('loc_key'):
+        account = hint.get('user_id')
+        if 'user_id' in hint and (type(account) is not int or account <= 0):
+            return 1
+        job = asyncio.run_coroutine_threadsafe(core.sync_android_badge(hint['badge_sent_at'], user_id=account), core.loop)
         try:
             return job.result(timeout=90)
         except TimeoutError:
             job.cancel()
             return 2
-    return core.receive_push_payload(str(payload)).result(timeout=30)
+    return 1
 
 
 def android_refresh_token(context, token):

@@ -23,6 +23,7 @@ import time
 import types
 from weakref import WeakValueDictionary
 
+from .siri_vocabulary import SiriVocabulary, suspend_vocabulary
 from .stories import MobileStories
 from .wallpapers import ChatWallpapers
 from .native_logos import NAMES, NATIVE_LOGOS
@@ -139,6 +140,7 @@ class Core(MobileStories, ChatWallpapers):
         self.root = Path(data_dir)
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.environ['TG_ASCII_DATA_DIR'] = str(self.root)
+        self.siri_vocabulary = SiriVocabulary(self.root)
         self.system = system
         self.locale = locale
         # A plain selector loop for the worker thread. On iOS Toga installs an
@@ -246,6 +248,8 @@ class Core(MobileStories, ChatWallpapers):
 
     # -- events to the UI -----------------------------------------------------
     def emit(self, kind, payload=None):
+        if kind in ('stage', 'lock', 'chats'):
+            self.siri_vocabulary.sync(self)
         if self.locked and kind not in ('stage', 'connection', 'lock'):
             return  # Nothing about chats reaches the page while it is locked.
         data = json.dumps({'type': kind, 'data': payload, 'account': None if self.locked else self.account},
@@ -275,6 +279,8 @@ class Core(MobileStories, ChatWallpapers):
                 queue.put_nowait(event)
 
     def set_stage(self, stage, error=''):
+        if stage != 'ready':
+            self.disconnect_tv()
         self.stage, self.error = stage, error
         if stage == 'loading':
             self._push_ready.clear()
@@ -401,6 +407,7 @@ class Core(MobileStories, ChatWallpapers):
     async def shutdown(self):
         """Save the local copy and close the Telegram sessions (never log out)."""
         self.stage = 'loading'
+        self.siri_vocabulary.sync(self)
         self._push_ready.clear()
         await self.cancel_current_voice()
         try:
@@ -823,6 +830,8 @@ class Core(MobileStories, ChatWallpapers):
             else:
                 details = {} if private or not sender_id else {'sender': str(sender_id), 'picture': picture,
                                                                'conversation': conversation}
+                if self.system == 'iOS' and details and type(receipt[2]) is int:
+                    details['message_id'] = receipt[2]
                 result = self.native_notify(key, peer, title or 'TeleGraph', body[:400], count,
                                             policy['sound'] and values.get('notify_sound', True) is not False,
                                             **details)
@@ -1230,13 +1239,10 @@ class Core(MobileStories, ChatWallpapers):
         finally:
             if future.cancelled() and callable(cancel):
                 cancel()
-        from .qr_native import CAMERA_DENIED, PREPARING
+        from .qr_native import CAMERA_DENIED
         if text == CAMERA_DENIED:
             from tg_ascii.i18n import tr
             raise RuntimeError(tr('Camera permission denied.'))
-        if text == PREPARING:
-            from tg_ascii.i18n import tr
-            raise RuntimeError(tr('Preparing the QR scanner. Try again in a few seconds.'))
         return {'text': text or '', 'login': bool(text and login_token(text) is not None)}
 
     async def api_scan_qr_photo(self, key):
@@ -1913,6 +1919,25 @@ class Core(MobileStories, ChatWallpapers):
             self.forget_details()
         return await handler(**params)
 
+    def forget_notification_chats(self, account=None, peer=None):
+        forget = getattr(self, 'native_forget_notification_chats', None)
+        if forget:
+            try:
+                forget(account, peer)
+            except Exception as error:
+                print('remove conversation shortcut:', type(error).__name__)
+
+    async def api_take_notification_chat(self):
+        take = getattr(self, 'native_take_notification_chat', None)
+        if not take or self.locked or self.stage not in ('choose_account', 'ready'):
+            return None
+        route = take()
+        if route and self.lock_record() is None and self.prefs.values.get('notify_preview', True):
+            account, _, peer = str(route).rpartition(':')
+            if account in self.accounts.identities and peer.removeprefix('-').isdigit():
+                return {'account': account, 'peer': int(peer)}
+        return None
+
     async def api_state(self, locale='', window_account=None):
         if locale and not self.locale:
             self.locale = locale
@@ -1985,6 +2010,18 @@ class Core(MobileStories, ChatWallpapers):
         return self.stage
 
     # chats and messages
+    async def api_tv_share(self, peer, account):
+        from .tv import share_chat
+        return await share_chat(self, peer, account)
+
+    async def api_tv_disconnect(self):
+        self.disconnect_tv()
+        return True
+
+    def disconnect_tv(self):
+        if getattr(self, 'tv_link', None):
+            self.tv_link.disconnect()
+
     async def api_chats(self):
         if self.stage == 'ready' and self.backend is not None:
             self.loop.create_task(self.refresh_chats())
@@ -2723,6 +2760,7 @@ class Core(MobileStories, ChatWallpapers):
     async def api_delete_chat(self, peer, everyone=False):
         account, backend, store = self.account, self.backend, self.translations()
         result = await self._action(backend.delete_chat(peer, bool(everyone)))
+        self.forget_notification_chats(account, peer)
         store.discard(peer)
         if self.account != account or self.backend is not backend:
             return result
@@ -2736,6 +2774,7 @@ class Core(MobileStories, ChatWallpapers):
     async def api_leave_chat(self, peer):
         account, backend, store = self.account, self.backend, self.translations()
         result = await self._action(backend.leave_chat(peer))
+        self.forget_notification_chats(account, peer)
         store.discard(peer)
         if self.account != account or self.backend is not backend:
             return result
@@ -2855,6 +2894,7 @@ class Core(MobileStories, ChatWallpapers):
         new = {'salt': salt.hex(), 'hash': self.pin_hash(pin, salt), 'rounds': 200000,
                'biometric': bool(record and record.get('biometric')), 'delay': int((record or {}).get('delay', 0))}
         self.write_lock(new)
+        self.forget_notification_chats()
         await self.sync_push_registration()
         return self.lock_info()
 
@@ -2893,6 +2933,7 @@ class Core(MobileStories, ChatWallpapers):
 
     def lock(self):
         if self.lock_record() is not None and not self.locked:
+            self.disconnect_tv()
             self.locked = True
             if self.voice_recording is not None:
                 self.loop.create_task(self.api_voice_cancel(capture=self.voice_recording['capture']))
@@ -2958,6 +2999,7 @@ class Core(MobileStories, ChatWallpapers):
         info = self.lock_info()
         if info['enabled'] and hidden_at is not None and time.monotonic() - hidden_at >= info['delay']:
             self.lock()
+        self.siri_vocabulary.sync(self, force=True)
         self.sync_incoming_call_notification()
         return {'locked': self.locked, 'biometric': info['biometric'] and info['biometric_available']}
 
@@ -4729,7 +4771,11 @@ class Core(MobileStories, ChatWallpapers):
         from .notification_settings import changes_from_web
         if account != self.account:
             raise ValueError('The active account changed.')
-        await asyncio.wait_for(self.backend.save_notification_settings(target, changes_from_web(changes)), 20)
+        values = changes_from_web(changes)
+        await asyncio.wait_for(self.backend.save_notification_settings(target, values), 20)
+        if values.get('show_previews') is False:
+            peer = int(target) if str(target).removeprefix('-').isdigit() else None
+            self.forget_notification_chats(account, peer)
         return True
 
     async def api_notify_exceptions(self):
@@ -4791,6 +4837,9 @@ class Core(MobileStories, ChatWallpapers):
         return await asyncio.wait_for(self.backend.client(functions.account.SetContactSignUpNotificationRequest(
             silent=not enabled)), 20)
 
+    async def api_siri_chats(self, account, peers=None):
+        return self.siri_vocabulary.configure(self, account, peers)
+
     async def api_settings(self, values=None):
         from tg_ascii.i18n import set_language
         if values:
@@ -4817,6 +4866,8 @@ class Core(MobileStories, ChatWallpapers):
                 self.keep_connected()
                 if not self.prefs.values.get('notifications', True) and self.native_notify_disable:
                     self.native_notify_disable()
+            if changes.get('notify_preview') is False or changes.get('notifications') is False:
+                self.forget_notification_chats()
             if 'notify_preview' in changes or 'notifications' in changes:
                 await self.sync_push_registration()
             self.apply_keep_loaded()
@@ -5029,15 +5080,19 @@ class Core(MobileStories, ChatWallpapers):
         self.emit('chats', [self.chat_json(chat) for chat in self.visible_chats()])
         self.after_login(state)
 
+    @suspend_vocabulary
     async def api_account_select(self, key):
         await self.cancel_current_voice()
         await self.save_snapshot()
         await self.close_call_manager()
+        self.disconnect_tv()
         state = await self.accounts.select(key)
         await self.switch_finished(state)
         return state
 
+    @suspend_vocabulary
     async def api_account_add(self):
+        self.disconnect_tv()
         await self.cancel_current_voice()
         await self.save_snapshot()
         await self.close_call_manager()
@@ -5049,7 +5104,9 @@ class Core(MobileStories, ChatWallpapers):
         self.accounts.reorder(list(keys))
         return self.account_list()
 
+    @suspend_vocabulary
     async def api_logout(self, key):
+        self.disconnect_tv()
         if key == self.account:
             await self.cancel_current_voice()
             await self.close_call_manager()
@@ -5062,6 +5119,8 @@ class Core(MobileStories, ChatWallpapers):
         finally:
             self._push_logging_out.discard(key)
             if key not in self.accounts.entries:
+                self.siri_vocabulary.forget(key)
+                self.forget_notification_chats(key)
                 if (self.root / 'mobile' / 'notification-receipts.sqlite3').is_file():
                     with self.android_receipts() as db:
                         db.execute('DELETE FROM receipts WHERE account=?', (key,))
@@ -5138,42 +5197,77 @@ class Core(MobileStories, ChatWallpapers):
                 await self._push_ready.wait()
         return self.stage != 'error'
 
-    async def sync_android_badge(self, sent_at):
-        """An accountless badge can only wake us. Discover actual unread messages via MTProto."""
+    async def sync_android_badge(self, sent_at, user_id=None):
+        """Discover actual unread messages via MTProto, restricted to the addressed account if present."""
         if not isinstance(sent_at, int) or sent_at <= 0:
             return 1
-        if not await self.prepare_android_push_accounts():
+        if self.stage == 'loading':
+            await self._push_ready.wait()
+        if self.stage == 'error':
             return 2
         if not self.prefs or not self.prefs.values.get('notifications', True):
             return 1
-        # Pinned dialogs precede chronological results. A delayed wake uses the provider's
-        # send time, so the phone may reconnect after a period offline.
-        cutoff = sent_at - 90
+        if user_id is not None:
+            if type(user_id) is not int or user_id <= 0:
+                return 1
+            keys = [key for key, identity in self.accounts.identities.items() if identity == user_id]
+            if len(keys) != 1:
+                return 1
+        else:
+            keys = tuple(self.accounts.identities if self.stage == 'choose_account' else self.push_clients())
+        # WorkManager retries failures. Give every account a chance to post before reporting one.
+        results = await asyncio.gather(*(self._sync_account_badge(key, sent_at - 90, user_id) for key in keys),
+                                       return_exceptions=True)
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
+        return 0 if any(results) else 1
+
+    async def _sync_account_badge(self, key, cutoff, user_id):
+        if self.stage == 'choose_account':
+            await self.connect_saved_push_account(key)
+        if self.stage == 'loading':
+            await self._push_ready.wait()
+        client = self.push_clients().get(key)
+        if client is None or (user_id is not None and self.accounts.identities.get(key) != user_id):
+            return False
         delivered = False
-        for key, client in self.push_clients().items():
-            async for item in client.iter_dialogs():
-                raw = item.message
-                if raw is None or raw.date is None:
+        async for item in client.iter_dialogs():
+            raw = item.message
+            if raw is None or raw.date is None:
+                continue
+            if raw.date.timestamp() < cutoff:
+                if item.pinned or getattr(item.dialog, 'folder', None) is not None:
                     continue
-                if raw.date.timestamp() < cutoff:
-                    if item.pinned or getattr(item.dialog, 'folder', None) is not None:
-                        continue
-                    break
-                if (not item.unread_count or raw.out or raw.id <= item.dialog.read_inbox_max_id
-                        or self.push_clients().get(key) is not client):
+                break
+            read_through = item.dialog.read_inbox_max_id
+            if not item.unread_count or raw.id <= read_through:
+                continue
+            # A newer outgoing message or call can conceal the incoming message that woke us.
+            if raw.out or getattr(raw, 'action', None) is not None:
+                async for earlier in client.iter_messages(item.input_entity, offset_id=raw.id, min_id=read_through):
+                    if earlier.date is None or earlier.date.timestamp() < cutoff:
+                        break
+                    if not earlier.out and getattr(earlier, 'action', None) is None:
+                        raw = earlier
+                        break
+                if raw.out or getattr(raw, 'action', None) is not None:
                     continue
-                ident = (key, item.id, raw.id)
-                if ident in self.recent_incoming_messages:
-                    job = self.recent_incoming_messages[ident]
-                    if job is not None:
-                        await asyncio.shield(job)
-                    continue
-                service = self.accounts.services[key]
-                # Dialog state already includes this message. Posting directly avoids incrementing
-                # the local unread counter a second time when a socket update also arrives.
-                if await self.notify(key, item.id, service.backend.message(raw)):
-                    delivered = True
-        return 0 if delivered else 1
+            if (self.push_clients().get(key) is not client
+                    or (user_id is not None and self.accounts.identities.get(key) != user_id)):
+                continue
+            ident = (key, item.id, raw.id)
+            if ident in self.recent_incoming_messages:
+                job = self.recent_incoming_messages[ident]
+                if job is not None:
+                    await asyncio.shield(job)
+                continue
+            service = self.accounts.services[key]
+            # Dialog state already includes this message. Posting directly avoids incrementing
+            # the local unread counter a second time when a socket update also arrives.
+            if await self.notify(key, item.id, service.backend.message(raw)):
+                delivered = True
+        return delivered
 
     async def refresh_android_push_token(self, token):
         if not await self.prepare_android_push_accounts():
@@ -5350,6 +5444,7 @@ class Core(MobileStories, ChatWallpapers):
         self.forget_media_index()
         return human_size(freed)
 
+    @suspend_vocabulary
     async def api_delete_all(self):
         from tg_ascii.app_data import safe_to_wipe, wipe
         for key in list(self.accounts.entries):
@@ -5360,9 +5455,11 @@ class Core(MobileStories, ChatWallpapers):
         await self.accounts.close()
         if safe_to_wipe(self.root):
             await asyncio.to_thread(wipe, self.root)
+        self.siri_vocabulary.accounts.clear()
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.loop.create_task(self.boot())
         return True
+
 
 
 UNLOCKED_METHODS = {'state', 'strings', 'languages', 'unlock', 'lock_now', 'unlock_biometric', 'lock_info',

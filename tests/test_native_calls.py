@@ -25,7 +25,8 @@ class MobileCallTests(IsolatedAsyncioTestCase):
         for event in ('connection_change', 'signaling_data', 'remote_source_change', 'frames', 'update_emojis'):
             setattr(lib, f'ntg_on_{event}_callback', Mock(return_value=0))
         state, signal, frames, emojis, audio = (Mock() for _ in range(5))
-        engine = ios_calls.IOSCallEngine(state, signal, frames, emojis, lib=lib, audio_session=audio)
+        voice = Mock()
+        engine = ios_calls.IOSCallEngine(state, signal, frames, emojis, lib=lib, audio_session=audio, voice_io=voice)
         engine.audio_active = True
         try:
             callback = lib.ntg_on_frames_callback.call_args.args[1]
@@ -33,6 +34,10 @@ class MobileCallTests(IsolatedAsyncioTestCase):
             values = (ios_calls.Frame * 1)(ios_calls.Frame(1, C.addressof(payload), 6,
                                                           ios_calls.FrameData(0, 1, 2, 2)))
             callback(7, 42, ios_calls.PLAYBACK, ios_calls.CAMERA, values, 1, None)
+            callback(7, 42, ios_calls.PLAYBACK, 0, values, 1, None)
+            voice.appendBytes_length_.assert_called_once_with(C.addressof(payload), 6)
+            callback(7, 42, ios_calls.CAPTURE, 0, values, 1, None)
+            self.assertEqual(voice.appendBytes_length_.call_count, 1)
             payload[0] = b'X'
             peer, mode, device, received = frames.call_args.args
             self.assertEqual((peer, mode, device), (42, 'PLAYBACK', 'CAMERA'))
@@ -43,9 +48,55 @@ class MobileCallTests(IsolatedAsyncioTestCase):
             self.assertEqual((frame.timestamp, frame.rotation, frame.width, frame.height), (10, 3, 2, 2))
         finally:
             await engine.stop(42)
+        voice.stop.assert_called_once_with()
         lib.ntg_stop.assert_called_once_with(7, 42)
         lib.ntg_instance_destroy.assert_called_once_with(7)
         audio.assert_called_once_with(False)
+
+    async def test_ios_routes_remote_microphone_track_to_selected_output(self):
+        from tg_ascii_mobile import ios_calls
+
+        streams = {}
+        def record_sources(handle, peer, mode, media):
+            streams[mode] = (media.microphone.contents.input if media.microphone else None,
+                             media.speaker.contents.input if media.speaker else None)
+            return 0
+
+        engine = object.__new__(ios_calls.IOSCallEngine)
+        engine.audio_active = True
+        engine.voice_io = None
+        engine.handle = 7
+        engine.worker = None
+        engine.lib = SimpleNamespace(ntg_set_stream_sources=record_sources, ntg_unmute=Mock(return_value=0))
+        with patch.object(ios_calls, 'devices', return_value={'microphone': [], 'speaker': []}):
+            await engine.media(42, {'microphone': 'input', 'speaker': 'output'}, False)
+        self.assertEqual(streams[ios_calls.PLAYBACK], (b'output', None))
+        self.assertEqual(streams[ios_calls.CAPTURE], (b'input', None))
+
+    async def test_ios_native_audio_uses_external_pcm_for_capture_and_playback(self):
+        import ctypes as C
+        from tg_ascii_mobile import ios_calls
+
+        streams = {}
+        def record_sources(handle, peer, mode, media):
+            track = media.microphone.contents
+            streams[mode] = (track.source, track.rate, track.channels)
+            return 0
+
+        engine = object.__new__(ios_calls.IOSCallEngine)
+        engine.audio_active = True
+        engine.voice_io = Mock()
+        engine.handle, engine.worker = 7, None
+        sender = C.CFUNCTYPE(C.c_int)(lambda: 0)
+        engine.lib = SimpleNamespace(ntg_set_stream_sources=record_sources,
+                                     ntg_send_external_frame=sender, ntg_mute=Mock(return_value=0))
+        with patch.object(ios_calls, 'devices', return_value={}):
+            await engine.media(42, {}, False, muted=True)
+        expected = (ios_calls.EXTERNAL_SOURCE, 48000, 1)
+        self.assertEqual(streams, {ios_calls.PLAYBACK: expected, ios_calls.CAPTURE: expected})
+        engine.voice_io.startWithHandle_peer_sender_.assert_called_once_with(
+            7, 42, C.cast(sender, C.c_void_p).value)
+        self.assertEqual(engine.lib.ntg_mute.call_count, 1)
 
     async def asyncSetUp(self):
         folder = TemporaryDirectory()

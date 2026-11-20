@@ -4,8 +4,8 @@
 # Also writes the publisher's app credentials (never printed, never committed).
 set -euo pipefail
 here=${0:A:h:h}
-desktop=${TG_ASCII_DESKTOP:-$HOME/Developer/tg-ascii/TG-ASCII-1.3.2}
-ref=${TG_ASCII_CORE_REF:-version-1.5}
+desktop=${TG_ASCII_DESKTOP:-$here/../escritorio}
+ref=${TG_ASCII_CORE_REF:-f88e979729126cabd26187d6d0b3ce6ecb83cafa}
 rm -rf "$here/src/tg_ascii"
 git -C "$desktop" archive "$ref" tg_ascii | tar -x -C "$here/src"
 git -C "$desktop" rev-parse --short "$ref" > "$here/src/tg_ascii/CORE_REVISION"
@@ -13,8 +13,9 @@ git -C "$desktop" rev-parse --short "$ref" > "$here/src/tg_ascii/CORE_REVISION"
 /usr/bin/python3 "$here/tools/prune_core.py" "$here/src/tg_ascii"
 umask 077
 /usr/bin/python3 - "$here/src/tg_ascii/_app_credentials.py" <<'PY'
-import json, pathlib, sys
-data = json.loads((pathlib.Path.home() / '.tg-ascii-lite' / 'api.json').read_text())
+import json, os, pathlib, sys
+identity = os.environ.get('TELEGRAPH_API_CONFIG') or pathlib.Path.home() / '.tg-ascii-lite' / 'api.json'
+data = json.loads(pathlib.Path(identity).expanduser().read_text())
 api_id, api_hash = int(data['id']), str(data['hash'])
 assert api_id > 0 and len(api_hash) == 32
 pathlib.Path(sys.argv[1]).write_text(f'API_ID = {api_id}\nAPI_HASH = {api_hash!r}\n')

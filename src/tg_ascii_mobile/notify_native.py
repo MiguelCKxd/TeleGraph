@@ -10,13 +10,13 @@ def notification_id(account, peer):
     return zlib.crc32(f'{account}:{peer}'.encode()) & 0x7FFFFFFF
 
 
-def android_launch_intent(activity):
+def android_launch_intent(activity, conversation=None, request_code=0):
     from android.app import PendingIntent
     from android.content import Intent
     from org.tgas.launcher import LauncherActivity
-    intent = LauncherActivity.mainIntent(activity)
+    intent = LauncherActivity.conversationIntent(activity, conversation) if conversation else LauncherActivity.mainIntent(activity)
     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
-    return PendingIntent.getActivity(activity, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)
+    return PendingIntent.getActivity(activity, request_code, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)
 
 
 def android_sender_bitmap(activity, picture):
@@ -84,6 +84,12 @@ def android_message_poster(activity):
         builder.setSmallIcon(jclass('org.tgas.tg_ascii_mobile.R$drawable').ic_telegraph_notification)
         builder.setContentTitle(title).setContentText(body).setAutoCancel(True)
         builder.setStyle(BigText().bigText(body)).setContentIntent(android_launch_intent(activity))
+        if not sender and Build.VERSION.SDK_INT >= 30:
+            from org.tgas.launcher import LauncherActivity
+            try:
+                LauncherActivity.forgetConversations(activity, str(account), str(peer))
+            except Exception as error:
+                print('remove conversation shortcut:', type(error).__name__)
         bitmap = None
         if picture:
             try:
@@ -98,10 +104,22 @@ def android_message_poster(activity):
             contact = person().setName(title).setKey(f'{account}:{sender}')
             if bitmap is not None:
                 contact.setIcon(jclass('android.graphics.drawable.Icon').createWithBitmap(bitmap))
+            contact = contact.build()
+            if Build.VERSION.SDK_INT >= 30:
+                from org.tgas.launcher import LauncherActivity
+                try:
+                    shortcut = LauncherActivity.publishConversation(
+                        activity, str(account), int(peer), conversation if peer < 0 and conversation else title,
+                        contact, contact.getIcon())
+                    if shortcut:
+                        builder.setShortcutId(shortcut)
+                        builder.setContentIntent(android_launch_intent(activity, shortcut, notification_id(account, peer)))
+                except Exception as error:
+                    print('conversation shortcut:', type(error).__name__)
             style = jclass('android.app.Notification$MessagingStyle')(person().setName('TeleGraph').build())
             if conversation:
                 style.setConversationTitle(conversation).setGroupConversation(peer < 0)
-            style.addMessage(body, System.currentTimeMillis(), contact.build())
+            style.addMessage(body, System.currentTimeMillis(), contact)
             builder.setStyle(style)
         builder.setCategory('msg').setGroup(f'tgas-{account}')
         if count > 1:
@@ -311,6 +329,12 @@ def install_android(app, activity):
     core = app.core
     core.native_notify = android_message_poster(activity)
     core.native_notify_clear = clear
+    from org.tgas.launcher import LauncherActivity
+    LauncherActivity.setConversationListener(Action(lambda: core.loop.call_soon_threadsafe(
+        core.emit, 'notification_route', {})))
+    core.native_take_notification_chat = lambda: LauncherActivity.takeConversation(activity)
+    core.native_forget_notification_chats = lambda account, peer: LauncherActivity.forgetConversations(
+        activity, None if account is None else str(account), None if peer is None else str(peer))
     core.native_incoming_call = incoming_call
     core.native_telecom = telecom_state
     core.native_telecom_outgoing = authorize_outgoing
@@ -421,6 +445,11 @@ def install_ios(app):
 
     load_library('UserNotifications')
     center = ObjCClass('UNUserNotificationCenter').currentNotificationCenter()
+    carplay = bool(ObjCClass('NSBundle').mainBundle.objectForInfoDictionaryKey_('TeleGraphCarPlayEnabled'))
+    if carplay:
+        category = ObjCClass('UNNotificationCategory').categoryWithIdentifier_actions_intentIdentifiers_options_(
+            'TeleGraphMessage', [], ['INSearchForMessagesIntent'], 1 << 1)  # allowInCarPlay
+        center.setNotificationCategories_(ObjCClass('NSSet').setWithObject_(category))
     keep = set()
 
     class Presenter(NSObject):
@@ -457,12 +486,12 @@ def install_ios(app):
                             pass
                 block = Block(answered, None, ctypes.c_bool, objc_id)
                 keep.add(block)
-                center.requestAuthorizationWithOptions_completionHandler_((1 << 0) | (1 << 1) | (1 << 2), block)  # badge, sound, alert
+                center.requestAuthorizationWithOptions_completionHandler_(7 | ((1 << 3) if carplay else 0), block)
             except Exception as exc:
                 print('notify:', exc)
         app.on_main_thread(run)
 
-    async def post(account, peer, title, body, count, sound, *, sender=None, picture=None, conversation=''):
+    async def post(account, peer, title, body, count, sound, *, sender=None, picture=None, conversation='', message_id=None):
         import asyncio
         loop = asyncio.get_running_loop()
         accepted = loop.create_future()
@@ -480,6 +509,9 @@ def install_ios(app):
         content.title = title
         content.body = body
         content.threadIdentifier = f'{account}:{peer}'
+        if carplay and sender and message_id and (recipient := core.accounts.identities.get(account)):
+            content.categoryIdentifier = 'TeleGraphMessage'
+            content.userInfo = {'TeleGraphMessageRoute': [recipient, peer, message_id]}
         if sound:
             content.sound = ObjCClass('UNNotificationSound').defaultSound
         if sender:

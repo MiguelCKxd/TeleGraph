@@ -10,6 +10,9 @@ from functools import lru_cache
 import unicodedata
 
 MOBILE = {
+    'Nombres de chats para Siri': 'Chat names for Siri',
+    'Siri podrá usar los nombres de los chats que selecciones en esta cuenta.': 'Siri can use the names of the chats you select in this account.',
+    'Desmarcar todos': 'Deselect all',
     'Nombre visible de la app': 'App display name',
     'Color de burbujas recibidas': 'Incoming bubble color',
     'Color de burbujas enviadas': 'Outgoing bubble color',

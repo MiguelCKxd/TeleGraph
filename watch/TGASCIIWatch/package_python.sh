@@ -4,6 +4,18 @@ set -e
 support=WatchSupport/Python.xcframework
 source "$PROJECT_DIR/$support/build/utils.sh"
 
+# Keep interpreted resources in zipimport archives. The watchOS validator
+# attempts to validate individual .py resources as unsigned executables.
+pack_modules() {
+    local source_dir=$1 filename=$2
+    shift 2
+    local output="${TARGET_TEMP_DIR:?}/$filename"
+    rm -f "$output"
+    # ZIP_STORED lets CPython import encodings before native zlib is loaded.
+    (cd "$source_dir" && /usr/bin/zip -q -0 -X -r "$output" . "$@")
+    mv "$output" "$CODESIGNING_FOLDER_PATH/$filename"
+}
+
 install_stdlib "$support"
 for stdlib in "${CODESIGNING_FOLDER_PATH:?}"/python/lib/python3.*; do
     [[ -d "$stdlib/lib-dynload" ]] || exit 1
@@ -16,6 +28,11 @@ for stdlib in "${CODESIGNING_FOLDER_PATH:?}"/python/lib/python3.*; do
         rm -rf "$CODESIGNING_FOLDER_PATH/Frameworks/$module.framework"
     done
     process_dylibs "$support" "python/lib/${stdlib##*/}/lib-dynload"
+    # The native loader reads .fwork pointers from the filesystem.
+    pack_modules "$stdlib" python-stdlib.zip -x 'lib-dynload/' 'lib-dynload/*'
+    find "$stdlib" -mindepth 1 -maxdepth 1 ! -name lib-dynload -exec rm -rf {} +
 done
-process_dylibs "$support" app
-process_dylibs "$support" app_packages
+for directory in app app_packages; do
+    pack_modules "$CODESIGNING_FOLDER_PATH/$directory" "$directory.zip"
+    rm -rf "$CODESIGNING_FOLDER_PATH/$directory"
+done

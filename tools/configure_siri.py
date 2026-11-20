@@ -9,6 +9,10 @@ def configure_siri(xcode):
     phone = xcode / 'TGASCII'
     source = Path(__file__).parent / 'ios' / 'TeleGraphSiri.m'
     shutil.copyfile(source, phone / source.name)
+    vocabulary = source.with_name('TeleGraphSiriVocabulary.m')
+    shutil.copyfile(vocabulary, phone / vocabulary.name)
+    with (phone / source.name).open('a') as output:
+        output.write('\n#import "TeleGraphSiriVocabulary.m"\n')
     main = phone / 'main.m'
     include = '#import "TeleGraphSiri.m"'
     text = main.read_text()
@@ -18,7 +22,14 @@ def configure_siri(xcode):
     info = plistlib.loads(plist.read_bytes())
     actions = {'INSendMessageIntent', 'INSearchForMessagesIntent', 'INSetMessageAttributeIntent'}
     info['INIntentsSupported'] = sorted(actions | set(info.get('INIntentsSupported', ())))
+    # The app's own lock (core.locked) does not cover a locked iPhone: without this key Siri would
+    # read, send or mark TeleGraph messages from the lock screen. iOS asks to unlock first.
+    info['INIntentsRestrictedWhileLocked'] = sorted(actions | set(info.get('INIntentsRestrictedWhileLocked', ())))
     info['NSSiriUsageDescription'] = 'Allow Siri to send messages and read messages from your TeleGraph account when you ask.'
+    if os.environ.get('TELEGRAPH_CARPLAY') == '1':
+        info['TeleGraphCarPlayEnabled'] = True
+    else:
+        info.pop('TeleGraphCarPlayEnabled', None)
     plist.write_bytes(plistlib.dumps(info))
     path = xcode / 'TeleGraphPush.entitlements'
     entitlements = plistlib.loads(path.read_bytes())

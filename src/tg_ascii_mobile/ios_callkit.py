@@ -64,7 +64,7 @@ def install(app, configure_audio):
         if call.request is not None and not call.request.done():
             call.request.set_exception(RuntimeError('The call ended'))
         if report:
-            provider.reportCallWithUUID_endedAtDate_reason_(call.uuid, NSDate.date, reason)
+            provider.reportCallWithUUID_endedAtDate_reason_(call.uuid, NSDate.alloc().init(), reason)
 
     def run(action, name):
         call = current
@@ -181,7 +181,7 @@ def install(app, configure_audio):
             if current is not None or not token or token == last_reported or phase != 'incoming':
                 return
             last_reported = token
-            call = current = IncomingCall(token, NSUUID.UUID, Future())
+            call = current = IncomingCall(token, NSUUID.alloc().init(), Future())
             report = CXCallUpdate.alloc().init()
             report.remoteHandle = CXHandle.alloc().initWithType_value_(1, str(snapshot['peer']))
             report.localizedCallerName = snapshot.get('name') or tr('Call')
