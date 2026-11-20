@@ -123,17 +123,8 @@ def _update_link(path, executable, icon):
                 changed = True
         if changed:
             _check(_method(file, 6, C.c_wchar_p, C.c_int)(file, str(path), 1))
+            C.windll.shell32.SHChangeNotify(0x2000, 0x2005, C.c_wchar_p(str(path)), None)
         return changed
-
-
-def _announce(paths):
-    """Explorer gives a shortcut a per-instance icon. Once the pinned button has shown one, a plain
-    update notice for that link is ignored until Explorer drops its icon cache, so going back to a
-    logo kept the old image for minutes. Dropping the cache first lets the update notices apply."""
-    if paths:
-        C.windll.shell32.SHChangeNotify(0x08000000, 0x1000, None, None)  # SHCNE_ASSOCCHANGED, SHCNF_FLUSH
-    for path in paths:
-        C.windll.shell32.SHChangeNotify(0x2000, 0x2005, C.c_wchar_p(str(path)), None)  # SHCNE_UPDATEITEM
 
 
 def update_shortcuts(executable, icon):
@@ -152,16 +143,13 @@ def update_shortcuts(executable, icon):
         shortcuts = [d / name for d in folders for name in ('TeleGraph.lnk', 'TG-ASCII.lnk')]
         if pins.is_dir():
             shortcuts.extend(pins.glob('*.lnk'))
-        changed = []
         for path in shortcuts:
             if path.is_file():
                 try:
-                    if _update_link(path, executable, icon):
-                        changed.append(path)
+                    _update_link(path, executable, icon)
                 except OSError:
                     # A removed or read-only shortcut must not block the other surfaces.
                     continue
-        _announce(changed)
     finally:
         if status >= 0:
             C.windll.ole32.CoUninitialize()

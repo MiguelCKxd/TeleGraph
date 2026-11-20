@@ -152,11 +152,8 @@ def stop(app):
     for name in ('_read_check_job', '_read_watch_job'):
         job = getattr(app, name, None)
         if job is not None:
+            app.root.after_cancel(job)
             setattr(app, name, None)
-            try:
-                app.root.after_cancel(job)
-            except (tk.TclError, AttributeError):
-                pass  # The window was already destroyed: its timers went with it.
 
 
 def at_bottom(app):
