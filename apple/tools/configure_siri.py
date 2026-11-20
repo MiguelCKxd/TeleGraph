@@ -18,6 +18,9 @@ def configure_siri(xcode):
     info = plistlib.loads(plist.read_bytes())
     actions = {'INSendMessageIntent', 'INSearchForMessagesIntent', 'INSetMessageAttributeIntent'}
     info['INIntentsSupported'] = sorted(actions | set(info.get('INIntentsSupported', ())))
+    # The app's own lock (core.locked) does not cover a locked iPhone: without this key Siri would
+    # read, send or mark TeleGraph messages from the lock screen. iOS asks to unlock first.
+    info['INIntentsRestrictedWhileLocked'] = sorted(actions | set(info.get('INIntentsRestrictedWhileLocked', ())))
     info['NSSiriUsageDescription'] = 'Allow Siri to send messages and read messages from your TeleGraph account when you ask.'
     plist.write_bytes(plistlib.dumps(info))
     path = xcode / 'TeleGraphPush.entitlements'

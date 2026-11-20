@@ -7,10 +7,10 @@ Esta rama reúne la interfaz de Android, iPhone y iPad, la app de Wear OS y el c
 El proyecto utiliza Briefcase, un entorno de Python para el núcleo, Android SDK y Xcode. El núcleo de escritorio se obtiene desde un clon Git. Desde el directorio que contiene los dos clones, prepara las rutas.
 
 ```sh
-git clone --branch escritorio-v3.0.1 https://github.com/MiguelCKxd/TeleGraph escritorio
-git clone --branch apple-v3.0.1-build1 https://github.com/MiguelCKxd/TeleGraph movil
+git clone --branch nucleo-movil-v3.0.1 https://github.com/MiguelCKxd/TeleGraph escritorio
+git clone --branch apple-v3.0.1-build2 https://github.com/MiguelCKxd/TeleGraph movil
 export TG_ASCII_DESKTOP="$PWD/escritorio"
-export TG_ASCII_CORE_REF=escritorio-v3.0.1
+export TG_ASCII_CORE_REF=nucleo-movil-v3.0.1
 cd movil
 ```
 
