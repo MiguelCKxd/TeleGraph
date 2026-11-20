@@ -1413,5 +1413,6 @@
   "Keep more loaded": "আরও কনটেন্ট লোড করে রাখুন",
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph একটি ইনস্টল করা মেসেজিং অ্যাপের মতো কাজ করে: প্রোফাইল ছবি, সাম্প্রতিক বার্তা, প্রিভিউ ও যোগাযোগের তথ্য এই ডিভাইসে প্রস্তুত থাকে এবং স্ক্রিন সঙ্গে সঙ্গে খোলে। শুধু সত্যিই নতুন জিনিস আবার চাওয়া হয়। বেশি স্টোরেজ ও মেমরি লাগে।",
   "Prepare content at startup": "শুরুতে কনটেন্ট প্রস্তুত করুন",
-  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "চ্যাট তালিকা লোড হলে প্রোফাইল ছবি, প্রথম চ্যাটগুলোর সাম্প্রতিক বার্তা, তাদের প্রিভিউ ও ইমোজি ব্যাকগ্রাউন্ডে প্রস্তুত হয়। শুরুতে বেশি ডেটা ও ব্যাটারি লাগে।"
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "চ্যাট তালিকা লোড হলে প্রোফাইল ছবি, প্রথম চ্যাটগুলোর সাম্প্রতিক বার্তা, তাদের প্রিভিউ ও ইমোজি ব্যাকগ্রাউন্ডে প্রস্তুত হয়। শুরুতে বেশি ডেটা ও ব্যাটারি লাগে।",
+  "Accent color": "হাইলাইটের রং"
 }

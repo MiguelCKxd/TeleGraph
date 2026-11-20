@@ -19,6 +19,39 @@ def android_launch_intent(activity):
     return PendingIntent.getActivity(activity, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)
 
 
+def android_sender_bitmap(activity, picture):
+    """Crop the sender thumbnail to a circle and overlay the current launcher badge."""
+    from android.graphics import Bitmap, BitmapFactory, BitmapShader, Canvas, Paint
+    from android.content import Intent
+    from java import jclass
+
+    source = BitmapFactory.decodeByteArray(picture, 0, len(picture))
+    if source is None:
+        return None
+    size = min(source.getWidth(), source.getHeight(), 256)
+    result = Bitmap.createBitmap(size, size, jclass('android.graphics.Bitmap$Config').ARGB_8888)
+    canvas = Canvas(result)
+    paint = Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG)
+    clamp = jclass('android.graphics.Shader$TileMode').CLAMP
+    shader = BitmapShader(source, clamp, clamp)
+    from android.graphics import Matrix
+    scale = size / min(source.getWidth(), source.getHeight())
+    matrix = Matrix()
+    matrix.setScale(scale, scale)
+    matrix.postTranslate((size - source.getWidth() * scale) / 2, (size - source.getHeight() * scale) / 2)
+    shader.setLocalMatrix(matrix)
+    paint.setShader(shader)
+    canvas.drawCircle(size / 2, size / 2, size / 2, paint)
+    manager = activity.getPackageManager()
+    home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(activity.getPackageName())
+    match = manager.resolveActivity(home, 0)
+    badge = match.loadIcon(manager) if match is not None else manager.getApplicationIcon(activity.getPackageName())
+    edge = max(1, round(size * .34))
+    badge.setBounds(size - edge, size - edge, size, size)
+    badge.draw(canvas)
+    return result
+
+
 def android_message_poster(activity):
     from android.app import NotificationManager
     from android.content import Context
@@ -43,7 +76,7 @@ def android_message_poster(activity):
             return ident
         return channel_id
 
-    def post(account, peer, title, body, count, sound):
+    def post(account, peer, title, body, count, sound, *, sender=None, picture=None, conversation=''):
         ident = ensure_channel(sound)
         builder = Builder(activity, ident) if Build.VERSION.SDK_INT >= 26 else Builder(activity)
         if Build.VERSION.SDK_INT < 26 and sound:
@@ -51,6 +84,25 @@ def android_message_poster(activity):
         builder.setSmallIcon(jclass('org.tgas.tg_ascii_mobile.R$drawable').ic_telegraph_notification)
         builder.setContentTitle(title).setContentText(body).setAutoCancel(True)
         builder.setStyle(BigText().bigText(body)).setContentIntent(android_launch_intent(activity))
+        bitmap = None
+        if picture:
+            try:
+                bitmap = android_sender_bitmap(activity, picture)
+            except Exception as error:
+                print('notification thumbnail:', type(error).__name__)
+            if bitmap is not None:
+                builder.setLargeIcon(bitmap)
+        if sender and Build.VERSION.SDK_INT >= 28:
+            from java.lang import System
+            person = jclass('android.app.Person$Builder')
+            contact = person().setName(title).setKey(f'{account}:{sender}')
+            if bitmap is not None:
+                contact.setIcon(jclass('android.graphics.drawable.Icon').createWithBitmap(bitmap))
+            style = jclass('android.app.Notification$MessagingStyle')(person().setName('TeleGraph').build())
+            if conversation:
+                style.setConversationTitle(conversation).setGroupConversation(peer < 0)
+            style.addMessage(body, System.currentTimeMillis(), contact.build())
+            builder.setStyle(style)
         builder.setCategory('msg').setGroup(f'tgas-{account}')
         if count > 1:
             builder.setNumber(count)
@@ -410,7 +462,7 @@ def install_ios(app):
                 print('notify:', exc)
         app.on_main_thread(run)
 
-    async def post(account, peer, title, body, count, sound):
+    async def post(account, peer, title, body, count, sound, *, sender=None, picture=None, conversation=''):
         import asyncio
         loop = asyncio.get_running_loop()
         accepted = loop.create_future()
@@ -430,6 +482,25 @@ def install_ios(app):
         content.threadIdentifier = f'{account}:{peer}'
         if sound:
             content.sound = ObjCClass('UNNotificationSound').defaultSound
+        if sender:
+            try:
+                load_library('Intents')
+                identity = f'{account}:{sender}'
+                handle = ObjCClass('INPersonHandle').alloc().initWithValue_type_(identity, 0)
+                image = ObjCClass('INImage').imageWithImageData_(picture) if picture else None
+                person = ObjCClass('INPerson').alloc().initWithPersonHandle_nameComponents_displayName_image_contactIdentifier_customIdentifier_(
+                    handle, None, title, image, None, identity)
+                group = ObjCClass('INSpeakableString').alloc().initWithSpokenPhrase_(conversation) if conversation else None
+                intent = ObjCClass('INSendMessageIntent').alloc().initWithRecipients_outgoingMessageType_content_speakableGroupName_conversationIdentifier_serviceName_sender_attachments_(
+                    None, 1, None, group, f'{account}:{peer}', 'TeleGraph', person, None)
+                interaction = ObjCClass('INInteraction').alloc().initWithIntent_response_(intent, None)
+                interaction.direction = 2  # INInteractionDirectionIncoming
+                interaction.donateInteractionWithCompletion_(None)
+                updated = content.contentByUpdatingWithProvider_error_(intent, None)
+                if updated is not None:
+                    content = updated
+            except Exception as error:
+                print('communication notification:', type(error).__name__)
         request = ObjCClass('UNNotificationRequest').requestWithIdentifier_content_trigger_(
             f'tgas-{notification_id(account, peer)}', content, None)
         block = Block(submitted, None, objc_id)
@@ -463,6 +534,17 @@ def install_ios(app):
 
     core = app.core
     core.native_notify = post
+    from .ios_notice_cache import NoticeCache
+    bundle = str(ObjCClass('NSBundle').mainBundle.bundleIdentifier)
+    container = ObjCClass('NSFileManager').defaultManager.containerURLForSecurityApplicationGroupIdentifier_(
+        f'group.{bundle}')
+    if container is not None:
+        try:
+            core.ios_notice_cache = NoticeCache(str(container.path))
+        except OSError as error:
+            print('notification group:', type(error).__name__)
+        else:
+            core.loop.call_soon_threadsafe(core.ios_notice_cache.sync, core)
     core.native_notify_clear = clear
     def disable_remote():
         def run():

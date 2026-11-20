@@ -18,7 +18,7 @@ VARIANTS = {
     'tg-gr-upper': 'TG-GR', 'tele-graph-title': 'Tele-Graph', 'tele-graph-upper': 'TELE-GRAPH',
     'tele-graph-lower': 'tele-graph', 't-graph-lower-suffix': 'T-graph', 't-graph-title': 'T-Graph',
     'tgraph-title': 'TGraph', 'tgraph-lower': 't-graph', 'tgraph-joined-lower': 'tgraph',
-    'telegraph-upper': 'TELEGRAPH',
+    'telegraph-upper': 'TELEGRAPH', 'telegraph-capitalized': 'Telegraph',
     CLASSIC_MARK: 'Tg-As',
 }
 

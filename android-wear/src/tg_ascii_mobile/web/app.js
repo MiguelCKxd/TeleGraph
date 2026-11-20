@@ -110,7 +110,7 @@ const state = {
 
 // -- plumbing -----------------------------------------------------------------
 // Calls that create something are not repeated (a lost answer could mean done).
-const NO_RETRY = new Set(['voice_start', 'voice_stop', 'notify_reset', 'group_call_action', 'group_call_manage', 'send', 'send_files', 'send_voice', 'send_sticker', 'send_poll', 'poll_answer', 'poll_close', 'send_contact', 'forward', 'forward_many', 'create_group', 'create_community', 'member_admin', 'member_restrict', 'members_add', 'set_discussion', 'group_change', 'call_action', 'secret_start', 'secret_ttl', 'secret_rekey', 'secret_screenshot', 'secret_discard']);
+const NO_RETRY = new Set(['apply_chat_wallpaper', 'publish_story', 'voice_start', 'voice_stop', 'notify_reset', 'group_call_action', 'group_call_manage', 'send', 'send_files', 'send_voice', 'send_sticker', 'send_poll', 'poll_answer', 'poll_close', 'send_contact', 'forward', 'forward_many', 'create_group', 'create_community', 'member_admin', 'member_restrict', 'members_add', 'set_discussion', 'group_change', 'call_action', 'secret_start', 'secret_ttl', 'secret_rekey', 'secret_screenshot', 'secret_discard']);
 async function api(method, params = {}) {
   let response;
   for (let attempt = 0; ; attempt++) {
@@ -297,25 +297,6 @@ function backdrop(name) {
   const veil = 'color-mix(in srgb, var(--bg) ' + dim + '%, transparent)';
   return 'linear-gradient(' + veil + ', ' + veil + '), url("' + backgroundUrl(name) + '")';
 }
-function chatBackdrop(peer) {
-  const look = state.appearance || {};
-  const chosen = (look.chats || {})[String(peer)];
-  if (!chosen) {
-    // The chat's Telegram wallpaper (set from another device or by the other person).
-    const server = (state.serverBackgrounds || {})[peer];
-    if (server === undefined && state.connection !== 'offline') {
-      (state.serverBackgrounds = state.serverBackgrounds || {})[peer] = null;
-      api('server_background', { peer }).then((name) => {
-        state.serverBackgrounds[peer] = name || null;
-        const scroll = document.getElementById('scroll');
-        if (name && scroll && state.open && state.open.peer === peer) scroll.style.backgroundImage = chatBackdrop(peer);
-      }, () => {});
-    }
-    return server ? backdrop(server) : backdrop('');
-  }
-  return chosen === 'interface' ? backdrop(look.background) : backdrop(chosen);
-}
-
 function applySettings() {
   const settings = state.settings || {};
   const theme = settings.theme === 'system'
@@ -335,6 +316,22 @@ function applySettings() {
     style.setProperty('--strong', settings.accent_color);
     style.setProperty('--selected', blend(colors.bg, settings.accent_color, .35));
   } else style.removeProperty('--accent');
+  document.title = settings.app_display_name || 'TeleGraph';
+  for (const direction of ['in', 'out']) {
+    const color = settings['bubble_' + direction + '_color'];
+    const prefix = '--bubble-' + direction;
+    document.documentElement.toggleAttribute('data-bubble-' + direction, !!color);
+    if (!color) {
+      style.removeProperty(prefix);
+      style.removeProperty(prefix + '-ink');
+      continue;
+    }
+    const rgb = color.slice(1).match(/../g).map(hex => parseInt(hex, 16) / 255)
+      .map(c => c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
+    const luminance = .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2];
+    style.setProperty(prefix, color);
+    style.setProperty(prefix + '-ink', luminance > .179 ? '#000' : '#fff');
+  }
   // 0 keeps each element's usual shape.
   for (const [key, name] of [['bubble_radius', '--bubble-radius'], ['button_radius', '--button-radius'], ['menu_radius', '--menu-radius']]) {
     if (Number(settings[key]) > 0) style.setProperty(name, Number(settings[key]) + 'px'); else style.removeProperty(name);
@@ -361,7 +358,11 @@ function applySettings() {
   effect('--fx-menu-shadow', fx.menu_shadow ? '0 0 ' + fx.menu_shadow + 'px ' + (fx.menu_shadow_color || 'var(--line)') : '');
   document.getElementById('app').style.backgroundImage = backdrop(look.background);
   const scroll = document.getElementById('scroll');
-  if (scroll && state.open) scroll.style.backgroundImage = chatBackdrop(state.open.peer);
+  if (scroll && state.open) paintChatWallpaper(scroll, state.open.peer);
+  for (const win of state.windows) {
+    const body = win.node?.querySelector('.winbody');
+    if (body) paintChatWallpaper(body, win.peer);
+  }
   const size = Number(settings.font_size) || 12;
   document.documentElement.style.setProperty('--size', Math.round(size * 1.25) + 'px');
   document.documentElement.dir = state.rtl ? 'rtl' : 'ltr';
@@ -626,6 +627,7 @@ const EVENTS = {
   qr(data) { state.qr = data; if (state.stage === 'qr') render(); },
   lock(value) {
     if (value === state.locked) return;
+    if (value) document.getElementById('message-notice')?.remove();
     if (value) state.accountRevision++;
     if (value) document.querySelector('.media-viewer[open]')?.close();
     state.locked = value;
@@ -633,11 +635,31 @@ const EVENTS = {
     drawGroupCall();
     if (value) { flushOpenDrafts(); state.bioTried = false; render(); } else resync();
   },
+  message_notice(data) {
+    if (WINDOW_CHAT !== null || document.hidden || state.locked) return;
+    document.getElementById('message-notice')?.remove();
+    const notice = h('button', {id: 'message-notice', type: 'button', 'aria-live': 'polite',
+      onclick: () => attempt(async () => {
+        notice.remove();
+        if (state.locked) return;
+        if (state.account !== data.account) {
+          if (!(await flushOpenDrafts())) return;
+          await api('account.select', {key: data.account});
+          await resync();
+        }
+        if (!state.locked && state.account === data.account) await openChat(data.peer);
+      })},
+      data.sender && data.account === state.account ? avatar(data.sender, data.title) : null,
+      h('span', {}, h('strong', {}, data.title), data.conversation ? h('small', {}, data.conversation) : null, h('span', {}, data.body)));
+    document.body.append(notice);
+    setTimeout(() => notice.remove(), 5500);
+  },
   toast(data) { toast(data.text, data.kind); },
   status(data) { if (data.text) toast(data.text); },
 };
 
 function adopt(snapshot) {
+  if (snapshot.locked || state.account !== snapshot.account) document.getElementById('message-notice')?.remove();
   if (snapshot.locked || state.account !== snapshot.account || snapshot.stage !== 'ready')
     document.querySelector('.media-viewer[open]')?.close();
   if (snapshot.locked && !state.locked) state.accountRevision++;
@@ -766,6 +788,7 @@ async function back(pop = true) {
 // -- rendering -------------------------------------------------------------------
 const root = document.getElementById('app');
 function listView(view) {
+  if (view === 'stories') return storiesView();
   if (view === 'settings') return settingsView();
   if (view === 'forward') return chatListView(true);
   if (view === 'archived') return chatListView(false, true);
@@ -922,7 +945,7 @@ function shortTime(seconds) {
 }
 
 function chatListView(forwarding = false, archived = false) {
-  const title = forwarding ? (state.forwarding?.people ? t('Share contact') : t('Reenviar a...')) : archived ? t('Archivados') : 'TeleGraph';
+  const title = forwarding ? (state.forwarding?.people ? t('Share contact') : t('Reenviar a...')) : archived ? t('Archivados') : (state.settings?.app_display_name || 'TeleGraph');
   const bar = h('div', { class: 'bar' },
     forwarding || archived ? backButton() : null,
     h('div', { class: 'title' }, title), statusNode(),
@@ -944,7 +967,7 @@ function chatListView(forwarding = false, archived = false) {
 }
 
 // Which list is on screen (on wide screens it stays beside an open chat).
-const LISTS = ['chats', 'archived', 'contacts', 'settings'];
+const LISTS = ['stories', 'chats', 'archived', 'contacts', 'settings'];
 function listMode() {
   if (LISTS.includes(state.view) || state.view === 'forward' || state.view === 'devices') return state.view;
   return state.list || 'chats';
@@ -1117,7 +1140,8 @@ function drawGlobal(list, query) {
 function chatsMenu() {
   sheet(t('Chats'), [
     [t('Contactos'), () => go('contacts', { contacts: null, search: '' })],
-    feature('call_history') ? [t('Calls'), () => callsView(false)] : null,
+    ...(feature('stories') ? [[t('Stories'), openStories]] : []),
+    ...(feature('call_history') ? [[t('Calls'), () => callsView(false)]] : []),
     [t('Saved Messages'), () => attempt(() => api('saved_messages'), (me) => openChat(me.id, true, { id: me.id, name: t('Saved Messages') }))],
     [t('Nuevo chat'), newChat],
     [t('Nuevo grupo'), () => createCommunity(false)],
@@ -1578,12 +1602,12 @@ function chatView() {
   }, 0);
   if (!thread) setTimeout(drawHeaderStatus, 0);
   const scroll = h('div', { class: 'scroll chat-scroll' + (state.settings.bubbles ? ' bubbles' : ''), id: 'scroll',
-    style: chatBackdrop(state.open.peer) ? 'background-image:' + chatBackdrop(state.open.peer) : null,
     onscroll: (event) => chatScrolled(event.target),
     // The person scrolls: stop keeping the newest message in view.
     ontouchmove: () => { if (state.open) state.open.stickUntil = 0; },
     onwheel: () => { if (state.open) state.open.stickUntil = 0; } },
     h('div', { class: 'messages', id: 'messages' }), h('div', { class: 'messages', id: 'outbox' }));
+  paintChatWallpaper(scroll, state.open.peer);
   const pinned = h('div', { class: 'pinned', id: 'pinned', hidden: true });
   const down = h('button', { class: 'btn down', id: 'down', hidden: true, onclick: () => {
     const box = document.getElementById('scroll'); box.scrollTop = box.scrollHeight; } }, 'v');
@@ -1739,6 +1763,7 @@ function conversationMenu(chat) {
   const person = chat.kind === 'user' && !(state.open && state.open.isSelf) && !chat.self;
   sheet(chat.name, [
     ...chatTools(chat, true),
+    WINDOW_CHAT !== null ? [t('Nombre visible de la app'), editDisplayName] : null,
     person ? [t('Share contact'), () => shareContacts([chat.id])] : null,
     [chat.muted ? t('Activar sonido') : t('Silenciar'), () => muteSheet(chat)],
     [t('Notifications'), () => chatNotifications(chat)],
@@ -2983,7 +3008,7 @@ function mediaNode(message) {
       if (state.selection) return;
       // Desktop: a sticker opens its whole pack (send one, or save the pack).
       if (message.kind === 'sticker') { if (message.sticker_id) packView({ id: message.sticker_id }, false); }
-      else viewer(message);
+      else viewer(message, peer, message.album ? state.open.messages.filter(item => item.album === message.album) : null);
     } });
   if (state.settings && state.settings.inline_media === false && message.kind !== 'sticker') {
     // "Show media in the chat" off: a placeholder; the photo opens in the viewer.
@@ -3036,18 +3061,19 @@ function viewer(message, peer = state.open.peer, list = null) {
     if (current.kind === 'video' || current.kind === 'gif') {
       content = h('video', { src: full, controls: true, autoplay: true, playsinline: true, loop: current.kind === 'gif' });
     } else {
-      content = h('img', { src: full, alt: '', ondblclick: (event) => event.target.classList.toggle('zoomed') });
+      content = h('img', { src: full, alt: '' });
       content.addEventListener('error', () => { content.src = mediaUrl(peer, current.id, true); }, { once: true });
     }
     let startX = null, startY = 0;
-    const stage = h('div', { class: 'stage', onclick: (event) => { if (event.target === event.currentTarget) close(); },
+    const stage = h('div', { class: 'stage', onclick: (event) => { if (content.tagName !== 'IMG' && event.target === event.currentTarget) close(); },
       ontouchstart: (event) => { if (event.touches.length === 1) { startX = event.touches[0].clientX; startY = event.touches[0].clientY; } else startX = null; },
       ontouchend: (event) => {
-        if (startX === null || (content.classList && content.classList.contains('zoomed'))) return;
+        if (startX === null || content.tagName === 'IMG') return;
         const dx = event.changedTouches[0].clientX - startX, dy = event.changedTouches[0].clientY - startY;
         startX = null;
         if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(galleryStep(dx < 0));
       } }, content);
+    if (content.tagName === 'IMG') photoGestures(stage, content, right => go(galleryStep(right)));
     const count = items.length > 1 ? ' · ' + (index + 1) + '/' + items.length : '';
     layer.replaceChildren(
       h('div', { class: 'bar' }, symbolButton('x', t('Close'), close), h('div', { class: 'title' }, current.sender, h('span', { class: 'sub' }, (current.time || '') + count)),
@@ -3064,10 +3090,11 @@ function viewer(message, peer = state.open.peer, list = null) {
 function imageViewer(url, title, onError) {
   const layer = mediaDialog(title);
   const close = () => layer.close();
-  const img = h('img', { src: url, alt: title, ondblclick: (event) => event.target.classList.toggle('zoomed') });
+  const img = h('img', { src: url, alt: title });
   if (onError) img.onerror = () => { if (layer.open) { close(); onError(); } };
-  layer.append(h('div', { class: 'bar' }, symbolButton('x', t('Close'), close), h('div', { class: 'title' }, title)),
-    h('div', { class: 'stage', onclick: (event) => { if (event.target === event.currentTarget) close(); } }, img));
+  const stage = h('div', { class: 'stage' }, img);
+  photoGestures(stage, img);
+  layer.append(h('div', { class: 'bar' }, symbolButton('x', t('Close'), close), h('div', { class: 'title' }, title)), stage);
   layer.showModal();
 }
 
@@ -3120,6 +3147,7 @@ function drawMessages(toBottom) {
   const byId = new Map(open.messages.map((message) => [message.id, message]));
   const cache = messageCache(open), kept = new Map();
   const days = open.dayNodes || new Map(), keptDays = new Map();
+  const previousAlbums = open.albumNodes || new Map(), albums = new Map();
   let lastDay = '';
   for (const message of open.messages) {
     if (message.date) {
@@ -3132,7 +3160,20 @@ function drawMessages(toBottom) {
         nodes.push(node); lastDay = day;
       }
     }
-    nodes.push(cachedMessageNode(message, open, message.reply_to ? byId.get(message.reply_to) : null, kept));
+    const node = cachedMessageNode(message, open, message.reply_to ? byId.get(message.reply_to) : null, kept);
+    if (message.album && message.visual && ['image','video','gif'].includes(message.kind)) {
+      let album = albums.get(message.album);
+      if (!album) {
+        const strip = previousAlbums.get(message.album) || h('div', {class: 'photo-album', role: 'group', 'aria-label': t('Álbum')});
+        albums.set(message.album, album = {strip, children: []});
+        nodes.push(strip);
+      }
+      album.children.push(node);
+    } else nodes.push(node);
+  }
+  open.albumNodes = new Map();
+  for (const [id, album] of albums) {
+    reconcile(album.strip, album.children); open.albumNodes.set(id, album.strip);
   }
   cache.nodes = kept; open.dayNodes = keptDays;
   if (!nodes.length) nodes.push(emptyHistory(open));
@@ -3161,6 +3202,7 @@ function appendMessage(message) {
   if (!container) return;
   const open = state.open;
   const stick = nearBottom(scroll) || message.out;
+  if (message.album) { drawMessages(stick); return; }
   container.querySelector('.empty')?.remove();
   const replied = message.reply_to ? open.messages.find((item) => item.id === message.reply_to) : null;
   container.append(cachedMessageNode(message, open, replied));
@@ -3561,6 +3603,7 @@ function drawWindow(win, asColumn = false) {
   }
   const old = win.node;
   win.node = node;
+  paintChatWallpaper(node.querySelector('.winbody'), win.peer);
   if (!docked) { if (old && old.isConnected && !old.classList.contains('docked')) old.replaceWith(node); else { old?.remove(); windowLayer.append(node); } }
   drawWindowMessages(win, true);
   drawWindowContext(win);
@@ -3775,14 +3818,7 @@ function backgroundSync(done, general = false, chat = null) {
 }
 
 function chatBackgroundMenu(chat) {
-  const look = state.appearance || {};
-  const current = (look.chats || {})[String(chat.id)];
-  const set = (value) => attempt(() => api('chat_background', { peer: chat.id, value }), (result) => { state.appearance = result; applySettings(); });
-  sheet(t('Chat background'), [
-    [t('Image'), () => backgroundSync((sync) => chooseBackground(chat.id, sync), false, chat)],
-    look.background && current !== 'interface' ? [t('Use the interface background'), () => set('interface')] : null,
-    current ? [t('Remove background') + ((look.chat_sync || {})[String(chat.id)] ? ' (' + t('also in Telegram') + ')' : ''), () => set(''), 'danger'] : null,
-  ].filter(Boolean));
+  openWallpaperMenu(chat);
 }
 
 function appearanceSection(save) {
@@ -3805,10 +3841,16 @@ function appearanceSection(save) {
   const brightness = h('input', { type: 'range', min: 10, max: 100, step: 5, value: 100 - Number(look.dim ?? 55),
     onchange: (event) => saveLook({ dim: 100 - Number(event.target.value) }) });
   return {
-    colors: [color('text_color', t('Text color'), 'text'), color('background_color', t('Background color'), 'bg'), color('accent_color', t('Accent color'), 'strong')],
+    colors: [color('text_color', t('Text color'), 'text'), color('background_color', t('Background color'), 'bg'), color('accent_color', t('Accent color'), 'strong'),
+      color('bubble_in_color', t('Color de burbujas recibidas'), 'panel'),
+      color('bubble_out_color', t('Color de burbujas enviadas'), 'selected')],
     corners: [slider('bubble_radius', t('Bubble corners')), slider('button_radius', t('Button corners')), slider('menu_radius', t('Menu corners'))],
     typeface: h('div', { class: 'setting' }, h('span', {}, t('Typeface')), fonts),
     backgrounds: [
+      h('div', { class: 'setting' }, h('span', {}, t('All chats in this app')),
+        button(t('Chat background'), () => openWallpaperMenu(null))),
+      switchSetting(t('Use Telegram chat backgrounds when available'), !!look.chat_wallpapers?._follow,
+        () => setWallpaperFollowing(!look.chat_wallpapers?._follow)),
       h('div', { class: 'setting' }, h('span', {}, t('Interface background image')),
         button(t('Image'), () => backgroundSync((sync) => chooseBackground('interface', sync), true)),
         look.background ? button(t('Remove'), () => attempt(() => api('clear_background'), (result) => { state.appearance = result; applySettings(); render(); }), 'danger') : null),
@@ -3830,7 +3872,7 @@ function confirmThen(text, action, kind = 'danger') {
   sheet(text, [[t('Confirm'), action, kind]]);
 }
 function promptThen(title, options, action) {
-  const input = h('input', { type: options.type || 'text', value: options.value || '', placeholder: options.placeholder || '',
+  const input = h('input', { type: options.type || 'text', value: options.value || '', maxlength: options.maxlength || null, placeholder: options.placeholder || '',
     autocomplete: 'off', inputmode: options.inputmode || null });
   formSheet(title, [input, options.note ? h('div', { class: 'muted small' }, options.note) : null].filter(Boolean),
     options.submit || t('Continuar'), () => action(input.value));
@@ -5315,7 +5357,10 @@ function approveScanned(result, done) {
 }
 function scanLogin(done) {
   keepUnlocked(180);
-  attempt(() => api('scan_qr'), (result) => approveScanned(result, done));
+  const params = new URLSearchParams(location.search);
+  const origin = params.get('platform') === 'iOS' && params.get('window') === '1'
+    ? { window_peer: Number(params.get('chat')), window_account: params.get('account') } : {};
+  attempt(() => api('scan_qr', origin), (result) => approveScanned(result, done));
 }
 async function pickOnePhoto() {
   keepUnlocked(120);
@@ -5615,6 +5660,16 @@ async function reactionNotifications(account, ringtones) {
     });
 }
 
+function editDisplayName() {
+  promptThen(t('Nombre visible de la app'), {value: state.settings?.app_display_name || '', placeholder: 'TeleGraph', maxlength: 64}, async value => {
+    const result = await attempt(() => api('settings', {values: {app_display_name: value.trim()}}));
+    if (!result) return false;
+    state.settings = result;
+    applySettings();
+    render();
+  });
+}
+
 function settingsView() {
   const settings = state.settings;
   const tab = SETTINGS_SECTIONS.some(([key]) => key === state.settingsTab) ? state.settingsTab : 'appearance';
@@ -5638,6 +5693,8 @@ function settingsView() {
       api('languages').then((list) => languages.replaceWith(select('language', t('Idioma'), list)));
       const look = appearanceSection(save);
       return [section(null, languages,
+        h('div', {class: 'setting'}, h('span', {}, t('Nombre visible de la app')),
+          button(settings.app_display_name || 'TeleGraph', editDisplayName)),
         select('theme', t('Tema'), [['dark', t('Oscuro')], ['light', t('Claro')], ['system', t('Sistema')]]),
         select('font_size', t('Tamaño de letra'), Array.from({ length: 11 }, (_, i) => [10 + i, String(10 + i)])),
         ...look.colors, look.typeface, look.view, look.reset)];

@@ -14,6 +14,13 @@ for framework in "$TELEGRAPH_WATCH_PYTHON_FRAMEWORK" "$TELEGRAPH_IOS_CALLS_FRAME
   fi
 done
 
+# Release archives must use the Apple project's configured Telegram identity.
+export TELEGRAPH_IOS_API_CONFIG=${TELEGRAPH_IOS_API_CONFIG:-"$HOME/.tg-ascii-lite/api-ios.json"}
+if [[ ! -r "$TELEGRAPH_IOS_API_CONFIG" ]]; then
+  echo "Missing iOS Telegram application configuration" >&2
+  exit 1
+fi
+
 archive_dir=${TELEGRAPH_IOS_ARCHIVE_DIR:-"$here/dist"}
 mkdir -p "$archive_dir"
 staging=$(mktemp -d "$archive_dir/.ios-archive.XXXXXX")
@@ -29,7 +36,7 @@ xcodebuild archive -project TG-ASCII.xcodeproj -scheme TG-ASCII -configuration R
 phone="$archive/Products/Applications/TG-ASCII.app"
 watch="$phone/Watch/TGASCIIWatch.app"
 calls="$phone/Frameworks/TeleGraphCalls.framework"
-for file in "$phone/PrivacyInfo.xcprivacy" "$watch/PrivacyInfo.xcprivacy" "$watch/Frameworks/Python.framework/Python" "$watch/app.zip" \
+for file in "$phone/PlugIns/TeleGraphNotificationService.appex/TeleGraphNotificationService" "$phone/PrivacyInfo.xcprivacy" "$watch/PrivacyInfo.xcprivacy" "$watch/Frameworks/Python.framework/Python" "$watch/app.zip" \
   "$watch/app_packages.zip" "$watch/python-stdlib.zip" "$calls/TeleGraphCalls" \
   "$calls/PrivacyInfo.xcprivacy" "$phone/Frameworks/_ssl.framework/PrivacyInfo.xcprivacy" \
   "$phone/Frameworks/_hashlib.framework/PrivacyInfo.xcprivacy"; do
@@ -38,6 +45,10 @@ for file in "$phone/PrivacyInfo.xcprivacy" "$watch/PrivacyInfo.xcprivacy" "$watc
     exit 1
   fi
 done
+if ! /usr/bin/unzip -p "$watch/app.zip" _app_credentials.py | cmp -s - "$phone/app/tg_ascii/_app_credentials.py"; then
+  echo "The phone and watch Telegram application configurations differ" >&2
+  exit 1
+fi
 /usr/bin/unzip -p "$watch/app.zip" tgwatch/__init__.py >/dev/null
 /usr/bin/unzip -p "$watch/app_packages.zip" telethon/__init__.py >/dev/null
 /usr/bin/unzip -p "$watch/python-stdlib.zip" encodings/__init__.py >/dev/null

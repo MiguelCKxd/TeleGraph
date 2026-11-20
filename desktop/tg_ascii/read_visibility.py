@@ -62,7 +62,7 @@ def visible_message_ids(app):
 
 def schedule(app, delay=250):
     """Coalesce scroll/render bursts into one read check."""
-    if getattr(app, '_read_check_job', None) is not None:
+    if getattr(app, 'closed', False) or getattr(app, 'closing', False) or getattr(app, '_read_check_job', None) is not None:
         return
     def run():
         app._read_check_job = None
@@ -129,6 +129,7 @@ def watch(app):
     chat (another tab, reopening the window, clicking the open chat, a
     message arriving while the window was in the background)."""
     def tick():
+        app._read_watch_job = None
         try:
             if getattr(app, 'closed', False) or getattr(app, 'closing', False):
                 return
@@ -138,13 +139,24 @@ def watch(app):
         except Exception:
             pass
         try:
-            app.root.after(WATCH_MS, tick)
+            app._read_watch_job = app.root.after(WATCH_MS, tick)
         except (tk.TclError, AttributeError):
             pass
     try:
-        app.root.after(WATCH_MS, tick)
+        app._read_watch_job = app.root.after(WATCH_MS, tick)
     except (tk.TclError, AttributeError):
         pass
+
+
+def stop(app):
+    for name in ('_read_check_job', '_read_watch_job'):
+        job = getattr(app, name, None)
+        if job is not None:
+            setattr(app, name, None)
+            try:
+                app.root.after_cancel(job)
+            except (tk.TclError, AttributeError):
+                pass  # The window was already destroyed: its timers went with it.
 
 
 def at_bottom(app):

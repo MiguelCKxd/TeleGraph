@@ -1413,5 +1413,6 @@
   "Keep more loaded": "Panatilihing naka-load ang mas maraming nilalaman",
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "Gumagana ang TeleGraph na parang naka-install na messaging app: handa sa device na ito ang mga profile photo, mga bagong mensahe, preview at detalye ng contact, kaya agad bumubukas ang mga screen. Ang talagang bago lang ang muling hinihingi. Mas malaki ang gamit sa storage at memorya.",
   "Prepare content at startup": "Ihanda ang nilalaman sa pagbukas",
-  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Pagkatapos mag-load ng listahan ng chat, inihahanda sa background ang mga profile photo, mga huling mensahe ng mga unang chat, ang kanilang preview at emoji. Mas malaki ang gamit sa data at baterya sa pagbukas."
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Pagkatapos mag-load ng listahan ng chat, inihahanda sa background ang mga profile photo, mga huling mensahe ng mga unang chat, ang kanilang preview at emoji. Mas malaki ang gamit sa data at baterya sa pagbukas.",
+  "Accent color": "Kulay ng diin"
 }

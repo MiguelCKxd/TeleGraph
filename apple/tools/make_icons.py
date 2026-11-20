@@ -10,8 +10,8 @@ sys.path.insert(0, str(HERE / 'src'))
 from tg_ascii.logos import LOGO_PALETTES, png_bytes
 
 
-def source_image(variant='title-short', theme='dark', color='default'):
-    image = Image.open(BytesIO(png_bytes(variant, theme, 512, color=color, full_bleed=True))).convert('RGBA')
+def source_image(variant='title-short', theme='dark', color='default', *, size=512):
+    image = Image.open(BytesIO(png_bytes(variant, theme, size, color=color, full_bleed=True))).convert('RGBA')
     background = Image.new('RGB', image.size, LOGO_PALETTES[color][theme][0])
     background.paste(image, mask=image.getchannel('A'))
     return background

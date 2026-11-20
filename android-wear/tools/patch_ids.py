@@ -310,8 +310,9 @@ if platform == 'android':
     wearable = 'com.google.android.gms:play-services-wearable:20.0.1'
     dependencies = [] if LEGACY_WEAR else [wearable]
     if not WATCH:
-        dependencies += ['com.google.android.gms:play-services-code-scanner:16.1.0',
-                         'com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1']
+        # Remove the original on-demand Play services scanner from existing projects.
+        text = re.sub(r'^\s*implementation "com\.google\.android\.gms:play-services-(?:code-scanner|mlkit-barcode-scanning):[^"]+"\s*$', '', text, flags=re.M)
+        dependencies.append('com.journeyapps:zxing-android-embedded:4.3.0')
         text = android_calls_dependency(text, gradle.parent)
         # Use the same NDK as the phone engine for AGP's release symbol split.
         # Without a selected NDK, AGP may package unstripped shared libraries.
@@ -413,10 +414,14 @@ if platform == 'android':
                                 ' android:documentLaunchMode="intoExisting" android:autoRemoveFromRecents="true"'
                                 ' android:resizeableActivity="true" android:theme="@style/AppTheme"'
                                 ' android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />\n    </application>', 1)
-        # ML Kit's barcode model (QR from a photo) comes with the app install.
-        text = text.replace('android:value="barcode" />', 'android:value="barcode,barcode_ui" />')
-        if 'com.google.mlkit.vision.DEPENDENCIES' not in text:
-            text = text.replace('</application>', '    <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode,barcode_ui" />\n    </application>', 1)
+        text = re.sub(r'\s*<meta-data android:name="com.google.mlkit.vision.DEPENDENCIES"[^>]*/>', '', text)
+        qr = java.parent / 'qr'
+        qr.mkdir(exist_ok=True)
+        shutil.copyfile(Path(__file__).with_name('android') / 'QrCaptureActivity.java', qr / 'QrCaptureActivity.java')
+        if 'org.tgas.qr.QrCaptureActivity' not in text:
+            text = text.replace('</application>', '    <activity android:name="org.tgas.qr.QrCaptureActivity"'
+                                ' android:exported="false" android:screenOrientation="fullSensor"'
+                                ' android:theme="@style/zxing_CaptureTheme" />\n    </application>', 1)
     manifest.write_text(android_backup_rules(text, manifest.parent / 'res'))
     import shutil
     res = build / 'android' / 'gradle' / 'app' / 'src' / 'main' / 'res'
@@ -489,7 +494,8 @@ elif platform == 'ios':
         text = re.sub(r'PRODUCT_BUNDLE_IDENTIFIER = (?!"?[\w.]+\.watchkitapp"?;)"?[^";]+"?;', f'PRODUCT_BUNDLE_IDENTIFIER = "{IOS_ID}";', text)
         with entitlements.open('wb') as stream:
             # Xcode selects the final APNs environment from the signing profile.
-            plistlib.dump({'aps-environment': 'development'}, stream)
+            plistlib.dump({'aps-environment': 'development',
+                           'com.apple.developer.usernotifications.communication': True}, stream)
         text = re.sub(
             rf'(\n(\s*)PRODUCT_BUNDLE_IDENTIFIER = "{re.escape(IOS_ID)}";)(?!\n\s*CODE_SIGN_ENTITLEMENTS)',
             rf'\1\n\2CODE_SIGN_ENTITLEMENTS = {entitlements.name};',
@@ -587,11 +593,15 @@ elif platform == 'ios':
             manifest = data.setdefault('UIApplicationSceneManifest', {})
             manifest['UIApplicationSupportsMultipleScenes'] = True
             manifest.setdefault('UISceneConfigurations', {})
-            data['NSUserActivityTypes'] = sorted(set(data.get('NSUserActivityTypes', [])) | {'org.tgas.chat'})
+            data['NSUserActivityTypes'] = sorted(set(data.get('NSUserActivityTypes', [])) | {'org.tgas.chat', 'INSendMessageIntent'})
             data['UIBackgroundModes'] = sorted(modes)
         with info.open('wb') as stream:
             plistlib.dump(data, stream)
     # Apple Watch companion (watch/TGASCIIWatch), same version and build.
     import subprocess
     subprocess.run([sys.executable, str(Path(__file__).with_name('add_watch_target.py')), VERSION, IOS_BUILD], check=True)
+    from configure_siri import configure_siri
+    configure_siri(build / 'ios' / 'xcode')
+    from add_notification_target import add_notification_target
+    add_notification_target(build / 'ios' / 'xcode', VERSION, IOS_BUILD, IOS_ID)
     print('iOS id ->', IOS_ID, VERSION, IOS_BUILD)

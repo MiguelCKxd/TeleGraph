@@ -225,7 +225,17 @@ class BubbleView(tk.Canvas):
         for ident in set(self._nodes)-set(by_id):self.discard_node(ident)
         epoch=self.generation
         from .day_separators import day_headers
+        base_palette = c
+        bubble_palettes = {}
+        for outgoing, key in ((True, 'bubble_out_color'), (False, 'bubble_in_color')):
+            color = self.app.preferences.values.get(key) if use_bubbles else None
+            if color:
+                rgb = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+                linear = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4 for v in rgb]
+                ink = '#000000' if sum(a*b for a, b in zip(linear, (.2126,.7152,.0722))) > .179 else '#ffffff'
+                bubble_palettes[outgoing] = dict(c, text=ink, muted=ink, strong=ink, selected=color, panel=color)
         for m,day_header in zip(messages,day_headers(messages)):
+            c = base_palette
             content,translation_key,translation_label=presentation(self.app,m)
             content=animated_content(self.app,content)
             from .expandable_text import presentation as quote_presentation, toggle, control_label
@@ -261,6 +271,9 @@ class BubbleView(tk.Canvas):
                 self.tag_raise(label_item,pill)
                 y=bottom_edge+14
             bubble_top=y
+            if m.outgoing in bubble_palettes:
+                c = bubble_palettes[m.outgoing]
+                accent = quote_accent = [c['text']]
             marker=('☑ ' if selected else '☐ ') if getattr(self.app,'selection_kind',None)=='messages' else ''
             name=self.app.text_display(m.sender,True)
             sender_item=canvas_text(self,x+14,y+10,text=marker+name,anchor='nw',font=small,width=max(30,bw-28),fill=accent[0],tags=(tag,'sender_profile'))

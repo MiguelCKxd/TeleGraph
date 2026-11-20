@@ -1413,5 +1413,6 @@
   "Keep more loaded": "Mantener más contenido cargado",
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph funciona como una app de mensajería instalada: fotos de perfil, mensajes recientes, vistas previas y datos de contacto quedan listos en este equipo y las pantallas se abren al tiro con ellos. Solo se vuelve a pedir lo que es nuevo de verdad. Usa más almacenamiento y memoria.",
   "Prepare content at startup": "Preparar contenido al iniciar",
-  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Cuando carga la lista de chats, se preparan en segundo plano las fotos de perfil, los últimos mensajes de tus primeros chats, sus vistas previas y emojis. Usa más datos y batería al iniciar."
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Cuando carga la lista de chats, se preparan en segundo plano las fotos de perfil, los últimos mensajes de tus primeros chats, sus vistas previas y emojis. Usa más datos y batería al iniciar.",
+  "Accent color": "Color de realce"
 }

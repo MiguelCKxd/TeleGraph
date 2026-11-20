@@ -1413,5 +1413,6 @@
   "Keep more loaded": "Pidä enemmän sisältöä ladattuna",
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph toimii kuin asennettu viestisovellus: profiilikuvat, viimeisimmät viestit, esikatselut ja yhteystiedot pysyvät valmiina tällä laitteella, ja näkymät avautuvat niistä heti. Vain todella uusi pyydetään uudelleen. Käyttää enemmän tallennustilaa ja muistia.",
   "Prepare content at startup": "Valmistele sisältö käynnistyksessä",
-  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Kun keskustelulista on ladattu, profiilikuvat, ensimmäisten keskustelujen viimeisimmät viestit, niiden esikatselut ja emojit valmistellaan taustalla. Käynnistyksessä kuluu enemmän dataa ja akkua."
+  "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Kun keskustelulista on ladattu, profiilikuvat, ensimmäisten keskustelujen viimeisimmät viestit, niiden esikatselut ja emojit valmistellaan taustalla. Käynnistyksessä kuluu enemmän dataa ja akkua.",
+  "Accent color": "Korostusväri"
 }

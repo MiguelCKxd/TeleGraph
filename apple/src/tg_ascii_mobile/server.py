@@ -74,6 +74,7 @@ class Server:
     def __init__(self, core):
         self.core = core
         self.port = None
+        self.story_downloads = {}
 
     async def start(self, port=0):
         server = await asyncio.start_server(self.handle, '127.0.0.1', port, limit=MAX_BODY + 65536)
@@ -187,12 +188,21 @@ class Server:
     async def route(self, writer, method, path, headers, query, body):
         if path == '/media' and method == 'GET':
             return await self.media(writer, headers, query)
+        if path == '/story' and method == 'GET':
+            return await self.story(writer, headers, query)
         if path == '/staged' and method == 'GET':
             return await self.staged(writer, headers, query)
         if path == '/sticker' and method == 'GET':
             return await self.sticker(writer, headers, query)
         if path == '/avatar' and method == 'GET':
             return await self.avatar(writer, headers, query)
+        if path == '/chat-wallpaper' and method == 'GET':
+            if not self.authorised(headers, query) or self.core.locked:
+                return await self.respond(writer, 403, b'token')
+            asset = self.core.chat_wallpaper_file(query.get('account'), query.get('name'), query.get('preview') == '1')
+            if asset is None:
+                return await self.respond(writer, 404, b'')
+            return await self.send_file(writer, headers, asset, 'Cache-Control: no-store')
         if path == '/background' and method == 'GET':
             return await self.background(writer, headers, query)
         if path == '/logo' and method == 'GET':
@@ -335,6 +345,50 @@ class Server:
             return await self.respond(writer, 403, b'token')
         keep = self.keep_headers(query) if thumbnail and 'poll' not in query else ()
         return await self.send_file(writer, headers, path, keep[0] if keep else 'Cache-Control: no-store')
+
+    async def fetch_story(self, account, peer, ident):
+        directory = TemporaryDirectory()
+        try:
+            path = await asyncio.wait_for(self.core.story_file(account, peer, ident, Path(directory.name)), 120)
+        except BaseException:
+            directory.cleanup()
+            raise
+        # The directory lives until the last active range reader and cache entry release it.
+        return directory, path
+
+    async def story(self, writer, headers, query):
+        if not self.authorised(headers, query) or self.core.locked:
+            return await self.respond(writer, 403, b'token')
+        account = query.get('account')
+        try:
+            peer, ident = int(query['peer']), int(query['id'])
+            self.core.story_backend(account)
+            view = query.get('view', '')
+            if not re.fullmatch(r'[a-zA-Z0-9-]{1,64}', view):
+                raise ValueError('Invalid viewer')
+            # WebKit probes videos and requests byte ranges as playback advances.
+            # Share one download within that viewing session, rechecking on next open.
+            key = (account, peer, ident, view)
+            task = self.story_downloads.pop(key, None)
+            if task is None:
+                task = asyncio.create_task(self.fetch_story(account, peer, ident))
+                if len(self.story_downloads) >= 3:
+                    self.story_downloads.pop(next(iter(self.story_downloads))).expiry.cancel()
+            else:
+                task.expiry.cancel()
+            self.story_downloads[key] = task
+            task.expiry = asyncio.get_running_loop().call_later(120, self.story_downloads.pop, key, None)
+            directory, path = await asyncio.shield(task)
+            self.core.story_backend(account)
+        except PermissionError:
+            return await self.respond(writer, 403, b'account')
+        except (ValueError, KeyError):
+            return await self.respond(writer, 400, b'')
+        except Exception:
+            return await self.respond(writer, 404, b'')
+        if not path or not path.is_file() or path.stat().st_size > MAX_MEDIA:
+            return await self.respond(writer, 404, b'')
+        return await self.send_file(writer, headers, path, 'Cache-Control: no-store')
 
     async def secret_media(self, writer, headers, query, peer, ident, thumbnail):
         account = self.core.account

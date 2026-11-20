@@ -276,20 +276,20 @@ async def delete_window(main, ident):
     return failed
 
 
-def window_title(root):
+def window_title(root, app_name=APP_NAME):
     """Branded title inside an independent window, else None."""
     if not is_independent(root):
         return None
     from .i18n import tr
     if (Path(root) / TEMPORARY).exists():
-        return APP_NAME + ' · ' + tr('Temporary window')
+        return app_name + ' · ' + tr('Temporary window')
     main = main_root(root)
     try:
         data = load(main)
     except OSError:
         return None
     item = find(data, Path(root).name)
-    return APP_NAME + ' · ' + display_name(data, item, tr) if item else None
+    return app_name + ' · ' + display_name(data, item, tr) if item else None
 
 
 async def sign_out_services(service, timeout=8):

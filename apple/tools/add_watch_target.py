@@ -91,7 +91,9 @@ def copy_python():
     shutil.copytree(PYTHON_SOURCE, target / 'app', ignore=ignore_bytecode)
     for module in ('message_translation.py', 'pin_order.py'):
         shutil.copy2(ROOT / 'src' / 'tg_ascii' / module, target / 'app' / 'tgwatch' / module)
-    shutil.copy2(ROOT / 'src' / 'tg_ascii' / '_app_credentials.py', target / 'app' / '_app_credentials.py')
+    # patch_ids.py has already selected the Apple client's identity for this build.
+    iphone_app = XCODE / 'TGASCII' / 'app'
+    shutil.copy2(iphone_app / 'tg_ascii' / '_app_credentials.py', target / 'app' / '_app_credentials.py')
     packages = XCODE / 'TGASCII' / 'app_packages.iphoneos'
     for name in PACKAGES:
         shutil.copytree(packages / name, target / 'app_packages' / name, ignore=ignore_bytecode)

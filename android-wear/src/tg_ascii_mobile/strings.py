@@ -10,6 +10,9 @@ from functools import lru_cache
 import unicodedata
 
 MOBILE = {
+    'Nombre visible de la app': 'App display name',
+    'Color de burbujas recibidas': 'Incoming bubble color',
+    'Color de burbujas enviadas': 'Outgoing bubble color',
     'Iniciar sesion': 'Sign in',
     'Entrar con codigo QR': 'Sign in with QR code',
     'Te hemos enviado el codigo a Telegram o por SMS.': 'The code was sent to your Telegram app or by SMS.',
@@ -96,6 +99,8 @@ def web_keys():
     import re
     from pathlib import Path
     script = (Path(__file__).resolve().parent / 'web' / 'app.js').read_text('utf-8')
+    for feature_script in ('stories.js', 'wallpapers.js'):
+        script += (Path(__file__).resolve().parent / 'web' / feature_script).read_text('utf-8')
     start = script.index('const KEYS = [')
     block = script[start:script.index('];', start)]
     explicit = re.findall(r"'([^']*)'", block)
@@ -112,6 +117,17 @@ def install():
     from tg_ascii.translations import CATALOGUES
     from . import translations_mobile
     translations_mobile.install(CATALOGUES)
+    for english, spanish in {
+        'Use Telegram chat backgrounds when available': 'Usar los fondos de los chats de Telegram cuando estén disponibles',
+        'Color / gradient': 'Color o degradado', 'All chats in this app': 'Todos los chats de esta app',
+        'Preview and edit': 'Previsualizar y editar', 'No active stories.': 'No hay historias activas.',
+        'Media unavailable.': 'El contenido ya no está disponible.', 'Intensity': 'Intensidad',
+        'Restore default': 'Restaurar el fondo predeterminado', 'Audience': 'Audiencia',
+        'Also in Telegram': 'También en Telegram', 'Apply to': 'Aplicar en',
+        'Telegram keeps global solid and gradient backgrounds on this device.':
+            'Telegram guarda los colores y degradados generales solo en este dispositivo.',
+    }.items():
+        CATALOGUES['es'].setdefault(english, spanish)
     # Desktop hint whose Spanish catalogue entry is missing (shown unaccented).
     CATALOGUES['es'].setdefault('Use + and your country calling code: +34 (Spain), +56 (Chile), +1 (US/Canada), etc.',
                                 'Usa + y el prefijo de tu país: +34 (España), +56 (Chile), +1 (EE. UU./Canadá), etc.')

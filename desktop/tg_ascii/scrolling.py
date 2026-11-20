@@ -214,6 +214,15 @@ class Viewport(ttk.Frame):
         self.item = self.canvas.create_window(0, 0, window=self.content, anchor='nw')
         self.canvas.bind('<Configure>', self.resize)
         self.content.bind('<Configure>', self.fit_content)
+        self.bind('<Destroy>', self.cancel_jobs, add='+')
+
+    def cancel_jobs(self, event):
+        if event.widget is self:
+            for name in ('_request_job', '_redraw_job', '_fit_job'):
+                handle = getattr(self, name, None)
+                if handle is not None:
+                    self.after_cancel(handle)
+                    setattr(self, name, None)
 
     def watch_request(self):
         """An explicit height hides request changes from <Configure>: poll lightly."""
@@ -332,6 +341,7 @@ def fit_to_content(window, viewport, margin=(48, 96)):
     wheel and touchpad gestures (WheelRouter) — never clipped.
     """
     def run(attempt=0):
+        viewport._fit_job = None
         try:
             if not window.winfo_exists():
                 return
@@ -341,7 +351,7 @@ def fit_to_content(window, viewport, margin=(48, 96)):
             need_h = content.winfo_reqheight() + 24
             have_w, have_h = window.winfo_width(), window.winfo_height()
             if have_w <= 1 and attempt < 5:
-                window.after(60, lambda: run(attempt + 1))
+                viewport._fit_job = viewport.after(60, lambda: run(attempt + 1))
                 return
             max_w = window.winfo_screenwidth() - margin[0]
             max_h = window.winfo_screenheight() - margin[1]
@@ -354,6 +364,9 @@ def fit_to_content(window, viewport, margin=(48, 96)):
         except tk.TclError:
             pass
     try:
-        window.after(80, run)
+        pending = getattr(viewport, '_fit_job', None)
+        if pending is not None:
+            viewport.after_cancel(pending)
+        viewport._fit_job = viewport.after(80, run)
     except tk.TclError:
         pass
