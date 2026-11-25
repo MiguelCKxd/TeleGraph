@@ -179,7 +179,7 @@ class AndroidCallEngine:
             self.worker.shutdown(wait=False, cancel_futures=False)
 
 
-def frame_jpeg(frame, size=480):
+def frame_jpeg_bytes(frame, size=480):
     from PIL import Image
 
     width, height, data = frame['width'], frame['height'], frame['data']
@@ -194,7 +194,11 @@ def frame_jpeg(frame, size=480):
         image = image.rotate(-frame['rotation'], expand=True)
     output = io.BytesIO()
     image.save(output, 'JPEG', quality=72)
-    return base64.b64encode(output.getbuffer()).decode('ascii')
+    return output.getvalue()
+
+
+def frame_jpeg(frame, size=480):
+    return base64.b64encode(frame_jpeg_bytes(frame, size)).decode('ascii')
 
 
 
@@ -353,5 +357,7 @@ def install(app, activity):
     app.core.native_call_manager = lambda *args, **kwargs: AndroidCallManager(*args, core=app.core, **kwargs)
     app.core.native_call_engine = AndroidCallEngine
     app.core.native_call_available = available
+    from .call_pip import install_android
+    install_android(app, activity)
     app.core.native_call_permission = permission
     asyncio.run_coroutine_threadsafe(app.core.enable_call_manager(), app.core.loop)

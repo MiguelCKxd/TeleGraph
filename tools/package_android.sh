@@ -1,9 +1,15 @@
 #!/bin/zsh
-# Release APK signed with the same key used by existing installations.
+# Release APK signed with the existing key. Use --aab on the phone build to
+# produce the signed Play bundle from the same Gradle sources as the APK.
 set -euo pipefail
 here=${0:A:h:h}
 cd "$here"
 app=${APP:-tg_ascii_mobile}
+if (( $# > 1 )) || [[ -n ${1:-} && ( $1 != --aab || $app != tg_ascii_mobile ) ]]; then
+  print -u2 'Usage: tools/package_android.sh [--aab (phone only)]'
+  exit 2
+fi
+make_bundle=${1:-}
 export APP=$app
 export ANDROID_HOME=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}
 
@@ -63,6 +69,19 @@ if [[ "$app" == tg_ascii_mobile ]]; then
   symbol_dir="$release_dir/symbols"
   mkdir -p "$symbol_dir"
   install -m 600 "$symbols" "$working/symbols.zip"
+fi
+if [[ $make_bundle == --aab ]]; then
+  ../beeware-venv/bin/briefcase package android -a "$app" -p aab --no-input
+  unsigned_bundle="$here/dist/$formal_name-$version.aab"
+  python3 tools/check_android_pages.py "$unsigned_bundle"
+  jarsigner -keystore "$TGAS_KEYSTORE" -storepass:env TGAS_STORE_PASSWORD \
+    -keypass:env TGAS_KEY_PASSWORD -signedjar "$working/signed.aab" "$unsigned_bundle" "$TGAS_KEY_ALIAS"
+  jarsigner -verify "$working/signed.aab"
+  bundle_out="${out%.apk}.aab"
+  mv -f "$working/signed.aab" "$bundle_out"
+  shasum -a 256 "$bundle_out"
+fi
+if [[ -f "$working/symbols.zip" ]]; then
   mv -f "$working/symbols.zip" "$symbol_dir/TeleGraph-$name-$version-$build_number-$checksum.zip"
 fi
 mv -f "$working/signed.apk" "$out"

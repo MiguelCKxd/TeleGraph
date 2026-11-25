@@ -9,9 +9,11 @@ from tg_ascii_mobile.tv import share_chat
 class AppleTVSharingTests(IsolatedAsyncioTestCase):
     def setUp(self):
         self.entity = NS(noforwards=False)
+        self.look = {'name': 'Nombre QA', 'bg': '#ffffff', 'text': '#001100', 'strong': '#002200',
+                     'font': 'sf', 'scale': 1.1, 'brand_logo': {'variant': 'title-short', 'theme': 'dark', 'color': 'blue'}}
         self.client = NS(get_entity=AsyncMock(return_value=self.entity), iter_messages=self.history)
         self.link = NS(connectionID=Mock(return_value='paired'), share_connection_=Mock(return_value=True))
-        self.core = NS(backend=NS(client=self.client), account='a', tv_link=self.link, stage='ready',
+        self.core = NS(watch_appearance=lambda: self.look, backend=NS(client=self.client), account='a', tv_link=self.link, stage='ready',
                        chats=[NS(id=12, name='QA')], text=str, locked=False, in_background=False)
 
     async def history(self, entity, limit):
@@ -26,7 +28,12 @@ class AppleTVSharingTests(IsolatedAsyncioTestCase):
         payload, connection = self.link.share_connection_.call_args.args
         self.link.connectionID.assert_called_once_with()
         self.assertEqual(connection, 'paired')
-        self.assertEqual(json.loads(payload), {'id': 12, 'title': 'QA', 'messages': ['first', 'latest']})
+        packet = json.loads(payload)
+        appearance = packet.pop('appearance')
+        self.assertEqual(packet, {'id': 12, 'title': 'QA', 'messages': ['first', 'latest']})
+        self.assertEqual(appearance['name'], 'Nombre QA')
+        self.assertEqual(appearance['font'], 'sf')
+        self.assertTrue(appearance['logo'].startswith('iVBOR'))
 
     async def test_disconnected_phone_does_not_fetch_chat(self):
         self.link.connectionID.return_value = None

@@ -36,7 +36,7 @@ for (const [name, value] of [['--top', Q.get('top')], ['--bottom', Q.get('bottom
 const QUICK = ['👍', '❤', '😂', '😮', '😢', '🔥', '👏', '🎉'];
 
 const KEYS = [
-  'Share screen', 'Stop sharing screen',
+  'Share screen', 'Stop sharing screen', 'Picture in Picture', 'Picture in Picture is unavailable.',
   'Conectando...', 'Sin conexion', 'En linea', 'Reintentar', 'Iniciar sesion', 'Numero de telefono',
   'Include + and your country calling code. Example: +1 202 555 0123', 'Continuar',
   'Entrar con codigo QR', 'Codigo de Telegram', 'Te hemos enviado el codigo a Telegram o por SMS.',
@@ -110,7 +110,7 @@ const state = {
 
 // -- plumbing -----------------------------------------------------------------
 // Calls that create something are not repeated (a lost answer could mean done).
-const NO_RETRY = new Set(['apply_chat_wallpaper', 'publish_story', 'voice_start', 'voice_stop', 'notify_reset', 'group_call_action', 'group_call_manage', 'send', 'send_files', 'send_voice', 'send_sticker', 'send_poll', 'poll_answer', 'poll_close', 'send_contact', 'forward', 'forward_many', 'create_group', 'create_community', 'member_admin', 'member_restrict', 'members_add', 'set_discussion', 'group_change', 'call_action', 'secret_start', 'secret_ttl', 'secret_rekey', 'secret_screenshot', 'secret_discard']);
+const NO_RETRY = new Set(['report_message', 'apply_chat_wallpaper', 'publish_story', 'voice_start', 'voice_stop', 'notify_reset', 'group_call_action', 'group_call_manage', 'send', 'send_files', 'send_voice', 'send_sticker', 'send_poll', 'poll_answer', 'poll_close', 'send_contact', 'forward', 'forward_many', 'create_group', 'create_community', 'member_admin', 'member_restrict', 'members_add', 'set_discussion', 'group_change', 'call_action', 'secret_start', 'secret_ttl', 'secret_rekey', 'secret_screenshot', 'secret_discard']);
 async function api(method, params = {}) {
   let response;
   for (let attempt = 0; ; attempt++) {
@@ -152,6 +152,7 @@ function h(tag, attrs, ...children) {
     if (child === null || child === undefined || child === false) continue;
     node.append(child instanceof Node ? child : document.createTextNode(String(child)));
   }
+  if (tag === 'input' && attrs?.type === 'search') installSearchHistory(node);
   const role = attrs?.role;
   if ((role === 'button' || role === 'link') && attrs.onclick && tag !== 'button' && tag !== 'a') {
     if (attrs.tabindex == null) node.tabIndex = 0;
@@ -289,7 +290,23 @@ function blend(a, b, weight) {
     .toString(16).padStart(2, '0')).join('');
 }
 const FONTS = { courier: '"Courier New", Courier, monospace', sans: 'system-ui, -apple-system, Roboto, "Segoe UI", sans-serif',
-  serif: 'Georgia, "Times New Roman", serif' };
+  serif: 'Georgia, "Times New Roman", serif', system: 'system-ui, sans-serif', sf: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+  rounded: 'ui-rounded, -apple-system, system-ui, sans-serif', humanist: '"Trebuchet MS", Roboto, sans-serif',
+  classic: 'Palatino, "Palatino Linotype", serif', book: 'Georgia, "Noto Serif", serif', mono: 'ui-monospace, Menlo, "Roboto Mono", monospace',
+  // 3.2 · Apple system faces (San Francisco and New York), shown on Apple devices.
+  sf_rounded: 'ui-rounded, "SF Pro Rounded", -apple-system, system-ui, sans-serif',
+  sf_mono: 'ui-monospace, "SF Mono", Menlo, monospace', new_york: 'ui-serif, "New York", Georgia, serif',
+  sf_compact: '"SF Compact", "SF Compact Text", -apple-system, system-ui, sans-serif',
+  // 3.2 · Android system families (fonts.xml aliases): no download needed.
+  condensed: '"sans-serif-condensed", "Roboto Condensed", "Arial Narrow", sans-serif',
+  light: '"sans-serif-light", "Roboto Light", system-ui, sans-serif', medium: '"sans-serif-medium", "Roboto Medium", system-ui, sans-serif',
+  noto_serif: '"Noto Serif", serif', typewriter: '"serif-monospace", "Cutive Mono", "Courier New", monospace',
+  casual: 'casual, "Coming Soon", "Comic Sans MS", cursive', handwriting: '"Dancing Script", cursive',
+  smallcaps: '"sans-serif-smallcaps", "Carrois Gothic SC", sans-serif' };
+// Which typefaces each system offers in Appearance (all keys stay valid everywhere).
+const APPLE_FONTS = [['sf', 'SF Pro'], ['sf_rounded', 'SF Pro Rounded'], ['sf_mono', 'SF Mono'], ['new_york', 'New York'], ['sf_compact', 'SF Compact (si está instalada)']];
+const ANDROID_FONTS = [['condensed', 'Roboto Condensed'], ['light', 'Roboto Light'], ['medium', 'Roboto Medium'], ['noto_serif', 'Noto Serif'],
+  ['typewriter', 'Cutive Mono'], ['casual', 'Coming Soon'], ['handwriting', 'Dancing Script'], ['smallcaps', 'Carrois Gothic SC']];
 const backgroundUrl = (name) => '/background?' + resourceAuth() + '&name=' + encodeURIComponent(name);
 function backdrop(name) {
   if (!name) return '';
@@ -298,6 +315,7 @@ function backdrop(name) {
   return 'linear-gradient(' + veil + ', ' + veil + '), url("' + backgroundUrl(name) + '")';
 }
 function applySettings() {
+  updateConnectionIndicator();
   const settings = state.settings || {};
   const theme = settings.theme === 'system'
     ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : (settings.theme || 'dark');
@@ -364,14 +382,17 @@ function applySettings() {
     if (body) paintChatWallpaper(body, win.peer);
   }
   const size = Number(settings.font_size) || 12;
+  document.documentElement.classList.toggle('large-type', size > 19);
   document.documentElement.style.setProperty('--size', Math.round(size * 1.25) + 'px');
   document.documentElement.dir = state.rtl ? 'rtl' : 'ltr';
   document.documentElement.lang = state.language || 'en';
+  document.dispatchEvent(new Event('appearancechange'));
 }
 
 async function loadStrings() {
   const language = state.language;
   const keys = [
+    ...swipeOptions.map(([, label]) => label), 'Al deslizar un chat hacia la derecha', 'Al deslizar un chat hacia la izquierda',
     ...Object.values(CALL_STATUS), ...MOBILE_FEATURES.flatMap(([, label, note]) => [label, note]),
     ...[...PROFILE_SECTIONS, ...SETTINGS_SECTIONS, ...SHARED_KINDS].map(([, label]) => label),
     ...FORMAT_BUTTONS.map(([, , label]) => label),
@@ -480,7 +501,7 @@ const EVENTS = {
     // Folder membership changes rarely: ask for it at most every few seconds.
     if (state.folders.length && Date.now() - (state.foldersAt || 0) > 4000) {
       state.foldersAt = Date.now();
-      api('folders', { refresh: false }).then((folders) => { state.folders = folders; drawFolderTabs(); queueChatList(); }, () => {});
+      fetchFolders(false).catch(() => {});
     }
   },
   // A chat changed without moving (read receipts, pending messages).
@@ -697,6 +718,10 @@ function adopt(snapshot) {
     state.accountRevision++;
     state.contacts = state.contactSelection = state.forwarding = null;
     state.visibleContacts = [];
+    state.folders = []; state.folder = null; state.foldersLoaded = false; state.foldersAt = 0;
+    state.settingsQuery = ''; state.listTyping = {}; state.list = 'chats'; state.me = null;
+    state.premiumInfo = null; state.shared = null; state.visibleChats = [];
+    photoIds.clear(); chatPlaces.clear();
     state.chats = []; state.archived = state.global = state.results = null;
     state.search = ''; state.selection = state.chatSelection = null;
     state.account = snapshot.account;
@@ -834,7 +859,13 @@ function render() {
   root.className = '';
   // A sheet (menu, picker) stays open while the same screen is redrawn by updates.
   const screen = [state.view, state.open && state.open.peer, state.locked, state.stage].join('|');
-  if (screen !== state.lastScreen) closeSheet();
+  if (screen !== state.lastScreen) {
+    closeSheet();
+    const moving = state.lastScreen && !state.locked && !state.settings?.reduce_animations &&
+      !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (moving && root.animate) root.animate([{opacity: .82, transform: 'translateY(4px)'}, {opacity: 1, transform: 'none'}],
+      {duration: 145, easing: 'ease-out'});
+  }
   state.lastScreen = screen;
   windowLayer.hidden = state.locked || state.stage !== 'ready';
   if (state.locked) return root.append(...lockView().filter(Boolean));
@@ -877,13 +908,23 @@ window.addEventListener('resize', () => {
 
 function statusNode() {
   const offline = state.connection === 'offline' || state.connection === 'reconnecting';
+  if (offline) return h('span', {id: 'status', hidden: true});
   const online = state.connection === 'online';
-  const label = offline ? t('Sin conexion') : online ? t('En linea') : t('Conectando...');
-  return h(online ? 'span' : 'button', { id: 'status', class: 'status' + (offline ? ' offline' : ''),
-    'aria-label': online ? null : label + ' · ' + t('Reconnect'), onclick: online ? null : reconnect },
-    h('span', { 'aria-hidden': 'true' }, offline ? '○ ' : online ? '● ' : '◌ '), label);
+  const label = t(online ? 'En linea' : 'Conectando...');
+  return h(online ? 'span' : 'button', {id: 'status', class: 'status', title: label,
+    'aria-label': online ? label : label + ' · ' + t('Reconnect'), onclick: online ? null : reconnect},
+    h('span', {'aria-hidden': 'true'}, online ? '●' : '◌'), h('span', {class: 'status-word'}, label));
 }
-function updateStatus() { document.getElementById('status')?.replaceWith(statusNode()); }
+function updateConnectionIndicator() {
+  const badge = document.getElementById('connection-alert');
+  if (badge) badge.title = badge.ariaLabel = t('Sin conexion') + ' · ' + t('Reconnect');
+  if (badge) badge.hidden = state.locked || state.stage !== 'ready' ||
+    !['offline', 'reconnecting'].includes(state.connection);
+}
+function updateStatus() {
+  document.getElementById('status')?.replaceWith(statusNode());
+  updateConnectionIndicator();
+}
 
 const brandUrl = (options) => '/logo?' + new URLSearchParams(
   options.t ? (WINDOW_ACCOUNT !== null ? {...options, window_account: WINDOW_ACCOUNT} : options)
@@ -896,7 +937,7 @@ function logo() {
     : look?.official_logo ? officialLogoUrl(look.official_logo)
       : brandUrl(look?.brand_logo || {variant: 'title-short', color: 'default',
         theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'});
-  return h('img', {class: 'logo', src, alt: 'TeleGraph'});
+  return h('img', {class: 'logo', src, alt: state.settings?.app_display_name || 'TeleGraph'});
 }
 
 function loginView() {
@@ -915,7 +956,7 @@ function loginView() {
       button(t('Continuar'), () => submit(method, id), 'primary')];
   };
   if (state.busy || state.stage === 'loading') {
-    wrap.append(h('div', { class: 'spinner' }, t('Conectando...') + ' '));
+    wrap.append(h('h2', {}, state.settings?.app_display_name || 'TeleGraph'), h('div', { class: 'spinner' }, t('Conectando...') + ' '));
   } else if (state.stage === 'phone') {
     wrap.append(h('h2', {}, t('Iniciar sesion')), ...form('phone', t('Numero de telefono'), 'tel', 'login.phone',
       t('Include + and your country calling code. Example: +1 202 555 0123'), 'tel'),
@@ -947,24 +988,35 @@ function loginView() {
 }
 
 // chat list -----------------------------------------------------------------------
+// Telegram's seven default avatar gradients, indexed by the unmarked peer id.
+const avatarColors = [['#ff845e','#d45246'], ['#febb5b','#f68136'], ['#b694f9','#6c61df'], ['#9ad164','#46ba43'],
+  ['#5bcbe3','#359ad4'], ['#5caffa','#408acf'], ['#ff8aac','#d95574']];
 function initials(name) {
-  const words = (name || '?').trim().split(/\s+/).filter(Boolean);
-  return ((words[0] || '?')[0] + (words[1] ? words[1][0] : '')).toUpperCase();
+  const words = String(name || '?').trim().split(/\s+/u).filter(Boolean);
+  const first = word => {
+    if (!word) return '';
+    return typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, {granularity: 'grapheme'}).segment(word)[Symbol.iterator]().next().value.segment : Array.from(word)[0];
+  };
+  return (first(words[0]) + (words.length > 1 ? first(words.at(-1)) : '')).toLocaleUpperCase() || '?';
 }
-// Profile photo (downloaded once by the core) over the initials.
-function avatar(id, name, extra = '') {
-  const box = h('div', { class: 'avatar' + (extra ? ' ' + extra : ''), 'aria-hidden': 'true' }, h('span', {}, initials(name)));
-  if (id !== undefined && id !== null && id !== '') {
-    const photo = photoIds.get(Number(id));
-    const img = lazySrc(h('img', { alt: '', decoding: 'async' }), '/avatar?' + resourceAuth() + '&peer=' + id +
-      (state.avatarVersion ? '&v=' + state.avatarVersion : '') + (photo ? '&p=' + photo : ''));
+function avatar(id, name, extra = '', owner = null, color = null) {
+  const numeric = Number(id) || 0;
+  const raw = numeric <= -1000000000000 ? -numeric - 1000000000000 : Math.abs(numeric);
+  const colors = avatarColors[Number.isInteger(color) && color >= 0 && color < avatarColors.length ? color : raw % avatarColors.length];
+  const box = h('div', {class: 'avatar' + (extra ? ' ' + extra : ''), 'aria-hidden': 'true',
+    style: 'background:linear-gradient(' + colors.join(',') + ')'}, h('span', {}, initials(name)));
+  if (id != null && id !== '' && state.settings?.photo_previews !== false) {
+    const photo = photoIds.get(numeric);
+    const url = owner != null ? '/account-avatar?' + resourceAuth() + '&account=' + encodeURIComponent(owner) :
+      '/avatar?' + resourceAuth() + '&peer=' + numeric + '&account_key=' + encodeURIComponent(state.account || '') +
+      (state.avatarVersion ? '&v=' + state.avatarVersion : '') + (photo ? '&p=' + photo : '');
+    const img = lazySrc(h('img', {alt: '', decoding: 'async'}), url);
     img.onload = () => box.classList.add('photo');
     img.onerror = () => img.remove();
     box.append(img);
   }
   return box;
 }
-
 function shortTime(seconds) {
   if (!seconds) return '';
   const date = new Date(seconds * 1000), now = new Date();
@@ -981,7 +1033,7 @@ function chatListView(forwarding = false, archived = false) {
     h('div', { class: 'title' }, title), statusNode(),
     forwarding || archived ? null : symbolButton('≡', t('More options'), chatsMenu));
   const search = h('div', { class: 'search' }, h('input', {
-    type: 'search', placeholder: t('Buscar'), value: state.search,
+    type: 'search', 'data-search-scope': forwarding ? 'forward' : archived ? 'archived' : 'chats', placeholder: t('Buscar'), value: state.search,
     oninput: (event) => { state.search = event.target.value; drawChatList(); },
   }));
   const list = h('div', { class: 'scroll', id: 'chatlist' });
@@ -990,7 +1042,8 @@ function chatListView(forwarding = false, archived = false) {
   setTimeout(() => { drawFolderTabs(); drawChatList(); drawChatSelection(); }, 0);
   if (!forwarding && !archived && !state.foldersLoaded) {
     state.foldersLoaded = true;
-    api('folders', { refresh: true }).then((folders) => { state.folders = folders; drawFolderTabs(); }, () => { state.foldersLoaded = false; });
+    const revision = state.accountRevision;
+    fetchFolders(true).catch(() => { if (revision === state.accountRevision) state.foldersLoaded = false; });
   }
   if (archived && state.archived === null) attempt(() => api('archived'), (chats) => { state.archived = chats; drawChatList(); });
   return [bar, selectionBar, search, tabs, list];
@@ -1010,6 +1063,14 @@ function folderTitle(folder) {
   const box = h('span', {}, ...parts);
   if (folder.still && animationObserver) box.querySelectorAll('[data-anim]').forEach((node) => { animationObserver.unobserve(node); delete node.dataset.anim; });
   return box;
+}
+
+async function fetchFolders(refresh) {
+  const account = state.account, revision = state.accountRevision;
+  const folders = await api('folders', {refresh, account});
+  if (revision !== state.accountRevision || account !== state.account || state.locked) return null;
+  state.folders = folders; drawFolderTabs(); queueChatList();
+  return folders;
 }
 
 function drawFolderTabs() {
@@ -1071,13 +1132,15 @@ function chatRow(chat, mode, selecting) {
   let timer = null, held = false;
   const chosen = selecting && state.chatSelection.has(chat.id);
   const activity = feature('chat_list_activity');
-  return peerControl({ class: 'row peer-control' + (state.open && state.open.peer === chat.id && mode !== 'forward' ? ' on' : '') + (chosen ? ' selected' : ''),
+  const actions = !selecting && mode !== 'forward';
+  const row = peerControl({ class: 'row peer-control' + (state.open && state.open.peer === chat.id && mode !== 'forward' ? ' on' : '') + (chosen ? ' selected' : ''),
     onclick: () => { if (held) return; if (selecting) { toggleChatSelected(chat.id); return; } mode === 'forward' ? forwardTo(chat) : openChat(chat.id); },
     oncontextmenu: (event) => { event.preventDefault(); if (mode !== 'forward') chatMenu(chat); },
     ontouchstart: () => { held = false; timer = setTimeout(() => { held = true; if (mode !== 'forward') chatMenu(chat); }, 550); },
-    ontouchend: () => clearTimeout(timer), ontouchmove: () => clearTimeout(timer) },
+    ontouchcancel: () => clearTimeout(timer), ontouchend: () => clearTimeout(timer), ontouchmove: () => clearTimeout(timer) },
     selecting ? h('span', { class: 'mark' }, chosen ? '☑' : '☐') : null,
-    avatar(chat.id, chat.name),
+    actions ? h('button', {type: 'button', class: 'chat-avatar-button', 'aria-label': t('Menú del chat') + ' · ' + chat.name,
+      onclick: event => { event.stopPropagation(); if (!held) chatMenu(chat); }}, avatar(chat.id, chat.name, '', null, chat.color)) : avatar(chat.id, chat.name, '', null, chat.color),
     h('div', { class: 'body' },
       h('div', { class: 'top' }, nameWithStatus(chat.name, chat.emoji_status, true, selecting ? !!chosen : null),
         activity && (state.listTyping || {})[chat.id] > Date.now() ? h('span', { class: 'activity' }, '···')
@@ -1091,6 +1154,7 @@ function chatRow(chat, mode, selecting) {
             : h('span', { class: 'preview' }, (chat.out ? t('Tu') + ': ' : ''), richText(chat.preview || '', chat.emojis || [], false)),
         chat.pinned || chat.muted ? h('span', { class: 'flags' }, (chat.pinned ? '*' : '') + (chat.muted ? '~' : '')) : null,
         unread ? h('span', { class: 'badge' + (chat.muted ? ' muted' : '') }, unread) : null)));
+  return actions && TOUCH ? swipeChatRow(row, chat) : row;
 }
 
 function drawChatList() {
@@ -1111,6 +1175,7 @@ function drawChatList() {
     }
   }
   const chats = source.filter((chat) => !query || chat.name.toLowerCase().includes(query));
+  state.visibleChats = chats.map(chat => chat.id);
   if (!chats.length) {
     const loading = !source.length && !folder && state.connection !== 'offline' && (mode !== 'archived' || state.archived === null);
     list.replaceChildren(h('div', { class: 'empty' }, loading ? t('Cargando...') : t('No hay chats.')));
@@ -1118,11 +1183,10 @@ function drawChatList() {
     return;
   }
   const top = list.scrollTop;
-  state.visibleChats = chats.map((chat) => chat.id);
   const selecting = mode !== 'forward' && state.chatSelection;
   const activity = feature('chat_list_activity');
   const context = [state.account, mode, !!selecting, state.language, state.rtl, state.avatarVersion || 0, activity,
-    state.settings?.ascii_text, animationEnabled(), new Date().toDateString()].join('|');
+    state.settings?.ascii_text, state.settings?.photo_previews, animationEnabled(), new Date().toDateString()].join('|');
   if (context !== chatRows.context) { chatRows.context = context; chatRows.rows.clear(); }
   const now = Date.now(), kept = new Map();
   const rows = chats.map((chat) => {
@@ -1206,8 +1270,9 @@ async function restartApp() {
 }
 
 function folderPin(chat, changes) {
+  const revision = state.accountRevision;
   return attempt(() => api('folder_pin', {folder: chat.pinFolder, peer: chat.id, account: state.account, ...changes}),
-    folders => { state.folders = folders; queueChatList(); });
+    folders => { if (revision === state.accountRevision) { state.folders = folders; queueChatList(); } });
 }
 
 function pinMoves(chat) {
@@ -1370,14 +1435,16 @@ function muteSheet(chat, done) {
 
 // Telegram folders: add or remove one chat, or add the selected chats.
 function folderSheet(peers, done) {
-  attempt(() => api('folders', { refresh: true }), (folders) => {
-    state.folders = folders; drawFolderTabs();
+  const revision = state.accountRevision, account = state.account;
+  attempt(() => fetchFolders(true), (folders) => {
+    if (!folders || revision !== state.accountRevision) return;
     if (!folders.length) { toast(t('No folders yet. Create one in Folders.')); return; }
     sheet(t('Add to folder'), folders.map((folder) => {
       const inside = peers.length === 1 && folder.chats.includes(peers[0]);
       return [(inside ? '✓ ' : '') + folder.title, () => attempt(() => peers.length === 1
-        ? api('folder_membership', { folder: folder.id, peer: peers[0], include: !inside })
-        : api('chats_batch', { peers, action: 'folder', value: folder.id }), (result) => {
+        ? api('folder_membership', { account, folder: folder.id, peer: peers[0], include: !inside })
+        : api('chats_batch', { peers, action: 'folder', value: folder.id, account }), (result) => {
+        if (revision !== state.accountRevision) return;
         if (Array.isArray(result)) state.folders = result;
         drawFolderTabs(); drawChatList(); toast(t('Saved.')); if (done) done();
       })];
@@ -1420,12 +1487,13 @@ function drawChatSelection() {
   if (!state.chatSelection) { bar.hidden = true; bar.replaceChildren(); return; }
   const clear = () => { state.chatSelection = null; drawChatSelection(); drawChatList(); };
   bar.replaceChildren(h('span', { class: 'count' }, t('Selected') + ': ' + state.chatSelection.size),
+    bulkButtons(() => { state.chatSelection = new Set(state.visibleChats || []); drawChatSelection(); drawChatList(); }, clear),
     button(t('Actions'), () => chatSelectionMenu(clear), 'primary'), symbolButton('x', t('Cancelar'), clear));
   bar.hidden = false;
 }
 function chatSelectionMenu(clear) {
   const peers = [...state.chatSelection];
-  const run = (action, value = true) => attempt(() => api('chats_batch', { peers, action, value }), () => {
+  const run = (action, value = true) => attempt(() => api('chats_batch', { peers, action, value, account: state.account }), () => {
     toast(t('Saved.')); clear();
     if (state.view === 'archived') { state.archived = null; render(); }
   });
@@ -1746,6 +1814,7 @@ function drawSelection() {
     state.selection = null; drawSelection(); drawMessages(false);
   };
   bar.replaceChildren(h('span', { class: 'count' }, t('Selected') + ': ' + ids.length),
+    bulkButtons(() => { state.selection = new Set(state.open.messages.filter(m => !m.service).map(m => m.id)); drawMessages(false); drawSelection(); }, clear),
     button(t('Actions'), () => selectionMenu(ids, clear), 'primary'), symbolButton('x', t('Cancelar'), clear));
   bar.hidden = false;
 }
@@ -1775,10 +1844,8 @@ function drawHeaderStatus() {
   const node = document.getElementById('chat-status');
   if (!node || !state.open) return;
   const discussion = state.open.thread;
-  const offline = state.connection === 'offline' || state.connection === 'reconnecting';
   node.className = 'sub' + (state.open.typing ? ' typing' : '');
-  node.replaceChildren(...(offline ? [h('span', { 'aria-hidden': 'true' }, '○ '), t('Sin conexion')]
-    : [state.open.typing || discussion?.channel.name || state.open.status || '']));
+  node.textContent = state.open.typing || discussion?.channel.name || state.open.status || '';
 }
 
 function conversationMenu(chat) {
@@ -1810,7 +1877,7 @@ function conversationMenu(chat) {
 
 function searchInChat(query = '') {
   const layer = document.getElementById('sheet-layer');
-  const input = h('input', { type: 'search', placeholder: t('Buscar en el chat'), value: typeof query === 'string' ? query : '' });
+  const input = h('input', { type: 'search', 'data-search-scope': 'messages:' + state.open.peer, placeholder: t('Buscar en el chat'), value: typeof query === 'string' ? query : '' });
   const today = new Date();
   const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000);
   const day = h('input', { type: 'date', 'aria-label': t('Date'), max: localToday.toISOString().slice(0, 10) });
@@ -1874,7 +1941,6 @@ function messageNode(message) {
   const open = state.open;
   if (message.service) return h('div', { class: 'msg service', id: 'm' + message.id }, message.text);
   const replied = message.reply_to ? open.messages.find((item) => item.id === message.reply_to) : null;
-  const ticks = message.out ? (message.read ? ' ✓✓' : ' ✓') : '';
   let timer = null, held = false;
   // Swipe a message to the side (left; right in RTL languages) to reply.
   let startX = 0, startY = 0, shift = 0, swiping = false, scrolling = false;
@@ -1897,7 +1963,7 @@ function messageNode(message) {
     ontouchstart: (event) => {
       held = false; swiping = scrolling = false; shift = 0;
       const point = event.touches[0]; startX = point.clientX; startY = point.clientY;
-      timer = setTimeout(() => { held = true; if (navigator.vibrate) navigator.vibrate(12); messageMenu(message); }, 500);
+      if (!state.selection) timer = setTimeout(() => { held = true; if (navigator.vibrate) navigator.vibrate(12); messageMenu(message); }, 500);
     },
     ontouchmove: (event) => {
       const point = event.touches[0], dx = point.clientX - startX, dy = point.clientY - startY;
@@ -1919,7 +1985,7 @@ function messageNode(message) {
       swiping = false;
     } },
     h('div', { class: 'head' }, state.selection ? h('span', { class: 'mark' }, state.selection.has(message.id) ? '☑ ' : '☐ ') : null,
-      h('span', { class: 'who' }, message.sender), h('span', {}, message.time)),
+      h('span', { class: 'who' }, message.sender), h('time', {class: 'header-clock'}, message.time)),
     message.forwarded ? h('div', { class: 'meta' }, '» ' + t('reenviado')) : null,
     message.reply_to ? h('div', { class: 'reply', role: 'button', onclick: (event) => { event.stopPropagation(); jumpTo(message.reply_to); } },
       replied ? [replied.sender + ': ', richText((replied.text || '').replace(/\s+/g, ' '), replied.custom_emojis || [], false)] : '↩ ' + t('Go to message')) : null,
@@ -1934,7 +2000,7 @@ function messageNode(message) {
     typeof message.comments === 'number' ? h('button', { class: 'comments-button', onclick: (event) => { event.stopPropagation(); if (!state.selection) openComments(message); } },
       '💬 ' + (message.comments ? message.comments + ' ' + t('Comments') : t('Leave a comment'))) : null,
     messageReactions(message, open.peer),
-    (message.edited || ticks) ? h('div', { class: 'meta' }, (message.edited ? t('editado') : '') + ticks) : null);
+    messageFooter(message));
   return node;
 }
 
@@ -2149,6 +2215,13 @@ async function nativeCallAction(action, params = {}) {
   if (result && account === state.account && state.nativeCall === call) receiveCall(result);
 }
 
+function callPipButton(call, group = false) {
+  return button(t('Picture in Picture'), async () => {
+    const opened = await attempt(() => api('call_pip', {token: call.token, group}));
+    if (opened === false) toast(t('Picture in Picture is unavailable.'), 'error');
+  });
+}
+
 function drawNativeCall() {
   const layer = document.getElementById('call-layer');
   if (!layer) return;
@@ -2168,7 +2241,8 @@ function drawNativeCall() {
     ? [button(t('Answer'), () => nativeCallAction('accept'), 'primary'),
        call.video ? button(t('Answer with video'), () => nativeCallAction('accept', {video: true})) : null,
        button(t('Decline'), () => nativeCallAction('end'), 'danger')]
-    : [active ? button(t(call.muted ? 'Unmute microphone' : 'Mute microphone'), () => nativeCallAction('mute', {value: !call.muted})) : null,
+    : [active && call.can_pip && (call.video || call.remote_video || call.screen) ? callPipButton(call) : null,
+       active ? button(t(call.muted ? 'Unmute microphone' : 'Mute microphone'), () => nativeCallAction('mute', {value: !call.muted})) : null,
        active && !call.screen ? button(t(call.video ? 'Stop camera' : 'Start camera'), () => nativeCallAction('camera', {value: !call.video})) : null,
        active && call.can_share_screen ? button(t(call.screen ? 'Stop sharing screen' : 'Share screen'),
          () => nativeCallAction('screen', {value: !call.screen})) : null,
@@ -2273,6 +2347,7 @@ function drawGroupCall() {
   grid.dataset.token = call.token;
   const mine = details?.items?.find(item => item.is_self);
   const actions = active ? [
+    call.can_pip && (call.video || call.remote_video || call.screen || details?.items?.some(item => item.video || item.screen)) ? callPipButton(call, true) : null,
     call.view_only ? null : button(t(call.muted ? 'Unmute microphone' : 'Mute microphone'), () => groupCallAction('mute', {value: !call.muted}), call.muted ? '' : 'primary'),
     call.view_only || call.screen ? null : button(t(call.video ? 'Stop camera' : 'Start camera'), () => groupCallAction('camera', {value: !call.video})),
     !call.view_only && call.can_share_screen ? button(t(call.screen ? 'Stop sharing screen' : 'Share screen'),
@@ -2499,6 +2574,7 @@ async function articleView(message) {
     const previousFocus = carousel.querySelector('button:focus')?.getAttribute('aria-label');
     let startX = null;
     carousel.replaceChildren(
+      state.settings?.photo_previews === false ? button(t('Foto'), () => imageViewer(photoUrl(index), t('Article'))) :
       h('img', { src: photoUrl(index), alt: t('Foto'), role: 'button', onclick: () => imageViewer(photoUrl(index), t('Article')),
         ontouchstart: (event) => { startX = event.touches[0].clientX; },
         ontouchend: (event) => { if (startX === null) return; const dx = event.changedTouches[0].clientX - startX; startX = null;
@@ -2527,6 +2603,8 @@ function pollNode(message) {
   const destination = {peer: open.peer, id: message.id, account: state.account};
   const attachment = (kind, part) => {
     const url = mediaUrl(open.peer, message.id, kind !== 'video') + '&poll=' + part;
+    if (kind === 'photo' && state.settings?.photo_previews === false)
+      return button(t('Foto'), () => imageViewer(url, t('Foto')));
     if (kind === 'photo') return h('img', {class: 'poll-attachment', src: url, alt: t('Attachment'), loading: 'lazy'});
     if (kind === 'video') return h('video', {class: 'poll-attachment', src: url, controls: true, playsinline: true, preload: 'none'});
     return null;
@@ -2563,7 +2641,15 @@ function pollNode(message) {
   const vote = (options) => attempt(() => api('vote', {...destination, options}), apply);
   box.append(h('div', { class: 'meta' }, t(poll.quiz ? 'Quiz' : 'Poll') +
     (poll.hidden_results && !poll.closed ? '' : ' · ' + poll.total)));
-  if (!votedOrClosed && poll.multiple) box.append(button(t('Vote'), () => picked.size && vote([...picked]), 'primary'));
+  if (!votedOrClosed && poll.multiple) {
+    const selectAnswers = checked => {
+      picked.clear();
+      if (checked) answers.forEach(answer => picked.add(answer.option));
+      box.querySelectorAll('button.answer').forEach(row => row.classList.toggle('picked', checked));
+    };
+    box.append(bulkButtons(() => selectAnswers(true), () => selectAnswers(false)),
+      button(t('Vote'), () => picked.size && vote([...picked]), 'primary'));
+  }
   if (poll.voted && !poll.closed && poll.revoting) box.append(button(t('Retract vote'), () => vote([])));
   if (votedOrClosed || poll.creator) {
     if (poll.solution) box.append(h('div', {class: 'text'}, poll.solution));
@@ -2902,7 +2988,7 @@ function webpageNode(message) {
     page.site ? h('div', { class: 'site' }, page.site) : null,
     page.title ? h('div', { class: 'title' }, page.title) : null,
     page.description ? h('div', { class: 'description' }, page.description) : null);
-  if (page.photo && peer != null) card.append(h('img', { alt: '', loading: 'lazy', decoding: 'async',
+  if (page.photo && peer != null && state.settings?.photo_previews !== false) card.append(h('img', { alt: '', loading: 'lazy', decoding: 'async',
     src: '/media?' + resourceAuth() + '&peer=' + peer + '&id=' + message.id + '&thumb=1',
     onerror: (event) => event.target.remove() }));
   return card;
@@ -2923,14 +3009,20 @@ function fileNode(message) {
 }
 
 // Downloads the file once (the core keeps it), then opens, saves or shares it.
-async function openFile(message, peer = state.open.peer, action = 'file') {
+function openFile(message, peer = state.open.peer, action = 'file', report = toast) {
+  const account = state.account;
+  return openNativeMedia(() => api('open_file', {peer, id: message.id, action, account}), action, report);
+}
+async function openNativeMedia(request, action, report) {
   keepUnlocked(action === 'save' ? 30 : 120);
-  toast(t('Downloading…'));
+  report(t('Downloading…'));
   try {
-    const result = await api('open_file', { peer, id: message.id, action });
-    if (!result.opened) toast(t('Could not open the file.'), 'error');
-    else if (action === 'save' && PLATFORM === 'Android') toast(t('Saved to Downloads/TG-ASCII.'));
-  } catch (error) { toast(error.message, 'error'); }
+    const result = await request();
+    if (!result.opened) { report(t('Could not open the file.'), 'error'); return false; }
+    const saved = action === 'save' && PLATFORM === 'Android';
+    if (saved || report !== toast) report(saved ? t('Saved to Downloads/TG-ASCII.') : '');
+    return true;
+  } catch (error) { report(error.message, 'error'); return false; }
 }
 
 // Voice messages are Ogg/Opus; WebKit (iOS, Mac) plays the same audio from CAF.
@@ -2944,7 +3036,7 @@ async function voiceRecorder() {
   if (!state.open || state.voice) return;
   const open = state.open;
   const destination = sendDestination(open);
-  const capture = crypto.randomUUID();
+  const capture = crypto.randomUUID?.() || Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
   state.voice = {peer: open.peer, capture};
   const layer = document.getElementById('sheet-layer');
   const clock = h('div', { class: 'voice-clock' }, '0:00');
@@ -3019,7 +3111,8 @@ async function voiceRecorder() {
 
 // media (phase 2) ---------------------------------------------------------------
 function mediaUrl(peer, id, thumb) {
-  return '/media?' + resourceAuth() + '&peer=' + peer + '&id=' + id + '&thumb=' + (thumb ? 1 : 0);
+  const owner = WINDOW_ACCOUNT === null && state.account ? '&window_account=' + encodeURIComponent(state.account) : '';
+  return '/media?' + resourceAuth() + owner + '&peer=' + peer + '&id=' + id + '&thumb=' + (thumb ? 1 : 0);
 }
 
 // A preview picture that takes its final size before it arrives (the core sends
@@ -3042,9 +3135,9 @@ function mediaNode(message) {
       if (state.selection) return;
       // Desktop: a sticker opens its whole pack (send one, or save the pack).
       if (message.kind === 'sticker') { if (message.sticker_id) packView({ id: message.sticker_id }, false); }
-      else viewer(message, peer, message.album ? state.open.messages.filter(item => item.album === message.album) : null);
+      else viewer(message, peer);
     } });
-  if (state.settings && state.settings.inline_media === false && message.kind !== 'sticker') {
+  if ((state.settings?.inline_media === false || state.settings?.photo_previews === false) && message.kind !== 'sticker') {
     // "Show media in the chat" off: a placeholder; the photo opens in the viewer.
     wrap.append(h('span', { class: 'meta media-placeholder' }, (message.kind === 'video' ? '▶ ' : '▣ ') + t(message.kind === 'video' ? 'Vídeo' : 'Foto')));
     return wrap;
@@ -3067,58 +3160,55 @@ function mediaDialog(title) {
 
 // Photo/video viewer. Swipe left or right (or ‹ ›, arrow keys) for the other
 // photos and videos of the same chat or shared-media list.
-function viewer(message, peer = state.open.peer, list = null) {
+function viewer(message, peer = state.open.peer, shared = null, floating = null) {
+  const revision = state.accountRevision, account = state.account;
   const layer = mediaDialog(t('Shared media'));
-  const items = (list || (state.open && state.open.peer === peer ? state.open.messages : [message]))
-    .filter((item) => item.visual && ['image', 'video', 'gif'].includes(item.kind));
-  let index = Math.max(0, items.findIndex((item) => item.id === message.id));
-  if (!items.length) items.push(message);
-  const close = () => layer.close();
-  const keys = (event) => {
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      event.preventDefault();
-      go(galleryStep(event.key === 'ArrowRight'));
+  const initialOpen = floating || (state.open?.peer === peer ? state.open : null);
+  const currentOpen = () => {
+    if (floating) return state.windows.includes(floating) ? floating : null;
+    const open = state.open;
+    return open?.peer === peer && open.thread?.root === initialOpen?.thread?.root ? open : null;
+  };
+  const active = () => revision === state.accountRevision && !state.locked &&
+    (shared ? state.shared === shared : !!currentOpen());
+  const visual = item => item.visual && ['image', 'video', 'gif'].includes(item.kind);
+  const images = new Map([[message.id, message]]);
+  let entries;
+  function collect() {
+    for (const item of (shared?.items || currentOpen()?.messages || [])) if (visual(item)) images.set(item.id, item);
+    entries = [...images.values()].sort((a, b) => a.id - b.id);
+  }
+  collect();
+  const more = () => active() && state.connection !== 'offline' &&
+    (shared ? !shared.galleryDone : !currentOpen().done);
+  async function load() {
+    if (shared) {
+      const before = shared.items[shared.items.length - 1]?.id;
+      if (!before) { shared.galleryDone = true; return; }
+      const found = await api('shared_media', {account, peer, kind: shared.kind, offset: before});
+      if (!active() || !layer.open) return;
+      const older = found.filter(item => item.id < before);
+      shared.items.push(...older);
+      shared.galleryDone = !older.length || found.length < 50;
+    } else if (!await loadOlder(true, currentOpen())) {
+      throw new Error(t('Media unavailable.'));
     }
-  };
-  const go = (step) => {
-    const next = index + step;
-    if (next < 0 || next >= items.length) return;
-    const control = layer.querySelector(':focus')?.getAttribute('aria-label');
-    index = next; show();
-    const available = [...layer.querySelectorAll('button:not(:disabled)')];
-    (available.find(node => node.getAttribute('aria-label') === control) || available[0]).focus();
-  };
-  const show = () => {
-    const current = items[index];
-    const full = mediaUrl(peer, current.id, false);
-    let content;
-    if (current.kind === 'video' || current.kind === 'gif') {
-      content = h('video', { src: full, controls: true, autoplay: true, playsinline: true, loop: current.kind === 'gif' });
-    } else {
-      content = h('img', { src: full, alt: '' });
-      content.addEventListener('error', () => { content.src = mediaUrl(peer, current.id, true); }, { once: true });
+    if (active()) collect();
+  }
+  let historyTarget = null;
+  async function syncChat(item, live) {
+    if (!shared) return;
+    historyTarget = item.id;
+    const open = currentOpen();
+    while (live() && historyTarget === item.id && open && open === currentOpen() && !open.thread &&
+      !open.done && open.messages.length && open.messages[0].id > item.id) {
+      if (!await loadOlder(false, open)) break;
     }
-    let startX = null, startY = 0;
-    const stage = h('div', { class: 'stage', onclick: (event) => { if (content.tagName !== 'IMG' && event.target === event.currentTarget) close(); },
-      ontouchstart: (event) => { if (event.touches.length === 1) { startX = event.touches[0].clientX; startY = event.touches[0].clientY; } else startX = null; },
-      ontouchend: (event) => {
-        if (startX === null || content.tagName === 'IMG') return;
-        const dx = event.changedTouches[0].clientX - startX, dy = event.changedTouches[0].clientY - startY;
-        startX = null;
-        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(galleryStep(dx < 0));
-      } }, content);
-    if (content.tagName === 'IMG') photoGestures(stage, content, right => go(galleryStep(right)));
-    const count = items.length > 1 ? ' · ' + (index + 1) + '/' + items.length : '';
-    layer.replaceChildren(
-      h('div', { class: 'bar' }, symbolButton('x', t('Close'), close), h('div', { class: 'title' }, current.sender, h('span', { class: 'sub' }, (current.time || '') + count)),
-        items.length > 1 ? symbolButton('‹', t('Previous page'), () => go(-1), index === 0) : null,
-        items.length > 1 ? symbolButton('›', t('Next page'), () => go(1), index === items.length - 1) : null),
-      stage,
-      current.caption ? h('div', { class: 'caption', dir: 'auto' }, current.caption) : null);
-  };
-  layer.addEventListener('keydown', keys);
-  show();
-  layer.showModal();
+  }
+  presentGallery({layer, title: t('Shared media'), items: () => entries, selected: message,
+    source: (item, thumb) => mediaUrl(peer, item.id, thumb), olderStep: -1, hasMore: more, loadPage: load,
+    exportItem: (initialOpen?.chat || state.chats.find(chat => chat.id === peer))?.protected ? null :
+      (item, action, report) => openFile(item, peer, action, report), active, onSelected: syncChat});
 }
 
 function imageViewer(url, title, onError) {
@@ -3127,14 +3217,51 @@ function imageViewer(url, title, onError) {
   const img = h('img', { src: url, alt: title });
   if (onError) img.onerror = () => { if (layer.open) { close(); onError(); } };
   const stage = h('div', { class: 'stage' }, img);
-  photoGestures(stage, img);
+  const releaseGestures = photoGestures(stage, img);
+  layer.addEventListener('close', releaseGestures, {once: true});
   layer.append(h('div', { class: 'bar' }, symbolButton('x', t('Close'), close), h('div', { class: 'title' }, title)), stage);
   layer.showModal();
 }
 
-function avatarViewer(data) {
-  const url = '/avatar?' + resourceAuth() + '&peer=' + data.id + '&big=1' + (state.avatarVersion ? '&v=' + state.avatarVersion : '');
-  imageViewer(url, [t('Profile photo'), data.name].filter(Boolean).join(' · '), () => toast(t('No photo.')));
+async function avatarViewer(data) {
+  const revision = state.accountRevision, account = state.account, peer = data.id;
+  const title = [t('Profile photo'), data.name].filter(Boolean).join(' · ');
+  const layer = mediaDialog(title);
+  const current = () => !state.locked && revision === state.accountRevision && layer.open;
+  layer.append(h('div', {class: 'bar'}, symbolButton('×', t('Close'), () => layer.close()), h('div', {class: 'title'}, title)),
+    h('div', {class: 'stage'}, t('Cargando...')));
+  layer.showModal();
+  const entries = [], ids = new Set();
+  let cursor = 0;
+  async function load() {
+    const offset = cursor;
+    const page = await api('profile_photos', {peer, account, offset});
+    if (!current()) return;
+    for (const item of page.items) {
+      if (!ids.has(item.id)) { ids.add(item.id); entries.push(item); }
+    }
+    cursor = page.next !== null && page.next > offset ? page.next : null;
+  }
+  try {
+    if (state.connection !== 'offline') await load();
+    else cursor = null;
+  } catch { cursor = null; }
+  if (!current()) return;
+  // Telegram can expose a personal or public fallback photo to this account
+  // while omitting it from the history. Keep it as the first visible entry.
+  if ((data.photo_id && !ids.has(data.photo_id)) || (!entries.length && data.has_photo !== false)) {
+    entries.unshift({id: data.photo_id || 'current', current: true, kind: 'image'});
+  }
+  if (!entries.length) { layer.close(); toast(t('No photo.')); return; }
+  const owner = WINDOW_ACCOUNT === null ? '&window_account=' + encodeURIComponent(account) : '';
+  const base = resourceAuth() + owner + '&peer=' + peer;
+  const url = (item, thumb) => item.current ? '/avatar?' + base + (thumb ? '' : '&big=1') +
+    '&v=' + encodeURIComponent(state.avatarVersion || item.id) :
+    '/profile-photo?' + base + '&' + new URLSearchParams({account, photo: item.id, offset: item.offset, thumb: thumb ? 1 : 0});
+  presentGallery({layer, title, items: () => entries, selected: entries[0], source: url,
+    olderStep: 1, hasMore: () => cursor !== null && state.connection !== 'offline', loadPage: load, active: current,
+    exportItem: (item, action, report) => openNativeMedia(() => api('open_profile_photo',
+      {account, peer, action, photo: item.current ? null : item.id, offset: item.offset || 0}), action, report)});
 }
 
 function nearBottom(scroll) { return scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 120; }
@@ -3149,7 +3276,7 @@ function emptyHistory(view) {
 // older pages does not rebuild (and reload) the pictures already on screen.
 function messageContext(open) {
   const settings = state.settings || {};
-  return [state.language, state.rtl, !!state.selection, !!state.groupCallsAvailable, settings.inline_media,
+  return [state.language, state.rtl, !!state.selection, !!state.groupCallsAvailable, settings.inline_media, settings.photo_previews,
     settings.ascii_text, animationEnabled(), open.translate || ''].join('|');
 }
 function messageKey(message, open, replied) {
@@ -3183,7 +3310,7 @@ function drawMessages(toBottom) {
   const days = open.dayNodes || new Map(), keptDays = new Map();
   const previousAlbums = open.albumNodes || new Map(), albums = new Map();
   let lastDay = '';
-  for (const message of open.messages) {
+  for (const [index, message] of open.messages.entries()) {
     if (message.date) {
       const day = new Date(message.date * 1000).toDateString();
       if (day !== lastDay) {
@@ -3195,6 +3322,7 @@ function drawMessages(toBottom) {
       }
     }
     const node = cachedMessageNode(message, open, message.reply_to ? byId.get(message.reply_to) : null, kept);
+    groupSender(node, message, open.messages[index-1], open.messages[index+1], open.chat?.kind === 'group');
     if (message.album && message.visual && ['image','video','gif'].includes(message.kind)) {
       let album = albums.get(message.album);
       if (!album) {
@@ -3236,7 +3364,7 @@ function appendMessage(message) {
   if (!container) return;
   const open = state.open;
   const stick = nearBottom(scroll) || message.out;
-  if (message.album) { drawMessages(stick); return; }
+  if (message.album || open.chat?.kind === 'group') { drawMessages(stick); return; }
   container.querySelector('.empty')?.remove();
   const replied = message.reply_to ? open.messages.find((item) => item.id === message.reply_to) : null;
   container.append(cachedMessageNode(message, open, replied));
@@ -3248,6 +3376,7 @@ function replaceMessage(message) {
   const node = document.getElementById('m' + message.id);
   if (!node || !state.open) return;
   const open = state.open;
+  if (open.chat?.kind === 'group') { drawMessages(false); return; }
   const replied = message.reply_to ? open.messages.find((item) => item.id === message.reply_to) : null;
   messageCache(open).nodes.delete(message.id);
   node.replaceWith(cachedMessageNode(message, open, replied));
@@ -3261,7 +3390,7 @@ function drawOutbox() {
   container.replaceChildren(...(state.open.outbox || []).map((item) => h('div', { class: 'msg out ' + (item.state === 'failed' ? 'failed' : 'pending') },
     h('div', { class: 'head' }, h('span', { class: 'who' }, t('Tu'))),
     h('div', { class: 'text' }, item.text),
-    h('div', { class: 'meta' }, item.state === 'failed' ? '⚠ ' + t('No enviado') + (item.error ? ': ' + item.error : '') : '◷ ' + t('Pendiente de envio')),
+    h('div', { class: 'meta message-footer' }, h('time', {class: 'bubble-clock'}, item.created ? new Date(item.created * 1000).toLocaleTimeString(state.language || undefined, {hour: '2-digit', minute: '2-digit'}) : ''), item.state === 'failed' ? '⚠ ' + t('No enviado') + (item.error ? ': ' + item.error : '') : '◷ ' + t('Pendiente de envio')),
     item.state === 'sending' ? null : h('div', {},
       item.state === 'failed' ? button(t('Reintentar'), () => api('outbox.retry', { peer: state.open.peer, key: item.key })) : null,
       item.files ? null : button(t('Editar'), () => editPending(item)),
@@ -3281,35 +3410,41 @@ function editPending(item) {
   });
 }
 
-async function loadOlder(retry = false) {
-  const open = state.open;
-  if (!open || open.loadingOlder || (open.olderFailed && !retry) || open.done || !open.messages.length || state.connection === 'offline') return;
+function loadOlder(retry = false, open = state.open) {
+  if (!open) return false;
+  if (open.olderRequest) return open.olderRequest;
+  if ((open.olderFailed && !retry) || open.done || !open.messages.length || state.connection === 'offline') return false;
+  const revision = state.accountRevision, account = state.account;
+  const active = () => revision === state.accountRevision && !state.locked && (state.open === open || state.windows.includes(open));
+  const redraw = () => { if (state.open === open) drawMessages(false); else drawWindowMessages(open, false); };
   open.loadingOlder = true;
-  try {
-    const thread = open.thread;
-    const page = thread
-      ? await api('comments_older', {peer: open.peer, root_id: thread.root, offset: thread.cursor, window_peer: WINDOW_CHAT})
-      : await api('older', {peer: open.peer, before: open.messages[0].id});
-    const known = new Set(open.messages.map(item => item.id));
-    const fresh = page.messages.filter(item => !known.has(item.id));
-    if (thread) {
-      open.done = !page.more || thread.cursor === page.next;
-      thread.cursor = page.next;
-      open.messages.splice(1, 0, ...fresh);
-    } else {
-      if (!fresh.length) open.done = true;
-      open.messages = [...fresh, ...open.messages];
-    }
-    if (open.translate === page.translate) Object.assign(open.translated, page.translated);
-    open.olderFailed = false;
-    if (state.open === open) drawMessages(false);
-    return true;
-  } catch (error) {
-    open.olderFailed = true;
-    if (state.open === open) drawMessages(false);
-    return false;
-  }
-  finally { open.loadingOlder = false; }
+  open.olderRequest = (async () => {
+    try {
+      const thread = open.thread;
+      const page = thread
+        ? await api('comments_older', {peer: open.peer, root_id: thread.root, offset: thread.cursor, window_peer: WINDOW_CHAT})
+        : await api('older', {peer: open.peer, before: open.messages[0].id, account});
+      if (!active()) return false;
+      const known = new Set(open.messages.map(item => item.id));
+      const fresh = page.messages.filter(item => !known.has(item.id));
+      if (thread) {
+        open.done = !page.more || thread.cursor === page.next;
+        thread.cursor = page.next;
+        open.messages.splice(1, 0, ...fresh);
+      } else {
+        if (!fresh.length) open.done = true;
+        open.messages = [...fresh, ...open.messages];
+      }
+      if (open.translate === page.translate && open.translated) Object.assign(open.translated, page.translated);
+      open.olderFailed = false;
+      redraw();
+      return true;
+    } catch {
+      if (active()) { open.olderFailed = true; redraw(); }
+      return false;
+    } finally { open.loadingOlder = false; open.olderRequest = null; }
+  })();
+  return open.olderRequest;
 }
 
 function resizeComposer(field) {
@@ -3484,7 +3619,8 @@ function attachMenu() {
   const items = [
     [t('Gallery'), () => chooseFiles('gallery')],
     [t('Camera'), () => chooseFiles('camera')],
-    [t('Audio'), () => chooseFiles('audio', {accept: 'audio/*'})],
+    [t('Audio') + ' · ' + t('Voice message'), voiceRecorder],
+    [t('Archivo de audio'), () => chooseFiles('audio', {accept: 'audio/*'})],
     [t('Archivo'), () => chooseFiles('any')],
   ];
   // Telegram accepts polls in groups and channels (and bots / Saved Messages).
@@ -3648,13 +3784,15 @@ function drawWindowMessages(win, toBottom) {
   if (!body) return;
   const stick = toBottom || body.scrollHeight - body.scrollTop - body.clientHeight < 80;
   // Same reuse as the main chat: unchanged messages keep their node and picture.
-  const context = [state.language, state.settings?.ascii_text, win.translate || ''].join('|');
+  const context = [state.language, state.settings?.ascii_text, state.settings?.photo_previews, win.translate || ''].join('|');
+  body.classList.toggle('bubbles', !!state.settings?.bubbles);
   if (!win.nodeCache || win.nodeCache.context !== context) win.nodeCache = { context, nodes: new Map() };
   const kept = new Map();
-  const nodes = win.messages.slice(-200).map((message) => {
+  const nodes = win.messages.slice(-200).map((message, index, visible) => {
     const key = JSON.stringify(message) + '\u0001' + JSON.stringify(win.translated?.[message.id] ?? null) + (win.originals?.has(message.id) ? 1 : 0);
     const known = win.nodeCache.nodes.get(message.id);
     const node = known && known.key === key && !kept.has(message.id) ? known.node : windowMessage(win, message);
+    groupSender(node, message, visible[index-1], visible[index+1], win.kind === 'group');
     kept.set(message.id, { key, node });
     return node;
   });
@@ -3672,14 +3810,14 @@ function windowMessage(win, message) {
   return h('article', { tabindex: 0, 'aria-haspopup': 'dialog', class: 'msg' + (message.out ? ' out' : ''),
     onkeydown: (event) => messageActionKey(event, () => windowMessageMenu(win, message)),
     onclick: () => windowMessageMenu(win, message), oncontextmenu: (event) => { event.preventDefault(); windowMessageMenu(win, message); } },
-    h('div', { class: 'head' }, h('span', { class: 'who' }, message.sender), h('span', {}, message.time)),
-    message.visual ? h('div', { class: 'media ' + message.kind, onclick: (event) => { event.stopPropagation(); if (message.kind !== 'sticker') viewer(message, win.peer); } },
-      mediaImage(message, mediaUrl(win.peer, message.id, true))) : null,
+    h('div', { class: 'head' }, h('span', { class: 'who' }, message.sender), h('time', {class: 'header-clock'}, message.time)),
+    message.visual ? h('div', { class: 'media ' + message.kind, onclick: (event) => { event.stopPropagation(); if (message.kind !== 'sticker') viewer(message, win.peer, null, win); } },
+      state.settings?.photo_previews === false && message.kind !== 'sticker' ? t(message.kind === 'video' ? 'Vídeo' : 'Foto') : mediaImage(message, mediaUrl(win.peer, message.id, true))) : null,
     text ? messageText(message, win) : null,
     !message.visual && ['file', 'audio'].includes(message.kind)
       ? h('div', { class: 'file' }, h('button', { class: 'btn', onclick: (event) => { event.stopPropagation(); openFile(message, win.peer); } }, t('Open'))) : null,
     messageReactions(message, win.peer),
-    message.out ? h('div', { class: 'meta' }, message.read ? '✓✓' : '✓') : null);
+    messageFooter(message));
 }
 function windowMessageMenu(win, message) {
   sheet(t('Mensaje'), [
@@ -3691,6 +3829,7 @@ function windowMessageMenu(win, message) {
     [t('Eliminar'), () => attempt(() => api('delete', { peer: win.peer, id: message.id, everyone: false }), queuedNote), 'danger'],
   ], [...new Set([state.settings?.quick_reaction || '👍', ...QUICK])]
     .map(value => [reactionEmoji(value), () => react(message, value, win.peer)]));
+  showMessageDates(message, win.peer, win.kind, false);
 }
 function drawWindowContext(win) {
   const context = win.node?.querySelector('.wincompose .context');
@@ -3861,19 +4000,21 @@ function appearanceSection(save) {
   const color = (key, label, fallback) => h('div', { class: 'setting' }, h('span', {}, label),
     h('input', { type: 'color', value: settings[key] || PALETTES[theme][fallback], onchange: (event) => save({ [key]: event.target.value }) }),
     settings[key] ? button('x', () => save({ [key]: '' })) : null);
-  const slider = (key, label) => {
-    const value = Number(settings[key]) || 0;
-    const shown = h('span', { class: 'muted value' }, value ? value + ' px' : t('Default'));
-    return h('div', { class: 'setting effect-setting' }, h('span', {}, label), shown,
-      h('input', { type: 'range', min: 0, max: 24, step: 1, value,
-        oninput: (event) => { shown.textContent = Number(event.target.value) ? event.target.value + ' px' : t('Default'); },
-        onchange: (event) => save({ [key]: Number(event.target.value) }) }));
-  };
-  const fonts = h('select', { onchange: (event) => saveLook({ font: event.target.value }) },
-    [['', t('Default')], ['courier', 'Courier'], ['sans', 'Sans'], ['serif', 'Serif']].map(([value, text]) =>
-      h('option', { value, selected: (look.font || '') === value, style: 'font-family:' + (FONTS[value] || 'inherit') }, text)));
-  const brightness = h('input', { type: 'range', min: 10, max: 100, step: 5, value: 100 - Number(look.dim ?? 55),
-    onchange: (event) => saveLook({ dim: 100 - Number(event.target.value) }) });
+  const slider = (key, label) => h('div', {class: 'setting effect-setting'}, h('span', {}, label),
+    numericSlider(label, settings[key] || 0, 0, settings.radius_max || 48, value => save({[key]: value}), 48));
+  const choices = [['', t('Default')], ['courier', 'Courier'], ['sans', 'Sans'], ['serif', 'Serif'], ['system', t('Sistema')],
+    ['rounded', 'Rounded'], ['humanist', 'Trebuchet / Roboto'], ['classic', 'Palatino'], ['book', 'Georgia'], ['mono', 'Monospace']];
+  if (PLATFORM === 'iOS' || MAC || PLATFORM === 'macOS') choices.push(...APPLE_FONTS);
+  else if (PLATFORM === 'Android') choices.push(...ANDROID_FONTS);
+  // A choice made on another device stays selected and named here.
+  if (look.font && !choices.some(([value]) => value === look.font)) {
+    const known = [...APPLE_FONTS, ...ANDROID_FONTS].find(([value]) => value === look.font);
+    if (known) choices.push(known);
+  }
+  const fonts = h('select', {'aria-label': t('Typeface'), onchange: event => saveLook({font: event.target.value})},
+    choices.map(([value, text]) => h('option', {value, selected: (look.font || '') === value,
+      style: 'font-family:' + (FONTS[value] || 'inherit')}, text)));
+  const brightness = numericSlider(t('Brightness'), 100 - Number(look.dim ?? 55), 0, 100, value => saveLook({dim: 100 - value}));
   return {
     colors: [color('text_color', t('Text color'), 'text'), color('background_color', t('Background color'), 'bg'), color('accent_color', t('Accent color'), 'strong'),
       color('bubble_in_color', t('Color de burbujas recibidas'), 'panel'),
@@ -4351,16 +4492,32 @@ function messageMenu(message) {
       if (result && result.queued) queuedNote(result); else toast(t('Saved.'));
     })]);
   if (!isSecret) items.push([t('Fijar'), () => attempt(() => api('pin_message', { peer: state.open.peer, id: message.id }), queuedNote)]);
+  if (!isSecret && !message.out && !message.service)
+    items.push([t('Denunciar mensaje'), () => reportMessage(state.account, state.open.peer, message.id)]);
   items.push([t('Select'), () => toggleSelected(message)]);
   if (!isSecret) items.push([t('Reactions'), () => reactionPicker(message)]);
-  // Telegram keeps the read time of private messages for 7 days (as on the desktop).
-  const age = message.date ? Date.now() / 1000 - message.date : Infinity;
-  if (message.out && message.read && !message.service && state.open.chat.kind === 'user' && !state.open.chat.self && age <= 7 * 86400)
-    items.push([t('Read time'), () => attempt(() => api('read_time', { peer: state.open.peer, id: message.id }),
-      (text) => toast('✓✓ ' + t('Read time') + ': ' + text))]);
   items.push([t('Eliminar'), () => remove(message, false), 'danger']);
   if (message.out || state.open.chat.kind !== 'user') items.push([t('Eliminar para todos'), () => remove(message, true), 'danger']);
   sheet(t('Mensaje'), items, isSecret ? [] : QUICK.map((emoji) => [emoji, () => react(message, emoji)]));
+  showMessageDates(message, state.open.peer, state.open.chat.kind, state.open.chat.self || state.open.isSelf);
+}
+
+async function reportMessage(account, peer, id, option = '', comment = '') {
+  if (account !== state.account || state.locked) return;
+  const result = await attempt(() => api('report_message', {account, peer, id, option, comment}));
+  if (!result || state.account !== account || state.locked) return;
+  if (result.reported) { closeSheet(); toast(t('Denuncia enviada a Telegram.')); }
+  else if (result.options) {
+    sheet(result.title || t('Denunciar mensaje'), result.options.map(item =>
+      [item.text, () => reportMessage(account, peer, id, item.option)]));
+  } else if (result.comment) {
+    const field = h('textarea', {maxlength: 1024, placeholder: t('Comentario'), 'aria-label': t('Comentario')});
+    formSheet(t('Denunciar mensaje'), [field], t('Enviar'), async () => {
+      if (!field.value.trim() && !result.optional) { field.focus(); return false; }
+      await reportMessage(account, peer, id, result.option, field.value.trim());
+      return false;
+    });
+  }
 }
 
 async function reactionPicker(message) {
@@ -4545,6 +4702,7 @@ function drawContactSelection() {
   const ids = [...state.contactSelection];
   const clear = () => { state.contactSelection = null; drawContacts(); };
   bar.replaceChildren(h('span', { class: 'count' }, t('Selected') + ': ' + ids.length),
+    bulkButtons(() => { state.contactSelection = new Set(state.visibleContacts || []); drawContacts(); }, clear),
     button(t('Actions'), () => sheet(t('Selected') + ': ' + ids.length, [
       [t('Select all'), () => { state.contactSelection = new Set(state.visibleContacts || ids); drawContacts(); }],
       [t('Share contact'), () => { clear(); shareContacts(ids); }],
@@ -5006,7 +5164,7 @@ function manageCommunity(chat) {
       const [node, input] = check(label, enabled);
       return {key, node, input, enabled};
     });
-    formSheet(t('Permissions'), rows.map(row => row.node), t('Guardar'), async () => {
+    formSheet(t('Permissions'), [bulkCheckRows(rows), ...rows.map(row => row.node)], t('Guardar'), async () => {
       const changes = Object.fromEntries(rows.filter(row => row.enabled !== row.input.checked)
         .map(row => [row.key, row.input.checked]));
       return !Object.keys(changes).length || Boolean(await change('permissions', changes));
@@ -5052,7 +5210,7 @@ async function inviteCommunityMembers(chat, update) {
   const selected = new Set();
   const draw = () => {
     const query = search.value.trim().toLowerCase();
-    list.replaceChildren(...contacts.filter(person => (person.name + ' ' + person.username).toLowerCase().includes(query))
+    list.replaceChildren(...contacts.filter(person => (person.name + ' ' + (person.username || '')).toLowerCase().includes(query))
       .slice(0, 100).map(person => {
         const [label, input] = check(person.name, selected.has(person.id));
         input.addEventListener('change', () => {
@@ -5067,7 +5225,15 @@ async function inviteCommunityMembers(chat, update) {
   };
   search.addEventListener('input', draw);
   draw();
-  formSheet(t('Add members'), [search, list], t('Confirm'), async () => {
+  const controls = chat.is_channel ? bulkButtons(() => {
+    const filter = searchText(search.value);
+    for (const person of contacts) {
+      if (selected.size >= 50) break;
+      if (searchText(person.name + ' ' + (person.username || '')).includes(filter)) selected.add(person.id);
+    }
+    draw();
+  }, () => { selected.clear(); draw(); }) : null;
+  formSheet(t('Add members'), [search, controls, list], t('Confirm'), async () => {
     if (!selected.size) { toast(t('Selecciona participantes en la lista.')); return false; }
     const result = await update('members_add', {users: [...selected]});
     if (result) toast(result.missing ? t('Add members') + ' · ' + (selected.size - result.missing) + '/' + selected.size : t('Saved.'));
@@ -5212,7 +5378,7 @@ async function communityMember(chat, member, source, backToMembers) {
       return {key, node, input, enabled};
     });
     formSheet(t('Administrator permissions'), [
-      ...rows.map(row => row.node),
+      bulkCheckRows(rows), ...rows.map(row => row.node),
       details.basic ? null : labelled(t('Administrator title'), rank),
     ], t('Guardar'), () => {
       const changes = Object.fromEntries(rows.filter(row => row.input.checked !== row.enabled)
@@ -5235,7 +5401,7 @@ async function communityMember(chat, member, source, backToMembers) {
     }
     const period = h('select', {}, durations.map(([value, label]) => h('option', {value}, label)));
     const title = action === 'ban' ? t('Ban member') + ': ' + member.name : t('Apply member permissions');
-    formSheet(title, [...rows.map(row => row.node), labelled(t('Duration'), period)], t('Confirm'), () => {
+    formSheet(title, [bulkCheckRows(rows), ...rows.map(row => row.node), labelled(t('Duration'), period)], t('Confirm'), () => {
       const changes = Object.fromEntries(rows.filter(row => row.input.checked !== row.enabled)
         .map(row => [row.key, row.input.checked]));
       const duration = period.value === 'current' ? Math.max(60, Math.floor(details.until - Date.now() / 1000))
@@ -5310,8 +5476,12 @@ const SHARED_KINDS = [['photos', 'Photos'], ['files', 'Files'], ['audio', 'Audio
 function openShared(data, kind) {
   state.shared = { peer: data.id, name: data.name, kind, items: null };
   if (state.view === 'shared') render(); else go('shared');
-  attempt(() => api('shared_media', { peer: data.id, kind }), (items) => {
-    if (state.shared && state.shared.peer === data.id && state.shared.kind === kind) { state.shared.items = items; if (state.view === 'shared') render(); }
+  const shared = state.shared, revision = state.accountRevision;
+  attempt(() => api('shared_media', {peer: data.id, kind, account: state.account}), (items) => {
+    if (state.shared === shared && revision === state.accountRevision) {
+      shared.items = items; shared.galleryDone = items.length < 50;
+      if (state.view === 'shared') render();
+    }
   });
 }
 
@@ -5325,8 +5495,9 @@ function sharedView() {
   if (shared.items === null) content = h('div', { class: 'empty spinner' }, t('Cargando...') + ' ');
   else if (!shared.items.length) content = h('div', { class: 'empty' }, t('Sin resultados.'));
   else if (shared.kind === 'photos' || shared.kind === 'gifs') content = h('div', { class: 'grid' }, shared.items.map((message) =>
-    h('button', { class: 'cell', onclick: () => viewer(message, shared.peer, shared.items) },
-      h('img', { loading: 'lazy', alt: '', src: mediaUrl(shared.peer, message.id, true) }))));
+    h('button', { class: 'cell', onclick: () => viewer(message, shared.peer, shared), 'aria-label': t(message.kind === 'video' ? 'Vídeo' : 'Foto') + ' ' + (message.time || '') },
+      state.settings?.photo_previews === false ? t(message.kind === 'video' ? 'Vídeo' : 'Foto') :
+        h('img', { loading: 'lazy', alt: '', src: mediaUrl(shared.peer, message.id, true) }))));
   else content = h('div', {}, shared.items.map((message) => {
     const text = (message.filename || message.caption || message.text || '').replace(/\s+/g, ' ');
     const links = shared.kind === 'links' ? (message.text || '').match(LINK) || [] : [];
@@ -5713,7 +5884,7 @@ async function chooseSiriChats() {
   const list = h('div', {});
   const draw = () => {
     const query = search.value.trim().toLocaleLowerCase();
-    list.replaceChildren(...chats.filter(chat => chat.name.toLocaleLowerCase().includes(query)).slice(0, 100).map(chat => {
+    list.replaceChildren(...chats.filter(chat => searchText(chat.name).includes(searchText(query))).map(chat => {
       const [row, checkbox] = check(chat.name, selected.has(chat.id));
       checkbox.onchange = () => checkbox.checked ? selected.add(chat.id) : selected.delete(chat.id);
       return row;
@@ -5721,9 +5892,9 @@ async function chooseSiriChats() {
   };
   search.oninput = draw;
   draw();
-  const clear = button(t('Desmarcar todos'), () => { selected.clear(); draw(); });
+  const controls = bulkButtons(() => { chats.forEach(chat => selected.add(chat.id)); draw(); }, () => { selected.clear(); draw(); });
   formSheet(t('Nombres de chats para Siri'), [
-    h('p', {}, t('Siri podrá usar los nombres de los chats que selecciones en esta cuenta.')), search, list, clear,
+    h('p', {}, t('Siri podrá usar los nombres de los chats que selecciones en esta cuenta.')), search, controls, list,
   ], t('Guardar'), async () => {
     if (state.account !== account || state.locked) return false;
     return Boolean(await attempt(() => api('siri_chats', {account, peers: [...selected]})));
@@ -5754,9 +5925,11 @@ function settingsView() {
       const look = appearanceSection(save);
       return [section(null, languages,
         h('div', {class: 'setting'}, h('span', {}, t('Nombre visible de la app')),
-          button(settings.app_display_name || 'TeleGraph', editDisplayName)),
+          button(settings.app_display_name || 'TeleGraph', editDisplayName),
+          button(t('Restablecer nombre'), () => save({app_display_name: ''}))),
         select('theme', t('Tema'), [['dark', t('Oscuro')], ['light', t('Claro')], ['system', t('Sistema')]]),
-        select('font_size', t('Tamaño de letra'), Array.from({ length: 11 }, (_, i) => [10 + i, String(10 + i)])),
+        h('div', {class: 'setting effect-setting'}, h('span', {}, t('Tamaño de letra')),
+          numericSlider(t('Tamaño de letra'), settings.font_size || 12, settings.font_min || 8, settings.font_max || 40, value => save({font_size: value}))),
         ...look.colors, look.typeface, look.view, look.reset)];
     },
     customization: () => {
@@ -5769,7 +5942,11 @@ function settingsView() {
     chats: () => [section(null, defaultReactionSetting(), toggle('bubbles', t('Burbujas')), toggle('ascii_text', t('Mostrar el texto solo en ASCII')),
       toggle('local_pins', t('Unlimited local pins (device only)')),
       toggle('show_seconds', t('Mostrar segundos en la hora')), toggle('animated_emoji', t('Animated emoji')),
-      toggle('inline_media', t('Show media previews inside chats')),
+      toggle('inline_media', t('Show media previews inside chats')), toggle('photo_previews', t('Previsualizar las fotos')),
+      ...[['swipe_right', 'Al deslizar un chat hacia la derecha'], ['swipe_left', 'Al deslizar un chat hacia la izquierda']]
+        .map(([key, title]) => h('label', {class: 'setting'}, h('span', {}, t(title)),
+          h('select', {onchange: e => saveLook({[key]: e.target.value})}, swipeOptions.map(([value, label]) =>
+            h('option', {value, selected: state.appearance[key] === value}, t(label)))))),
       toggle('offline_copy', t('Guardar una copia para usar sin conexion')))],
     notifications: () => [section(null, toggle('notifications', t('Notificaciones')),
       toggle('notify_preview', t('Preview')),
@@ -5791,17 +5968,56 @@ function settingsView() {
         button(t('Borrar caché'), () => attempt(() => api('clear_cache'), (freed) => { toast(t('Liberado: {size}', { size: freed })); render(); })),
         ...appLifeItems().map(([label, action, kind]) => button(label, action, kind || '')),
         button(t('Borrar todos los datos'), () => confirmThen(t('¿Borrar todos los datos? Se cerraran todas las sesiones de este dispositivo.'), () => attempt(() => api('delete_all'))), 'danger')),
-        section(t('Acerca de'), h('div', { class: 'muted' }, 'TeleGraph ' + state.version + ' · ' + PLATFORM))];
+        section(t('Acerca de'), h('div', { class: 'muted' }, 'TeleGraph ' + state.version + ' · ' + PLATFORM),
+          button(t('Política de privacidad'), () => openUrl('https://github.com/MiguelCKxd/TeleGraph/blob/main/PRIVACIDAD.md')))];
     },
   };
-  const tabs = h('div', { class: 'tabs settings-tabs' }, SETTINGS_SECTIONS.map(([key, label]) =>
-    h('button', { class: 'tab' + (key === tab ? ' on' : ''), onclick: () => { state.settingsTab = key; render(); } }, t(label))));
-  setTimeout(() => tabs.querySelector('.on')?.scrollIntoView({ inline: 'center', block: 'nearest' }), 0);
-  return [
-    h('div', { class: 'bar' }, backButton(), h('div', { class: 'title' }, t('Ajustes')), statusNode()),
-    tabs,
-    h('div', { class: 'scroll', id: 'settings-scroll' }, ...pages[tab]()),
-  ];
+  const tabs = h('div', {class: 'tabs settings-tabs'}, SETTINGS_SECTIONS.map(([key, label]) =>
+    h('button', {class: 'tab' + (key === tab ? ' on' : ''), onclick: () => {
+      state.settingsQuery = ''; state.settingsTab = key; render();
+    }}, t(label))));
+  const scroll = h('div', {class: 'scroll', id: 'settings-scroll'});
+  const search = h('input', {type: 'search', 'data-search-scope': 'settings', placeholder: t('Buscar en ajustes'),
+    'aria-label': t('Buscar en ajustes'), value: state.settingsQuery || ''});
+  const sections = new Map();
+  const content = key => {
+    if (!sections.has(key)) sections.set(key, pages[key]().filter(Boolean));
+    return sections.get(key);
+  };
+  function filter() {
+    const terms = searchText(search.value).split(/\s+/).filter(Boolean);
+    state.settingsQuery = search.value;
+    tabs.hidden = !!terms.length;
+    if (!terms.length) {
+      const nodes = content(tab);
+      for (const node of nodes) {
+        node.hidden = false;
+        for (const row of node.children) row.hidden = false;
+      }
+      scroll.replaceChildren(...nodes);
+      return;
+    }
+    const matches = [];
+    for (const [key, label] of SETTINGS_SECTIONS) {
+      for (const section of content(key)) {
+        let hit = false;
+        const title = section.querySelector('h4')?.textContent || '';
+        for (const row of section.children) {
+          if (row.matches('h4')) continue;
+          const text = searchText([t(label), title, row.textContent, row.getAttribute('aria-label')].join(' '));
+          row.hidden = !terms.every(term => text.includes(term));
+          if (!row.hidden) hit = true;
+        }
+        if (hit) matches.push(section);
+      }
+    }
+    scroll.replaceChildren(...(matches.length ? matches : [h('p', {class: 'empty'}, t('Sin resultados.'))]));
+  }
+  search.addEventListener('input', filter);
+  filter();
+  setTimeout(() => tabs.querySelector('.on')?.scrollIntoView({inline: 'center', block: 'nearest'}), 0);
+  return [h('div', {class: 'bar'}, backButton(), h('div', {class: 'title'}, t('Ajustes')), statusNode()),
+    h('div', {class: 'search'}, search), tabs, scroll];
 }
 
 function accountsSection(toggle) {
@@ -5814,6 +6030,10 @@ function accountsSection(toggle) {
       button(t('Alias'), () => aliasPrompt(item)),
       button(t('Cerrar sesion'), () => confirmThen(t('¿Cerrar la sesion de esta cuenta en este dispositivo?'), () => attempt(() => api('logout', { key: item.key }))), 'danger'))),
     button(t('Añadir cuenta'), async () => { if (await flushOpenDrafts()) await attempt(() => api('account.add')); }),
+    button(t('Eliminar mi cuenta de Telegram'), () => sheet(t('Eliminar mi cuenta de Telegram'), [
+      [t('Continuar en Telegram para confirmar la eliminación definitiva'), () => openUrl('https://my.telegram.org/auth?to=delete')],
+      [t('Cancelar'), closeSheet],
+    ])),
     button(t('Devices'), () => go('devices')),
     button(t('Scan QR code'), () => scanLogin()),
     state.accounts.length > 1 ? toggle('ask_account_startup', t('Choose account at startup when several are saved')) : null);
@@ -5825,11 +6045,8 @@ function effectsSection() {
   const effects = (state.appearance || {}).effects || {};
   const saveEffects = (values) => saveLook({ effects: values });
   const size = (key, label, max) => {
-    const shown = h('span', { class: 'muted value' }, (effects[key] || 0) + ' px');
-    return h('div', { class: 'setting effect-setting' }, h('span', {}, label), shown,
-      h('input', { type: 'range', min: 0, max, step: 1, 'aria-label': label, value: effects[key] || 0,
-        oninput: (event) => { shown.textContent = event.target.value + ' px'; },
-        onchange: (event) => saveEffects({ [key]: Number(event.target.value) }) }),
+    return h('div', {class: 'setting effect-setting'}, h('span', {}, label),
+      numericSlider(label, effects[key] || 0, 0, max * 4, value => saveEffects({[key]: value}), max * 2),
       h('input', { type: 'color', 'aria-label': label + ' · ' + t('Color'), value: effects[key + '_color'] || '#000000', onchange: (event) => saveEffects({ [key + '_color']: event.target.value }) }),
       effects[key + '_color'] ? button('↺', () => saveEffects({ [key + '_color']: '' })) : null);
   };
@@ -5996,10 +6213,13 @@ function chooserView() {
   return [h('div', { class: 'center chooser' }, logo(), h('h3', {}, t('Choose account')),
     h('div', { class: 'accounts-list' }, state.accounts.map((item) => h('button', { class: 'row account-choice', onclick: () =>
       attempt(() => api('choose_account', { key: item.key, ask }), () => { state.stage = 'loading'; render(); }) },
-      avatar(null, item.alias || item.label), h('div', { class: 'body' }, h('div', { class: 'top' }, h('span', { class: 'name' }, item.alias || item.label || '…')),
+      avatar(item.user_id, item.alias || item.label, '', item.key), h('div', { class: 'body' }, h('div', { class: 'top' }, h('span', { class: 'name' }, item.alias || item.label || '…')),
         item.alias ? h('div', { class: 'bottom' }, h('span', { class: 'preview' }, item.label)) : null)))),
     askNode)];
 }
+installEdgeBack();
+const connectionAlert = document.getElementById('connection-alert');
+connectionAlert.onclick = reconnect;
 (async function start() {
   listen();
   for (let attemptNumber = 0; attemptNumber < 50; attemptNumber++) {
@@ -6017,6 +6237,7 @@ function chooserView() {
   }
   state.started = true;
   render();
+  if (WINDOW_CHAT === null) api('launch_ready').catch(() => {});
   openAndroidNotification().catch(() => {});
   if (WINDOW_CHAT !== null) {
     document.documentElement.classList.add('system-window');

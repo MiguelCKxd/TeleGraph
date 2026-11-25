@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatListView: View {
     @EnvironmentObject var phone: Phone
     @EnvironmentObject var engine: Engine
+    @EnvironmentObject var appearance: Appearance
     @State private var chats: [ChatItem] = []
     @State private var problem: String?
     @State private var loading = true
@@ -46,7 +47,7 @@ struct ChatListView: View {
                 .listRowBackground(Theme.panel)
             }
         }
-        .navigationTitle("TeleGraph")
+        .navigationTitle(appearance.look.name ?? "TeleGraph")
         .navigationDestination(for: ChatItem.self) { ChatView(chat: $0) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -96,7 +97,12 @@ struct ChatView: View {
     @EnvironmentObject var phone: Phone
     @EnvironmentObject var engine: Engine
     let chat: ChatItem
+    @EnvironmentObject var appearance: Appearance
     @State private var messages: [MessageItem] = []
+    @State private var selectedMessage: MessageItem?
+    @State private var readDetails: WatchReadDetails?
+    @State private var portraits: [Int64: Data] = [:]
+    @State private var requestedPortraits: Set<Int64> = []
     @State private var draft = ""
     @State private var problem: String?
     @State private var translations: [String: String] = [:]
@@ -139,11 +145,27 @@ struct ChatView: View {
                     }
                     .listRowBackground(Theme.panel)
                 }
-                ForEach(messages) { message in
+                ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                    let group = chat.kind == "group" && !message.out
+                    let first = !group || !message.joins(index > 0 ? messages[index - 1] : nil)
+                    let last = group && (index == messages.count - 1 || !messages[index + 1].joins(message))
+                    HStack(alignment: .bottom, spacing: 4) {
+                    if group {
+                        if last {
+                            senderAvatar(message)
+                        } else { Color.clear.frame(width: 24, height: 1) }
+                    }
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("\(message.sender) · \(message.time)").font(Theme.mono(10)).foregroundStyle(Theme.muted)
+                        if first {
+                            Text(message.sender).font(Theme.mono(10, bold: group)).foregroundStyle(Theme.muted)
+                        }
+                        if !appearance.look.bubbles { Text(message.time).font(Theme.mono(9)).foregroundStyle(Theme.muted) }
                         Text(translations[String(message.id)] ?? message.text)
                             .font(Theme.mono(13)).foregroundStyle(message.out ? Theme.strong : Theme.text)
+                        if appearance.look.bubbles {
+                            Text(message.time + (message.out ? (message.read == true ? "  ✓✓" : "  ✓") : ""))
+                                .font(Theme.mono(9)).foregroundStyle(Theme.muted)
+                        }
                         if !isSecret {
                             if translations[String(message.id)] != nil {
                                 Button(L("Mostrar original", "Show original")) {
@@ -156,7 +178,10 @@ struct ChatView: View {
                             }
                         }
                     }
-                    .listRowBackground(Color.clear)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { readDetails = nil; selectedMessage = message }
+                    .listRowBackground(appearance.look.bubbles ? Theme.panel : Color.clear)
                     .id(message.id)
                 }
                 if let problem {
@@ -183,12 +208,59 @@ struct ChatView: View {
                     .id("composer")
             }
             .navigationTitle(chat.name)
+            .sheet(item: $selectedMessage) { message in
+                List {
+                    if let edited = message.edited_at {
+                        Text(L("Editado", "Edited") + " · " + dateString(edited))
+                    }
+                    if let read = readDetails?.read {
+                        Text(L("Leído", "Read") + " · " + read)
+                    } else if let time = readDetails?.timestamp ?? readDetails?.readers?.first?.date {
+                        Text(L("Leído", "Read") + " · " + dateString(time))
+                    }
+                    Text(message.text)
+                }
+                .task(id: message.id) {
+                    guard !isSecret, message.out else { return }
+                    let details = try? await engine.request(["op": "message_dates", "peer": chat.id,
+                        "id": message.id, "group": chat.kind == "group"], as: WatchReadDetails.self)
+                    if !Task.isCancelled && selectedMessage?.id == message.id { readDetails = details }
+                }
+            }
             .task {
                 await load()
                 // After the list has laid out the messages: open at the latest one.
                 try? await Task.sleep(nanoseconds: 200_000_000)
                 withAnimation(nil) { proxy.scrollTo("composer", anchor: .bottom) }
             }
+        }
+    }
+
+    private func dateString(_ timestamp: Double) -> String {
+        Date(timeIntervalSince1970: timestamp).formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func senderAvatar(_ message: MessageItem) -> some View {
+        let uid = message.sender_id ?? 0
+        let palette = [("#FF845E", "#D45246"), ("#FEBB5B", "#F68136"), ("#B694F9", "#6C61DF"),
+                       ("#9AD164", "#46BA43"), ("#5BCBE3", "#359AD4"), ("#5CAFFA", "#408ACF"), ("#FF8AAC", "#D95574")]
+        let bare = uid <= -1_000_000_000_000 ? uid.magnitude - 1_000_000_000_000 : uid.magnitude
+        let index = message.color.flatMap { (0..<palette.count).contains($0) ? $0 : nil } ?? Int(bare % 7)
+        let names = message.sender.split(separator: " ")
+        let initials = [names.first?.first, names.count > 1 ? names.last?.first : nil].compactMap { $0 }.map(String.init).joined()
+        return ZStack {
+            Circle().fill(LinearGradient(colors: [Color(hex: palette[index].0), Color(hex: palette[index].1)],
+                                         startPoint: .top, endPoint: .bottom))
+            Text(initials.uppercased()).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
+            if appearance.look.photo_previews != false, let bytes = portraits[uid], let image = UIImage(data: bytes) {
+                Image(uiImage: image).resizable().scaledToFill()
+            }
+        }
+        .frame(width: 24, height: 24).clipShape(Circle()).accessibilityHidden(true)
+        .task(id: uid) {
+            guard uid != 0, appearance.look.photo_previews != false, requestedPortraits.insert(uid).inserted else { return }
+            if let portrait = try? await engine.request(["op": "avatar", "peer": uid], as: SenderPortrait.self),
+               let data = portrait.image { portraits[uid] = data }
         }
     }
 
