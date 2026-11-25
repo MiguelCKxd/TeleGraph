@@ -1362,8 +1362,6 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         if op == 'avatar':
             import base64
             owner = self.account
-            if self.prefs and not self.prefs.values.get('photo_previews', True):
-                return {}
             path = await self.avatar_file(int(request['peer']))
             if self.locked or self.account != owner or not path or not path.is_file() or path.stat().st_size > 40000:
                 return {}
@@ -5208,8 +5206,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
                     pass
         # Profile photos of the list, then the latest messages of the first chats.
         previews_enabled = self.prefs.values.get('photo_previews', True)
-        if previews_enabled:
-            await asyncio.gather(*(gently(self.avatar_file(chat.id)) for chat in chats))
+        await asyncio.gather(*(gently(self.avatar_file(chat.id)) for chat in chats))
         for chat in chats[:12]:
             if not current():
                 return

@@ -492,12 +492,11 @@ class TgAsciiWatch(toga.App):
             future = asyncio.run_coroutine_threadsafe(self.core.avatar_file(uid), self.core.loop)
             try:
                 path = await asyncio.wrap_future(future)
-                if path and self.core.account == owner and self.open_peer == peer and self.look.get('photo_previews') is not False:
+                if path and self.core.account == owner and self.open_peer == peer and not self.core.locked:
                     picture.image = toga.Image(str(path))
             except (ValueError, OSError, RuntimeError):
                 pass
-        if self.look.get('photo_previews') is not False:
-            self.loop.create_task(load())
+        self.loop.create_task(load())
         return picture
 
     def show_dates(self, message):

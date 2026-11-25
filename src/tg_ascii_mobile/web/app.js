@@ -304,7 +304,26 @@ const FONTS = { courier: '"Courier New", Courier, monospace', sans: 'system-ui, 
   casual: 'casual, "Coming Soon", "Comic Sans MS", cursive', handwriting: '"Dancing Script", cursive',
   smallcaps: '"sans-serif-smallcaps", "Carrois Gothic SC", sans-serif' };
 // Which typefaces each system offers in Appearance (all keys stay valid everywhere).
-const APPLE_FONTS = [['sf', 'SF Pro'], ['sf_rounded', 'SF Pro Rounded'], ['sf_mono', 'SF Mono'], ['new_york', 'New York'], ['sf_compact', 'SF Compact (si está instalada)']];
+// SF Compact ships with Apple Watch only; elsewhere it exists if the user installed it.
+// Measured once: a different width than the fallback means the family is present.
+function fontInstalled(family) {
+  try {
+    const context = document.createElement('canvas').getContext('2d');
+    const sample = 'mmmmmmmmmmlli WW 0123';
+    return ['monospace', 'serif'].some(fallback => {
+      context.font = '32px ' + fallback;
+      const plain = context.measureText(sample).width;
+      context.font = '32px "' + family + '", ' + fallback;
+      return context.measureText(sample).width !== plain;
+    });
+  } catch (error) { return false; }
+}
+const COMPACT_INSTALLED = typeof document !== 'undefined' && (fontInstalled('SF Compact') || fontInstalled('SF Compact Text'));
+const APPLE_FONTS = [['sf', 'SF Pro'], ['sf_rounded', 'SF Pro Rounded'], ['sf_mono', 'SF Mono'], ['new_york', 'New York'],
+  ['sf_compact', 'SF Compact']];
+// Shown at selection time, when the interface strings are loaded.
+const appleFontLabel = ([value, text]) => value === 'sf_compact' && !COMPACT_INSTALLED
+  ? [value, text + ' (' + t('Sistema') + ': SF Pro)'] : [value, text];
 const ANDROID_FONTS = [['condensed', 'Roboto Condensed'], ['light', 'Roboto Light'], ['medium', 'Roboto Medium'], ['noto_serif', 'Noto Serif'],
   ['typewriter', 'Cutive Mono'], ['casual', 'Coming Soon'], ['handwriting', 'Dancing Script'], ['smallcaps', 'Carrois Gothic SC']];
 const backgroundUrl = (name) => '/background?' + resourceAuth() + '&name=' + encodeURIComponent(name);
@@ -1005,7 +1024,7 @@ function avatar(id, name, extra = '', owner = null, color = null) {
   const colors = avatarColors[Number.isInteger(color) && color >= 0 && color < avatarColors.length ? color : raw % avatarColors.length];
   const box = h('div', {class: 'avatar' + (extra ? ' ' + extra : ''), 'aria-hidden': 'true',
     style: 'background:linear-gradient(' + colors.join(',') + ')'}, h('span', {}, initials(name)));
-  if (id != null && id !== '' && state.settings?.photo_previews !== false) {
+  if (id != null && id !== '') {
     const photo = photoIds.get(numeric);
     const url = owner != null ? '/account-avatar?' + resourceAuth() + '&account=' + encodeURIComponent(owner) :
       '/avatar?' + resourceAuth() + '&peer=' + numeric + '&account_key=' + encodeURIComponent(state.account || '') +
@@ -4004,7 +4023,7 @@ function appearanceSection(save) {
     numericSlider(label, settings[key] || 0, 0, settings.radius_max || 48, value => save({[key]: value}), 48));
   const choices = [['', t('Default')], ['courier', 'Courier'], ['sans', 'Sans'], ['serif', 'Serif'], ['system', t('Sistema')],
     ['rounded', 'Rounded'], ['humanist', 'Trebuchet / Roboto'], ['classic', 'Palatino'], ['book', 'Georgia'], ['mono', 'Monospace']];
-  if (PLATFORM === 'iOS' || MAC || PLATFORM === 'macOS') choices.push(...APPLE_FONTS);
+  if (PLATFORM === 'iOS' || MAC || PLATFORM === 'macOS') choices.push(...APPLE_FONTS.map(appleFontLabel));
   else if (PLATFORM === 'Android') choices.push(...ANDROID_FONTS);
   // A choice made on another device stays selected and named here.
   if (look.font && !choices.some(([value]) => value === look.font)) {
