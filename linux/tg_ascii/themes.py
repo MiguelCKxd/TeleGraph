@@ -154,11 +154,11 @@ def apply_widget(widget):
     except tk.TclError: pass
 
 
-def set_app_icon(root, path, *, windows_shortcuts=True):
+def set_app_icon(root, path, *, windows_shortcuts=True, name=None, state_root=None):
     """Window icon on Windows; application Dock icon on macOS."""
     if sys.platform == 'win32':
         from .windows_launcher import set_window_icon
-        set_window_icon(root, path, windows_shortcuts)
+        set_window_icon(root, path, windows_shortcuts, name, state_root)
         return
     if sys.platform != 'darwin':
         image = tk.PhotoImage(master=root, file=str(path))

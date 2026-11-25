@@ -62,7 +62,7 @@ def _desktop_string(value):
     return str(value).replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
 
 
-def sync_launcher_icon(asset):
+def sync_launcher_icon(asset, name=None):
     """Update the user's existing desktop ID, including its pinned GNOME icon."""
     if not getattr(sys, 'frozen', False):
         return
@@ -77,13 +77,14 @@ def sync_launcher_icon(asset):
         folder.mkdir(parents=True, exist_ok=True)
         with (folder / '.update.lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
-            _sync_desktop_entry(executable, Path(asset), base, folder)
+            _sync_desktop_entry(executable, Path(asset), base, folder, name)
     except (OSError, UnicodeError, ConfigError, KeyError):
         # An invalid or read-only desktop override must not break the window icon.
         return
 
 
-def _sync_desktop_entry(executable, asset, base, folder):
+def _sync_desktop_entry(executable, asset, base, folder, name=None):
+    name = ' '.join(str(name or 'TeleGraph').split())[:64] or 'TeleGraph'
     launcher = base / 'applications' / DESKTOP_ID
     if launcher.is_symlink() or (launcher.exists() and not launcher.is_file()):
         return
@@ -125,10 +126,11 @@ def _sync_desktop_entry(executable, asset, base, folder):
     quoted = str(executable).replace('%', '%%')
     for char in ('\\', '"', '`', '$'):
         quoted = quoted.replace(char, '\\' + char)
-    content = DESKTOP_ENTRY.format(command=_desktop_string('"' + quoted + '"'), icon=ICON_NAME) + marker + '=true\n'
+    content = DESKTOP_ENTRY.format(command=_desktop_string('"' + quoted + '"'), icon=ICON_NAME).replace(
+        '\nName=TeleGraph\n', '\nName=' + _desktop_string(name) + '\n', 1) + marker + '=true\n'
     if entry is not None:
         # An older same-app user entry may also have custom keys or desktop actions.
-        main.update({'Name': 'TeleGraph', 'Icon': ICON_NAME, 'StartupWMClass': 'Tg-ascii'})
+        main.update({'Name': _desktop_string(name), 'Icon': ICON_NAME, 'StartupWMClass': 'Tg-ascii'})
         for key in tuple(main):
             if key.startswith('Name[') and main[key] in ('TG-ASCII', 'Tg-As'):
                 main[key] = 'TeleGraph'

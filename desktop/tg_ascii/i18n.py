@@ -14,6 +14,9 @@ def is_rtl(language=None):
     return (language or _language) in RTL_LANGUAGES
 
 TRANSLATIONS = {
+    'Imagen dentro de imagen': 'Picture in Picture',
+    'La llamada continúa en segundo plano.': 'The call continues in the background.',
+    'El sistema no pudo abrir la ventana de vídeo.': 'Picture in Picture is unavailable.',
     'El API ID debe ser un numero entero positivo.': 'The API ID must be a positive integer.',
     'El API hash debe tener 32 caracteres hexadecimales. Copialo completo.': 'The API hash must contain 32 hexadecimal characters. Copy it in full.', 
     'Doble clic para abrir una historia.': 'Double-click to open a story.',

@@ -46,6 +46,7 @@ def panel_views(widget, axis, depth=8):
 class WheelRouter:
     def __init__(self, root):
         self.root, self.remainders = root, {}
+        self.moved = True
         self.tag = 'TgWheel' + str(id(root))
         root.bind_class(self.tag, '<MouseWheel>', self.wheel)
         root.bind_class(self.tag, '<Shift-MouseWheel>', self.wheel)
@@ -99,11 +100,21 @@ class WheelRouter:
         dx,dy=precise_deltas(event.delta)
         handler=getattr(widget,'_touchpad_handler',None)
         if handler: handler(event,dx,dy); return 'break'
-        if dx:self.route(widget,event,-dx,axis='x',pixels=True)
+        if dx:
+            self.route(widget,event,-dx,axis='x',pixels=True)
+            # 3.2: a horizontal swipe nothing could scroll may mean "go back".
+            if not self.moved and abs(dx)>abs(dy):
+                from .back_gesture import overscroll
+                overscroll(widget,-dx)
         if dy:self.route(widget,event,-dy,axis='y',pixels=True)
         return 'break'
 
     def route(self,widget,event,amount,axis=None,pixels=False):
+        self.moved=True
+        result=self._route(widget,event,amount,axis,pixels)
+        return result
+
+    def _route(self,widget,event,amount,axis=None,pixels=False):
         axis=axis or ('x' if event.state & 1 else 'y')
         visited=set();found_view=False
         while widget is not None:
@@ -150,6 +161,7 @@ class WheelRouter:
                 except (AttributeError,ValueError,tk.TclError): pass
             if isinstance(widget,(tk.Toplevel,tk.Tk)): break
             widget=getattr(widget,'master',None)
+        self.moved=False  # Nothing could scroll in this direction.
         return 'break'
 
 

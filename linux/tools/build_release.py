@@ -23,6 +23,10 @@ SOURCE_MODULES = ['windows_launcher.py','recovery.py','ui_work.py','sticker_sear
                   'telegram_features.py', 'desktop_features.py', 'media_viewer.py', 'demo_features.py', 'windows_drop.py', 'app_dialogs.py', 'desktop_plus.py',
                   'telegram_extras.py', 'translations.py', 'local_state.py', 'updater.py', 'themes.py', 'message_tools.py', 'desktop_tools.py', 'audio_engine.py', 'background.py', 'instance.py', 'scrolling.py', 'logos.py', 'desktop_actions.py', 'telegram_actions.py', 'links.py', 'video_metadata.py', 'translations_extra.py', 'messaging_features.py', 'desktop_modern.py', 'bubbles.py', 'image_tools.py', 'native_emoji.py', 'translations_v08.py', 'translations_v09.py']
 sys.path.insert(0, str(ROOT))
+# 3.2 (Claude): grouped authors, placeholder avatars, account photos, launchers and recents.
+SOURCE_MODULES += ['default_avatar.py', 'sender_runs.py', 'account_photos.py', 'number_input.py',
+                   'startup_look.py', 'launcher_names.py', 'recent_search_ui.py', 'recent_searches.py',
+                   'settings_search.py', 'back_gesture.py']
 SOURCE_MODULES += ['account_profile.py', 'customization_sync.py', 'desktop_customization.py',
                    'contact_appearance.py', 'contact_profile.py', 'contact_settings.py', 'ui.py',
                    'drafts.py', 'emoji_documents.py', 'interface_editor.py', 'interface_layout.py',
@@ -52,6 +56,7 @@ SOURCE_MODULES += ['calls_group.py', 'calls_group_media.py', 'calls_source_volum
 SOURCE_MODULES += ['mac_camera.py', 'channel_calls.py', 'desktop_channel_calls.py']
 SOURCE_MODULES += ['mac_media_access.py']
 SOURCE_MODULES += ['community_management.py', 'desktop_community.py', 'timestamps.py', 'call_outcomes.py', 'notification_history.py', 'conference_invitations.py', 'desktop_conference.py', 'push_macos.py']
+SOURCE_MODULES += ['desktop_call_pip.py', 'mac_call_pip.py']
 SOURCE_MODULES += ['flood_control.py', 'media_cache.py', 'tk_safety.py']
 SOURCE_MODULES += ['day_separators.py', 'gift_preview.py', 'native_open.py', 'device_contacts.py', 'contact_sync.py',
                    'desktop_contacts.py', 'app_lifecycle.py', 'attachment_preview.py', 'chat_menus.py', 'chat_activity.py',
@@ -395,6 +400,8 @@ def build(output, credentials=None, demo_only=False, keep_app=False, mac_push_pr
                 command[-1:-1] = ['--collect-all', module]
         if importlib.util.find_spec('pytgcalls') is not None:
             command[-1:-1] = ['--collect-all', 'pytgcalls', '--copy-metadata', 'py-tgcalls']
+        if sys.platform == 'darwin' and importlib.util.find_spec('AVKit') is not None:
+            command[-1:-1] = ['--collect-submodules', 'AVKit']
         if sys.platform == 'darwin' and importlib.util.find_spec('AVFoundation') is not None:
             command[-1:-1] = ['--collect-submodules', 'AVFoundation', '--collect-submodules', 'CoreMedia']
         if (source / 'tg_ascii' / 'interface_templates').is_dir():
@@ -412,6 +419,8 @@ def build(output, credentials=None, demo_only=False, keep_app=False, mac_push_pr
             command[-1:-1] = ['--hidden-import', 'pystray._appindicator', '--hidden-import', 'pystray._xorg',
                               '--hidden-import', 'gi', '--collect-submodules', 'gi']
         elif system == 'windows':
+            if importlib.util.find_spec('winui3') is not None:
+                command[-1:-1] = ['--collect-all', 'winui3']
             command[-1:-1] = ['--version-file', str(windows_version_resource(work)),
                               '--collect-all', 'winrt', '--hidden-import', 'winrt.system',
                               '--hidden-import', 'winrt.windows.ui.notifications',

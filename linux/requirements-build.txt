@@ -21,3 +21,7 @@ winrt-Windows.ApplicationModel.Contacts>=2,<4; sys_platform == "win32"
 # 1.5.5 complex feature "GPU video in group calls" (SDL2)
 pysdl2==0.9.17
 pysdl2-dll==2.32.0
+winui3-Microsoft.UI.Windowing==3.2.1; sys_platform == "win32"
+winui3-Microsoft.UI.Interop==3.2.1; sys_platform == "win32"
+winui3-Microsoft.UI==3.2.1; sys_platform == "win32"
+winui3-Microsoft.Windows.ApplicationModel.DynamicDependency.Bootstrap==3.2.1; sys_platform == "win32"

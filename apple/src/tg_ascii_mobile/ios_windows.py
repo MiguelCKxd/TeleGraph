@@ -32,7 +32,7 @@ def install(app):
     UIWindow = ObjCClass('UIWindow')
     UIViewController = ObjCClass('UIViewController')
     WKWebView = ObjCClass('WKWebView')
-    WKWebViewConfiguration = ObjCClass('WKWebViewConfiguration')
+    from .ios_webview import inline_configuration
     NSURL = ObjCClass('NSURL')
     NSURLRequest = ObjCClass('NSURLRequest')
     UIColor = ObjCClass('UIColor')
@@ -123,7 +123,7 @@ def install(app):
             peer = peer_of(activity) if activity is not None else None
             window = UIWindow.alloc().initWithWindowScene_(scene)
             controller = UIViewController.alloc().init()
-            web = WKWebView.alloc().initWithFrame_configuration_(window.bounds, WKWebViewConfiguration.alloc().init())
+            web = WKWebView.alloc().initWithFrame_configuration_(window.bounds, inline_configuration())
             color = UIColor.colorWithRed_green_blue_alpha_(8 / 255, 16 / 255, 12 / 255, 1.0)
             web.setOpaque_(False)
             web.backgroundColor = color

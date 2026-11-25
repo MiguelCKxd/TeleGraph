@@ -407,6 +407,13 @@ if platform == 'android':
                                 '<intent-filter><action android:name="android.telecom.ConnectionService" /></intent-filter>'
                                 '</service>\n    </application>', 1)
         shutil.copyfile(Path(__file__).with_name('android') / 'CallMediaService.java', calls / 'CallMediaService.java')
+        shutil.copyfile(Path(__file__).with_name('android') / 'CallPipActivity.java', calls / 'CallPipActivity.java')
+        if 'org.tgas.calls.CallPipActivity' not in text:
+            text = text.replace('</application>', '    <activity android:name="org.tgas.calls.CallPipActivity"'
+                                ' android:exported="false" android:supportsPictureInPicture="true"'
+                                ' android:taskAffinity="' + ANDROID_ID + '.callpip" android:excludeFromRecents="true"'
+                                ' android:resizeableActivity="true" android:theme="@android:style/Theme.Material.NoActionBar"'
+                                ' android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />\n    </application>', 1)
         if 'org.tgas.calls.CallMediaService' not in text:
             text = text.replace('</application>', '    <service android:name="org.tgas.calls.CallMediaService"'
                                 ' android:exported="false" android:foregroundServiceType="phoneCall|microphone|mediaPlayback|camera" />\n    </application>', 1)
@@ -618,7 +625,7 @@ elif platform == 'ios':
     phone = build / 'ios' / 'xcode' / 'TGASCII'
     main = phone / 'main.m'
     source = main.read_text()
-    for name in ('TeleGraphTVLink.m', 'TGCallAudio.m'):
+    for name in ('TeleGraphTVLink.m', 'TGCallAudio.m', 'TGCallPiP.m'):
         shutil.copyfile(Path(__file__).parent / 'ios' / name, phone / name)
         include = f'#import "{name}"'
         if include not in source:

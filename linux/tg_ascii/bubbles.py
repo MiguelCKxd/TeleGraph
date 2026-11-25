@@ -92,6 +92,18 @@ def bubble_left(width,bubble_width,outgoing):
     return max(12,width-bubble_width-16) if outgoing else 16
 
 
+AUTHOR_AVATAR=34
+
+
+def time_and_status(clock,message):
+    """Time first, then the delivery mark, as in Telegram's bubbles."""
+    if getattr(message,'edited_at',None) is not None and not getattr(message,'service',False):
+        clock=tr('Edited').lower()+' '+clock
+    if not message.outgoing:return clock
+    if getattr(message,'pending',False):return clock+' 🕓'
+    return clock+(' ✓✓' if message.read else ' ✓')
+
+
 class BubbleView(tk.Canvas):
     def __init__(self,parent,app,**kwargs):
         super().__init__(parent,highlightthickness=0,**kwargs)
@@ -185,6 +197,44 @@ class BubbleView(tk.Canvas):
                 if node is not None:node['photos'].append(photo);return
         self.photos.append(photo)
 
+    def sender_avatar(self,item,message,epoch):
+        """Author picture beside a group message; Telegram's placeholder if none."""
+        app=self.app
+        if not hasattr(app,'request_photo'):return
+        account,sender=app.ui_account,message.sender_id
+        key=(account,sender)
+        paths=self.__dict__.setdefault('_author_paths',{})
+        waiting=self.__dict__.setdefault('_author_waiting',{})
+        def show(path):
+            def valid():
+                try:return self.generation==epoch and bool(self.winfo_exists()) and bool(self.type(item))
+                except tk.TclError:return False
+            def apply(photo):
+                if not valid():return
+                self.itemconfigure(item,image=photo);self.keep_photo(item,photo)
+            app.request_photo(path,(AUTHOR_AVATAR,AUTHOR_AVATAR),apply,owner=self,valid=valid)
+        if key in paths:show(paths[key]);return
+        if key in waiting:waiting[key].append(show);return
+        waiting[key]=[show]
+        name=(message.sender or '').split(' · ')[0]
+        color=message.sender_color
+        folder=app.preview_dir
+        backend=getattr(getattr(app,'service',None),'backend',None)
+        async def fetch():
+            import asyncio
+            from . import default_avatar
+            path=folder/f'{account}-{sender}-avatar.jpg'
+            if not path.is_file() and backend is not None:
+                try:path=await backend.avatar(sender,path)
+                except Exception:path=None
+            if not path:return await asyncio.to_thread(default_avatar.path,folder,sender,name,AUTHOR_AVATAR*2,color)
+            return str(path)
+        def loaded(path):
+            paths[key]=path
+            for callback in waiting.pop(key,()):callback(path)
+        def failed(_):waiting.pop(key,None)
+        app.worker.submit(fetch(),loaded,failed)
+
     def discard_node(self,ident):
         node=self._nodes.pop(ident)
         for tag,binding in node['bindings']:
@@ -225,6 +275,12 @@ class BubbleView(tk.Canvas):
         for ident in set(self._nodes)-set(by_id):self.discard_node(ident)
         epoch=self.generation
         from .day_separators import day_headers
+        from .sender_runs import positions, shows_authors
+        headers=day_headers(messages)
+        chat=getattr(self.app,'_chat_by_id',{}).get(getattr(self.app,'active',None))
+        authors=bool(use_bubbles and shows_authors(getattr(chat,'kind','')))
+        runs=positions(messages,headers) if authors else [(True,True)]*len(messages)
+        gutter=AUTHOR_AVATAR+8 if authors else 0
         base_palette = c
         bubble_palettes = {}
         for outgoing, key in ((True, 'bubble_out_color'), (False, 'bubble_in_color')):
@@ -234,7 +290,8 @@ class BubbleView(tk.Canvas):
                 linear = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4 for v in rgb]
                 ink = '#000000' if sum(a*b for a, b in zip(linear, (.2126,.7152,.0722))) > .179 else '#ffffff'
                 bubble_palettes[outgoing] = dict(c, text=ink, muted=ink, strong=ink, selected=color, panel=color)
-        for m,day_header in zip(messages,day_headers(messages)):
+        for m,day_header,(first,last) in zip(messages,headers,runs):
+            author_gutter=0 if m.outgoing else gutter
             c = base_palette
             content,translation_key,translation_label=presentation(self.app,m)
             content=animated_content(self.app,content)
@@ -245,7 +302,8 @@ class BubbleView(tk.Canvas):
             quote_accent=self.app.message_accent(original) if original else accent
             selected=getattr(self.app,'message_selected',lambda _:False)(m.id)
             signature=(message_signature(m, self.app),message_signature(content, self.app),translation_key,translation_label,
-                       message_signature(original, self.app),tuple(accent),tuple(quote_accent),selected,quote_controls,day_header)
+                       message_signature(original, self.app),tuple(accent),tuple(quote_accent),selected,quote_controls,day_header,
+                       authors,first,last)
             node=self._nodes.get(m.id)
             if node is not None and node['signature']==signature:
                 delta=y-node['start']
@@ -257,12 +315,15 @@ class BubbleView(tk.Canvas):
             plain=content.raw_text if content.raw_text is not None else content.text
             m_time = message_time(m, getattr(self.app, 'preferences', None) and self.app.preferences.values)
             measured=max([measure_body(part) for part in plain.splitlines()]+[measure_small(m.sender),measure_small(m_time+' ✓✓'),90])+28
+            if use_bubbles and plain.strip():
+                # Room for the time and ticks after the last line, as in Telegram.
+                measured=max(measured,measure_body(plain.splitlines()[-1])+measure_small(time_and_status(m_time,m))+46)
             if translation_key: measured=max(measured,measure_small(tr(translation_label))+28)
             if m.media: measured=max(measured,280)
             if m.reply_to_id: measured=max(measured,260)
             if type(getattr(m,'reply_markup',None)).__name__=='ReplyInlineMarkup': measured=max(measured,300)
-            bw=min(max_width,measured) if use_bubbles else max_width
-            tag=f'message:{m.id}'; x=bubble_left(width,bw,m.outgoing) if use_bubbles else 16; start=y; self.locations[m.id]=y
+            bw=min(max_width-author_gutter,measured) if use_bubbles else max_width
+            tag=f'message:{m.id}'; x=(bubble_left(width,bw,m.outgoing)+author_gutter) if use_bubbles else 16; start=y; self.locations[m.id]=y
             if day_header:
                 # Centred date pill before the first message of each day.
                 label_item=self.create_text(width/2,y+5,text=day_header,anchor='n',font=small,fill=c['muted'],tags=(tag,'day_divider'))
@@ -276,8 +337,11 @@ class BubbleView(tk.Canvas):
                 accent = quote_accent = [c['text']]
             marker=('☑ ' if selected else '☐ ') if getattr(self.app,'selection_kind',None)=='messages' else ''
             name=self.app.text_display(m.sender,True)
-            sender_item=canvas_text(self,x+14,y+10,text=marker+name,anchor='nw',font=small,width=max(30,bw-28),fill=accent[0],tags=(tag,'sender_profile'))
-            y=max(y+31,self.bbox(sender_item)[3]+10)
+            if first or m.outgoing or marker:
+                sender_item=canvas_text(self,x+14,y+10,text=marker+name,anchor='nw',font=small,width=max(30,bw-28),fill=accent[0],tags=(tag,'sender_profile'))
+                y=max(y+31,self.bbox(sender_item)[3]+10)
+            else:
+                y+=12  # Later messages of a run: Telegram shows the name only once.
             if m.reply_to_id:
                 quote_y=y
                 from .rich_preview import draw_line
@@ -302,13 +366,16 @@ class BubbleView(tk.Canvas):
                 for tx,ty,chunk in chunks:
                     item=canvas_text(self,tx,ty,text=chunk,anchor='nw',fill=c['text'],font=body,tags=tag)
                     if url:self.itemconfigure(item,font=(family,body.cget('size'),'underline'));self.interactive(item,lambda u=url:self.app.open_link(u))
+            text_line_y,text_end_x=y,px
             y+=line+5
+            after_text_y=y
             for offset,expanded in quote_controls:
                 item=canvas_text(self,x+14,y,text=control_label(expanded),anchor='nw',font=(family,10,'underline'),fill=c['text'],tags=tag)
                 self.interactive(item,lambda ident=m.id,value=offset,scope=(self.app.ui_account,self.app.active):toggle(self.app,ident,value,scope))
                 y+=small.metrics('linespace')+8
             if m.media:
-                if m.media_kind in ('image','sticker','video') and self.app.preferences.values['inline_media']:
+                from .preferences import shows_preview
+                if m.media_kind in ('image','sticker','video') and shows_preview(self.app.preferences.values,m.media_kind):
                     item=self.create_text(x+14,y+10,text=tr('Loading...'),anchor='nw',font=body,fill=c['text'],tags=tag)
                     self.app.canvas_media(self,item,m,epoch,(int(bw-28),180))
                     self.interactive(item,lambda msg=m:self.app.open_image_message(msg))
@@ -335,11 +402,20 @@ class BubbleView(tk.Canvas):
                     self.interactive(icon,action)
                     self.app.canvas_emoji(self,icon,value,epoch,18)
                 y+=24
-            item=canvas_text(self,x+bw-12,y,text=m_time+(' ✓✓' if m.read else ' ✓' if m.outgoing else ''),anchor='ne',font=small,fill=c['muted'],tags=tag)
-            y+=27
+            stamp=time_and_status(m_time,m)
+            if use_bubbles and y==after_text_y and plain.strip() and text_end_x+measure_small(stamp)+18<=x+bw-12:
+                # Telegram: time and ticks share the last text line when they fit.
+                canvas_text(self,x+bw-12,text_line_y+max(0,line-3-small.metrics('linespace')),text=stamp,anchor='ne',font=small,fill=c['muted'],tags=tag)
+                y+=6
+            else:
+                canvas_text(self,x+bw-12,y,text=stamp,anchor='ne',font=small,fill=c['muted'],tags=tag)
+                y+=27
             if use_bubbles or selected:
                 bg=self.rounded(x,bubble_top,bw,y-bubble_top,c['selected'] if m.outgoing else c['panel'],tag); self.tag_lower(bg)
                 if selected:self.itemconfigure(bg,outline=c['text'],width=2)
+            if authors and last and not m.outgoing and m.sender_id is not None:
+                picture=self.create_image(x-author_gutter+4,y-AUTHOR_AVATAR,anchor='nw',tags=(tag,'sender_profile'))
+                self.sender_avatar(picture,m,epoch)
             if type(getattr(m,'reply_markup',None)).__name__=='ReplyInlineMarkup':
                 from .desktop_bot_buttons import paint_buttons
                 y=paint_buttons(self,self.app,m,x,y+4,bw,tag,self.interactive)

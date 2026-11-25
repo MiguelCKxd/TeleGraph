@@ -10,6 +10,7 @@ import asyncio
 import io
 import json
 import textwrap
+from datetime import datetime
 
 import toga
 from toga.style import Pack
@@ -17,7 +18,17 @@ from toga.style import Pack
 BG, PANEL, FG, MUTED, STRONG, DANGER = '#08100c', '#0e1b13', '#8cf5a6', '#80a98c', '#bdffcd', '#ff8f8f'
 MONO = 'monospace'
 PALETTE = {BG: 'bg', PANEL: 'panel', FG: 'text', MUTED: 'muted', STRONG: 'strong'}
-TYPEFACES = {'courier': 'monospace', 'sans': 'sans-serif', 'serif': 'serif'}
+# Toga on Android only resolves generic families; every phone choice maps to one.
+TYPEFACES = {'courier': 'monospace', 'mono': 'monospace', 'sf_mono': 'monospace', 'typewriter': 'monospace',
+             'sans': 'sans-serif', 'system': 'sans-serif', 'humanist': 'sans-serif', 'rounded': 'sans-serif',
+             'sf': 'sans-serif', 'sf_rounded': 'sans-serif', 'sf_compact': 'sans-serif', 'condensed': 'sans-serif',
+             'light': 'sans-serif', 'medium': 'sans-serif', 'smallcaps': 'sans-serif',
+             'serif': 'serif', 'classic': 'serif', 'book': 'serif', 'new_york': 'serif', 'noto_serif': 'serif',
+             'casual': 'cursive', 'handwriting': 'cursive'}
+# 3.2: Wear OS system families (fonts.xml aliases) applied natively on top.
+ANDROID_FAMILIES = {'condensed': 'sans-serif-condensed', 'light': 'sans-serif-light', 'medium': 'sans-serif-medium',
+                    'smallcaps': 'sans-serif-smallcaps', 'typewriter': 'serif-monospace', 'casual': 'casual',
+                    'handwriting': 'cursive', 'noto_serif': 'serif'}
 QUICK = ('👍', '❤', '😂', 'OK', '¿?')
 # Round screens: keep everything inside the circle.
 SIDE, TOP = 32, 30
@@ -75,7 +86,12 @@ class TgAsciiWatch(toga.App):
 
     @property
     def look(self):
-        return self.phone_look if self.wear_link_available and self.use_phone_style and self.phone_look else {}
+        return self.phone_look if self.use_phone_style and self.phone_look else {}
+
+    @property
+    def display_name(self):
+        values = self.core.prefs.values if self.core.prefs else {}
+        return self.look.get('name') or values.get('app_display_name') or 'TeleGraph'
 
     def colour(self, value):
         if value == STRONG and self.core.prefs and self.core.prefs.values.get('accent_color'):
@@ -249,11 +265,24 @@ class TgAsciiWatch(toga.App):
                     font_weight='bold' if bold or look.get('bold') else 'normal',
                     font_style='italic' if look.get('italic') else 'normal', **extra)
 
+    def system_family(self, widget, bold=False):
+        """Apply a Wear OS family Toga cannot name (condensed, casual...)."""
+        alias = ANDROID_FAMILIES.get(self.look.get('font'))
+        if not alias:
+            return widget
+        try:
+            from android.graphics import Typeface
+            style = (Typeface.BOLD if bold or self.look.get('bold') else 0) | (Typeface.ITALIC if self.look.get('italic') else 0)
+            widget._impl.native.setTypeface(Typeface.create(alias, style))
+        except Exception:
+            pass  # The generic family from text_style stays.
+        return widget
+
     def label(self, text, size=11, color=FG, bold=False, **extra):
         # Labels do not wrap by themselves: wrap to the round screen's width
         # (monospace, so characters per line follow from the font size).
-        return toga.Label(round_wrap(text, size * self.look.get('scale', 1)),
-                          style=self.text_style(size, color, bold, margin_bottom=4, **extra))
+        return self.system_family(toga.Label(round_wrap(text, size * self.look.get('scale', 1)),
+                                             style=self.text_style(size, color, bold, margin_bottom=4, **extra)), bold)
 
     def button(self, text, action, color=FG, size=11):
         # A button is as wide as its text plus Material's side padding, so long captions
@@ -275,7 +304,7 @@ class TgAsciiWatch(toga.App):
                 widget.refresh()
             except Exception:
                 pass
-        return widget
+        return self.system_family(widget)
 
     def text_input(self, *, password=False, size=12, margin_bottom=6, **kwargs):
         from android.content.res import ColorStateList
@@ -287,7 +316,7 @@ class TgAsciiWatch(toga.App):
         tint = Color.parseColor(self.colour(MUTED))
         widget._impl.native.setHintTextColor(tint)
         widget._impl.native.setBackgroundTintList(ColorStateList.valueOf(tint))
-        return widget
+        return self.system_family(widget)
 
     def toast(self, text):
         if not text:
@@ -299,9 +328,16 @@ class TgAsciiWatch(toga.App):
             print('watch:', text)
 
     # -- screens -----------------------------------------------------------------------
+    def logo_row(self):
+        from tg_ascii.logos import png_bytes
+        look = self.look.get('brand_logo') or self.core.appearance()['brand_logo']
+        logo = toga.Image(png_bytes(look['variant'], look['theme'], 128, color=look['color']))
+        return toga.Box(children=[toga.ImageView(logo, style=Pack(width=64, height=64))],
+                            style=Pack(direction='row', justify_content='center'))
+
     def show_note(self, text, retry=False):
         self.screen = 'note'
-        children = [self.label('TeleGraph', 13, STRONG, True, text_align='center'), self.label(text, 11, MUTED, text_align='center')]
+        children = [self.logo_row(), self.label(self.display_name, 13, STRONG, True, text_align='center'), self.label(text, 11, MUTED, text_align='center')]
         if retry:
             children.append(self.button(tr('Reintentar'), lambda: self.run('retry')))
             children.append(self.button(tr('App logos'), self.show_logos))
@@ -310,7 +346,7 @@ class TgAsciiWatch(toga.App):
     def show_phone(self, error=''):
         self.screen = 'login'
         phone = self.text_input(placeholder='+34…')
-        children = [self.label('TeleGraph', 13, STRONG, True, text_align='center'),
+        children = [self.logo_row(), self.label(self.display_name, 13, STRONG, True, text_align='center'),
                     self.button(tr('Entrar con codigo QR'), self.start_qr),
                     self.label(tr('Numero de telefono'), 10, MUTED), phone,
                     self.button(tr('Continuar'), lambda: self.run('login.phone', phone=phone.value.strip())),
@@ -357,13 +393,8 @@ class TgAsciiWatch(toga.App):
     def show_chats(self):
         self.screen = 'chats'
         offline = self.core.connection in ('offline', 'reconnecting')
-        from tg_ascii.logos import png_bytes
-        look = self.look.get('brand_logo') or self.core.appearance()['brand_logo']
-        logo = toga.Image(png_bytes(look['variant'], look['theme'], 128, color=look['color']))
-        logo_row = toga.Box(children=[toga.ImageView(logo, style=Pack(width=64, height=64))],
-                            style=Pack(direction='row', justify_content='center'))
-        children = [logo_row,
-                    self.label('TeleGraph' + ('  ○' if offline else ''), 13, STRONG, True, text_align='center'),
+        children = [self.logo_row(),
+                    self.label(self.display_name + ('  ○' if offline else ''), 13, STRONG, True, text_align='center'),
                     self.button(tr('App logos'), self.show_logos),
                     self.button(tr('Accent color'), self.show_accents)]
         if not self.chats:
@@ -450,6 +481,43 @@ class TgAsciiWatch(toga.App):
             text = f'[{kind}] {text}'.strip()
         return text
 
+    def sender_picture(self, message):
+        from tg_ascii.default_avatar import path as default_path
+        uid = int(message['sender_id'])
+        owner, peer = self.core.account, self.open_peer
+        initials = default_path(self.core.root / 'watch-placeholders', uid, message.get('sender') or '', 48,
+                                color=message.get('color'))
+        picture = toga.ImageView(toga.Image(str(initials)), style=Pack(width=24, height=24))
+        async def load():
+            future = asyncio.run_coroutine_threadsafe(self.core.avatar_file(uid), self.core.loop)
+            try:
+                path = await asyncio.wrap_future(future)
+                if path and self.core.account == owner and self.open_peer == peer and not self.core.locked:
+                    picture.image = toga.Image(str(path))
+            except (ValueError, OSError, RuntimeError):
+                pass
+        self.loop.create_task(load())
+        return picture
+
+    def show_dates(self, message):
+        owner, peer = self.core.account, self.open_peer
+        self.screen = 'message_dates'
+        def display(details):
+            if self.screen != 'message_dates' or peer != self.open_peer or owner != self.core.account:
+                return
+            rows = [self.button('< ' + tr('Volver'), self.show_chat)]
+            readers = details.get('readers') or []
+            read = details.get('read') or (datetime.fromtimestamp(readers[0]['date']).strftime('%x %X') if readers else '')
+            if read:
+                rows.append(self.label(tr('Hora de lectura') + ' · ' + read, 10, MUTED))
+            if message.get('edited_at'):
+                rows.append(self.label(tr('Editado') + ' · ' + datetime.fromtimestamp(message['edited_at']).strftime('%x %X'), 10, MUTED))
+            rows.append(self.label(self.message_text(message)))
+            self.page(*rows)
+        display({})
+        if message.get('out'):
+            self.run('message_read_details', done=display, account=owner, peer=peer, id=message['id'], group=self.open_kind == 'group')
+
     def show_chat(self, scroll_to_latest=True):
         position = getattr(self.main_window.content, 'vertical_position', 0)
         self.screen = 'chat'
@@ -479,19 +547,44 @@ class TgAsciiWatch(toga.App):
         if not self.messages:
             children.append(self.label(tr('Cargando...'), 10, MUTED))
         translatable = []
-        for message in self.messages[-20:]:
+        visible = self.messages[-20:]
+        def join(first, second):
+            if self.open_kind != 'group' or not first or not second or first.get('service') or second.get('service'):
+                return False
+            if first.get('sender_id') is None or (first.get('sender_id'), first.get('out')) != (second.get('sender_id'), second.get('out')):
+                return False
+            a, b = first.get('date'), second.get('date')
+            return bool(a and b and abs(a-b) <= 900 and datetime.fromtimestamp(a).date() == datetime.fromtimestamp(b).date())
+
+        for index, message in enumerate(visible):
             ident = str(message['id'])
             who = tr('Tu') if message.get('out') else (message.get('sender') or '')
-            header = self.label(f"{who} · {message.get('time', '')}", 9, MUTED)
-            body = self.label(self.translations.get(ident) or self.message_text(message),
-                              11, STRONG if message.get('out') else FG)
-            if self.look.get('bubbles'):
-                background = self.colour(PANEL)
-                header.style.background_color = body.style.background_color = background
-                children.append(toga.Box(children=[header, body], style=Pack(
-                    direction='column', background_color=background, padding=4, margin_bottom=4)))
+            bubbles = self.look.get('bubbles', False)
+            first = index == 0 or not join(visible[index-1], message)
+            last = index == len(visible)-1 or not join(message, visible[index+1])
+            clock = message.get('time', '')
+            pieces = []
+            if first and who:
+                pieces.append(self.label(who, 9, MUTED))
+            if not bubbles:
+                pieces.append(self.label(clock, 9, MUTED))
+            pieces.append(self.label(self.translations.get(ident) or self.message_text(message),
+                                     11, STRONG if message.get('out') else FG))
+            if bubbles and message.get('out'):
+                clock += '  ✓✓' if message.get('read') else '  ✓'
+            show_details = not is_secret and (message.get('out') or message.get('edited_at'))
+            if show_details:
+                pieces.append(self.button((clock + '  ' if bubbles else '') + 'ⓘ',
+                                          lambda row=message: self.show_dates(row), size=9, color=MUTED))
+            elif bubbles:
+                pieces.append(self.label(clock, 9, MUTED))
+            background = self.colour(PANEL if bubbles else BG)
+            column = toga.Box(children=pieces, style=Pack(direction='column', flex=1, background_color=background, padding=4))
+            if self.open_kind == 'group' and not message.get('out') and last and message.get('sender_id') is not None:
+                children.append(toga.Box(children=[self.sender_picture(message), column], style=Pack(
+                    direction='row', align_items='end', background_color=background, margin_bottom=3)))
             else:
-                children.extend([header, body])
+                children.append(column)
             if not is_secret and not message.get('service') and message.get('translatable'):
                 translatable.append(message['id'])
                 label = tr('Show original') if ident in self.translations else tr('Translate')

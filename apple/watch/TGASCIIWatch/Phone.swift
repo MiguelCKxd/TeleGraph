@@ -24,7 +24,27 @@ struct MessageItem: Identifiable, Decodable, Hashable {
     let time: String
     let out: Bool
     let translatable: Bool?
+    var sender_id: Int64?
+    var date: Double?
+    var edited_at: Double?
+    var read: Bool?
+    var color: Int?
+
+    func joins(_ other: Self?) -> Bool {
+        guard let other, let sender_id, sender_id == other.sender_id, out == other.out,
+              let date, let before = other.date, abs(date - before) <= 900 else { return false }
+        return Calendar.current.isDate(Date(timeIntervalSince1970: date), inSameDayAs: Date(timeIntervalSince1970: before))
+    }
 }
+
+struct WatchReadDetails: Decodable {
+    struct Reader: Decodable { let date: Double }
+    let read: String?
+    let timestamp: Double?
+    let readers: [Reader]?
+}
+
+struct SenderPortrait: Decodable { let image: Data? }
 
 enum PhoneError: LocalizedError {
     case unreachable, failed(String)

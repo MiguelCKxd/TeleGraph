@@ -37,6 +37,8 @@ struct TGASCIIWatchApp: App {
 struct Look: Codable, Hashable {
     var bg = "#08100c", panel = "#0e1b13", text = "#8cf5a6", muted = "#80a98c", strong = "#bdffcd"
     var brand_logo: LogoChoice?
+    var name: String?
+    var photo_previews: Bool?
     var scale = 1.0, bold = false, italic = false, font = "", bubbles = false
     var reduce_animations: Bool?  // absent when the phone app is older
 }
@@ -82,9 +84,28 @@ enum Theme {
     @MainActor static var muted: Color { Color(hex: look.muted) }
     @MainActor static var strong: Color { Color(hex: UserDefaults.standard.string(forKey: "watchAccent").flatMap { $0.isEmpty ? nil : $0 } ?? look.strong) }
     @MainActor static func mono(_ size: CGFloat, bold: Bool = false) -> Font {
-        let design: Font.Design = look.font == "serif" ? .serif : look.font == "sans" ? .default : .monospaced
-        var font = Font.system(size: size * CGFloat(look.scale), weight: bold || look.bold ? .bold : .regular, design: design)
-        if look.italic { font = font.italic() }
+        typeface(look.font, size: size * CGFloat(look.scale), bold: bold || look.bold, italic: look.italic)
+    }
+
+    /// 3.2: every phone typeface on watchOS, with Apple's own faces. The
+    /// system design is SF Compact on Apple Watch; rounded, monospaced and
+    /// serif are SF Compact Rounded, SF Mono and New York.
+    static func typeface(_ key: String, size: CGFloat, bold: Bool, italic: Bool) -> Font {
+        var weight: Font.Weight = bold ? .bold : .regular
+        var design: Font.Design = .monospaced
+        var condensed = false
+        switch key {
+        case "sans", "system", "sf", "sf_compact", "humanist", "smallcaps": design = .default
+        case "rounded", "sf_rounded", "casual": design = .rounded
+        case "serif", "classic", "book", "new_york", "noto_serif", "handwriting": design = .serif
+        case "light": design = .default; weight = bold ? .semibold : .light
+        case "medium": design = .default; weight = bold ? .heavy : .medium
+        case "condensed": design = .default; condensed = true
+        default: design = .monospaced  // "", courier, mono, sf_mono, typewriter: the ASCII look.
+        }
+        var font = Font.system(size: size, weight: weight, design: design)
+        if condensed { font = font.width(.condensed) }
+        if italic || key == "handwriting" { font = font.italic() }
         return font
     }
 }

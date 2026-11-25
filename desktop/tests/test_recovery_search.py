@@ -104,8 +104,9 @@ class SearchWidgetTests(TestCase):
     def test_shared_browser_binds_real_entry_without_opening_native_menu(self):
         query=NS(get=lambda:'',entry=Mock())  # StringVar deliberately has no bind method.
         app=NS(ui_account='a',service=NS(backend=Mock()),dialog=Mock(return_value=(Mock(),Mock())),field=Mock(return_value=query),show_error=Mock())
-        with patch('tg_ascii.shared_media.tk.StringVar'),patch('tg_ascii.shared_media.ttk'),patch('tg_ascii.shared_media.tk.Listbox'),patch('tg_ascii.shared_media.Choice'),patch('tg_ascii.shared_media.FlowFrame'),patch('tg_ascii.shared_media.SharedPhotoGrid'),patch('tkinter.Menu') as native:
+        with patch('tg_ascii.shared_media.tk.StringVar'),patch('tg_ascii.shared_media.ttk'),patch('tg_ascii.shared_media.tk.Listbox'),patch('tg_ascii.shared_media.Choice'),patch('tg_ascii.shared_media.FlowFrame'),patch('tg_ascii.shared_media.SharedPhotoGrid'),patch('tg_ascii.recent_search_ui.RecentStrip') as recent,patch('tkinter.Menu') as native:
             browser=SharedMediaBrowser(app,True,42)
+        self.assertEqual(recent.call_args.args[3], 'messages:42')
         query.entry.bind.assert_called_once();self.assertEqual(query.entry.bind.call_args.args[0],'<Return>')
         app.field.assert_called_once_with(app.dialog.return_value[1],'Search in chat',emoji=True)
         native.assert_not_called();self.assertEqual(browser.peer,42)

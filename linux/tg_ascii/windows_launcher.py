@@ -136,8 +136,11 @@ def _announce(paths):
         C.windll.shell32.SHChangeNotify(0x2000, 0x2005, C.c_wchar_p(str(path)), None)  # SHCNE_UPDATEITEM
 
 
-def update_shortcuts(executable, icon):
+def update_shortcuts(executable, icon, name=None, state_root=None):
     """Refresh TeleGraph's existing Start, desktop and taskbar links without creating pins."""
+    from .launcher_names import APP_NAME as product, apply_renames, plan_renames, remember, remembered, shortcut_names
+    previous = remembered(state_root) if state_root else []
+    name = name or product
     # COM apartment for shell links. The UI may already use a different apartment.
     status = C.windll.ole32.CoInitializeEx(None, 2)
     if status != -2147417850:  # RPC_E_CHANGED_MODE requires no matching CoUninitialize.
@@ -149,7 +152,11 @@ def update_shortcuts(executable, icon):
             if C.windll.shell32.SHGetFolderPathW(None, csidl, None, 0, path) >= 0:
                 folders.append(Path(path.value))
         pins = Path(os.environ['APPDATA']) / 'Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar'
-        shortcuts = [d / name for d in folders for name in ('TeleGraph.lnk', 'TG-ASCII.lnk')]
+        # 3.2: TeleGraph's own Start and desktop links carry the chosen name.
+        renamed = apply_renames(plan_renames(folders, name, previous))
+        if state_root:
+            remember(state_root, name)
+        shortcuts = [d / file for d in folders for file in shortcut_names(name, previous)]
         if pins.is_dir():
             shortcuts.extend(pins.glob('*.lnk'))
         changed = []
@@ -161,13 +168,13 @@ def update_shortcuts(executable, icon):
                 except OSError:
                     # A removed or read-only shortcut must not block the other surfaces.
                     continue
-        _announce(changed)
+        _announce(changed + [path for path in renamed if path not in changed])
     finally:
         if status >= 0:
             C.windll.ole32.CoUninitialize()
 
 
-def set_window_icon(root, image, synchronize):
+def set_window_icon(root, image, synchronize, name=None, state_root=None):
     cache = Path(os.environ['LOCALAPPDATA']) / 'TeleGraph' / 'LauncherIcons'
     icon = icon_file(image, cache)
     root.iconbitmap(str(icon))
@@ -177,4 +184,4 @@ def set_window_icon(root, image, synchronize):
         queue = getattr(root, '_tg_shortcut_worker', None)
         if queue is None:
             queue = root._tg_shortcut_worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix='TeleGraph-shell')
-        queue.submit(update_shortcuts, Path(sys.executable), icon)
+        queue.submit(update_shortcuts, Path(sys.executable), icon, name, state_root)

@@ -166,12 +166,19 @@ class DesktopTools:
 
     def font_picker(self, parent):
         ttk.Label(parent, text=tr('App font')).pack(anchor='w')
-        families = sorted(set(tkfont.families(self.root)), key=str.casefold)
+        from .typography import apple_system_families, terminal_family
+        installed = sorted(set(tkfont.families(self.root)), key=str.casefold)
+        # 3.2: Apple's SF faces are always present as system fonts on macOS,
+        # even when they are not installed as ordinary families.
+        system = apple_system_families()
+        # Installed Apple families (SF Compact, SF Pro Display, New York...) follow them.
+        apple = [family for family in installed if system and family.startswith(('SF ', 'New York'))]
+        families = list(system) + apple + [family for family in installed if family not in system and family not in apple]
         # Opening the selector refreshes installed fonts, including ones added
         # while the app was running. Layout-only rebuilds can reuse the setup.
         self.root._font_configuration = None
-        from .typography import terminal_family
-        picker = Choice(parent, values=[tr('Default') + ' — ' + terminal_family(self.root, families)] + families, width=30)
+        labels = [system.get(family, family) for family in families]
+        picker = Choice(parent, values=[tr('Default') + ' — ' + terminal_family(self.root, installed)] + labels, width=30)
         current = self.preferences.values['font_family']
         picker.current(families.index(current) + 1 if current in families else 0)
         picker.pack(anchor='w', pady=5)

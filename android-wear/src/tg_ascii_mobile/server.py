@@ -194,6 +194,32 @@ class Server:
             return await self.staged(writer, headers, query)
         if path == '/sticker' and method == 'GET':
             return await self.sticker(writer, headers, query)
+        if path == '/profile-photo' and method == 'GET':
+            if not self.authorised(headers, query) or self.core.locked:
+                return await self.respond(writer, 403, b'token')
+            try:
+                asset = await asyncio.wait_for(self.core.profile_gallery_file(
+                    query['peer'], query['photo'], query['account'], query.get('offset', 0), query.get('thumb') == '1'), 120)
+            except PermissionError:
+                return await self.respond(writer, 403, b'account')
+            except (KeyError, TypeError, ValueError):
+                return await self.respond(writer, 400, b'')
+            except Exception:
+                asset = None
+            if asset is None or not asset.is_file():
+                return await self.respond(writer, 404, b'')
+            return await self.send_file(writer, headers, asset, 'Cache-Control: no-store')
+        if path == '/account-avatar' and method == 'GET':
+            if not self.authorised(headers, query) or self.core.locked or self.core.stage not in ('choose_account', 'ready'):
+                return await self.respond(writer, 403, b'')
+            key = query.get('account', '')
+            path = self.core.account_portrait(key)
+            if path is None or not path.is_file() or path.stat().st_size > MAX_MEDIA:
+                return await self.respond(writer, 404, b'')
+            data = await asyncio.to_thread(path.read_bytes)
+            if self.core.locked or self.core.account_portrait(key) != path:
+                return await self.respond(writer, 403, b'')
+            return await self.respond(writer, 200, data, 'image/jpeg')
         if path == '/avatar' and method == 'GET':
             return await self.avatar(writer, headers, query)
         if path == '/chat-wallpaper' and method == 'GET':
@@ -336,7 +362,7 @@ class Server:
             return await self.respond(writer, 400, b'')
         except Exception:
             return await self.respond(writer, 404, b'')
-        if path is None or not path.is_file() or path.stat().st_size > MAX_MEDIA:
+        if path is None or not path.is_file() or (thumbnail and path.stat().st_size > MAX_MEDIA):
             return await self.respond(writer, 404, b'')
         if query.get('play') == 'caf' and is_ogg(path):
             # iOS: Safari plays Opus from CAF, not always from Ogg (same audio, other box).
@@ -483,6 +509,8 @@ class Server:
         if not self.authorised(headers, query) or self.core.locked:
             return await self.respond(writer, 403, b'token')
         account = self.core.account
+        if 'account_key' in query and query['account_key'] != account:
+            return await self.respond(writer, 403, b'account')
         try:
             path = await asyncio.wait_for(self.core.avatar_file(int(query['peer']), query.get('big') == '1'), 90)
         except (KeyError, ValueError):

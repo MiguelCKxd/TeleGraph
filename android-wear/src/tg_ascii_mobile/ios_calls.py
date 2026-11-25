@@ -432,6 +432,8 @@ def install(app):
                                  else tr('Microphone permission denied.'))
 
     app.core.native_call_available = available
+    from .call_pip import install_ios
+    install_ios(app)
     app.core.native_call_engine = Engine
     app.core.native_call_permission = permission
 

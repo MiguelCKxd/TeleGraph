@@ -316,6 +316,20 @@ async def _handle(body):
             _secret_mgr.purge_all()
         _client = _qr = _secret_mgr = None
         return {'ok': True}
+    if op == 'avatar':
+        import base64
+        data = await client.download_profile_photo(int(body['peer']), bytes, download_big=False)
+        return {'image': base64.b64encode(data).decode('ascii')} if data and len(data) <= 40000 else {}
+    if op == 'message_dates':
+        from telethon import functions
+        target = await client.get_input_entity(int(body['peer']))
+        ident = int(body['id'])
+        if body.get('group'):
+            result = await client(functions.messages.GetMessageReadParticipantsRequest(target, ident))
+            return {'readers': sorted(({'id': r.user_id, 'date': r.date.timestamp()} for r in result
+                                       if getattr(r, 'date', None)), key=lambda r: r['date'])}
+        result = await client(functions.messages.GetOutboxReadDateRequest(target, ident))
+        return {'timestamp': result.date.timestamp()}
     if op == 'move_pin':
         from .pin_order import move_pinned
         await move_pinned(client, int(body['peer']), int(body['direction']))
@@ -339,7 +353,16 @@ async def _handle(body):
             await _secret_mgr.mark_read(peer)
             return [{'id': m.id, 'sender': m.sender, 'text': m.text, 'time': m.time,
                      'out': bool(m.outgoing), 'translatable': False} for m in _secret_mgr.history(peer)[-25:]]
+        from telethon import functions, types, utils
         messages = await client.get_messages(peer, limit=25)
+        read_max = None
+        try:
+            info = await client(functions.messages.GetPeerDialogsRequest([
+                types.InputDialogPeer(await client.get_input_entity(peer))]))
+            if info.dialogs:
+                read_max = info.dialogs[0].read_outbox_max_id
+        except (OSError, errors.RPCError):
+            pass
         try:
             await client.send_read_acknowledge(peer)
         except Exception:
@@ -348,12 +371,15 @@ async def _handle(body):
         for message in reversed(messages):
             if message.action is not None:
                 continue
-            sender = ''
-            if not message.out:
-                who = await message.get_sender()
-                sender = getattr(who, 'first_name', None) or getattr(who, 'title', None) or ''
-            result.append({'id': message.id, 'sender': sender or ('Tú' if message.out else ''), 'text': _text(message),
-                           'time': _clock(message.date), 'out': bool(message.out),
+            who = await message.get_sender()
+            if who is None and not message.out and (message.is_group or message.is_channel):
+                who = await message.get_chat()
+            sender_id = utils.get_peer_id(who) if who else message.sender_id
+            result.append({'id': message.id, 'sender': utils.get_display_name(who) if who else ('Tú' if message.out else ''),
+                           'sender_id': sender_id, 'color': getattr(getattr(who, 'color', None), 'color', None),
+                           'text': _text(message), 'time': _clock(message.date), 'out': bool(message.out),
+                           'date': message.date.timestamp(), 'edited_at': message.edit_date.timestamp() if message.edit_date else None,
+                           'read': read_max is not None and message.id <= read_max if message.out else None,
                            'translatable': bool((message.message or '').strip())})
         return result
     if op == 'translate':

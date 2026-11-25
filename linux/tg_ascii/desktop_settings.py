@@ -48,6 +48,12 @@ class DesktopSettings:
                 if i==index:container.pack(fill='both',expand=True)
                 else:container.pack_forget()
         picker.bind('<<ComboboxSelected>>',choose);choose()
+        # 3.2: search across every category's options.
+        from .settings_search import build as build_settings_search
+        def select_category(index):picker.current(index);choose()
+        labels={v:caption('Customization','Personalización') if v=='Customization' else tr(v) for v in categories}
+        self._settings_search=build_settings_search(navigation,sections,labels,select_category,categories)
+        self._settings_search.pack(fill='x',before=picker,pady=(0,6))
         self._settings_picker=picker
         self._settings_choose=choose
         wrap_width = None
@@ -63,7 +69,13 @@ class DesktopSettings:
         self.add_language_picker(appearance)
         display_name = tk.StringVar(value=self.preferences.values.get('app_display_name', ''))
         ttk.Label(appearance, text=caption('App display name', 'Nombre visible de la app')).pack(anchor='w')
-        ttk.Entry(appearance, textvariable=display_name).pack(fill='x')
+        name_row = ttk.Frame(appearance); name_row.pack(fill='x')
+        ttk.Entry(name_row, textvariable=display_name).pack(side='left', fill='x', expand=True)
+        # 3.2: back to the product name everywhere (windows, launchers, start screens).
+        ttk.Button(name_row, text=caption('Reset', 'Restablecer'), command=lambda: display_name.set('')).pack(side='left', padx=(6, 0))
+        ttk.Label(appearance, text=caption('Also used for the start and loading screens and, on Windows and Linux, for the app shortcuts. On macOS the Dock keeps the installed name.',
+                                           'También se usa en las pantallas de arranque y carga y, en Windows y Linux, en los accesos directos. En macOS el Dock mantiene el nombre instalado.'),
+                  style='Muted.TLabel', wraplength=480).pack(fill='x', pady=(2, 6))
         choices={}
         for key,label,parent in [('theme','Interface theme',appearance),('logo_theme','Logo theme',logos)]:
             ttk.Label(parent,text=tr(label)).pack(anchor='w',pady=(10,2))
@@ -72,7 +84,8 @@ class DesktopSettings:
         font_choice,families=self.font_picker(appearance);font_choice.pack_configure(fill='x')
         size=tk.IntVar(value=self.preferences.values['font_size'])
         ttk.Label(appearance,text=tr('Tamaño del texto')).pack(anchor='w',pady=(10,2))
-        ttk.Spinbox(appearance,from_=10,to=20,textvariable=size,width=6).pack(anchor='w')
+        from .preferences import FONT_SIZE_RANGE,RADIUS_RANGE
+        ttk.Spinbox(appearance,from_=FONT_SIZE_RANGE[0],to=FONT_SIZE_RANGE[1],textvariable=size,width=6).pack(anchor='w')
         color_options = {
             'text_color': (tr('Text color'), 'text'), 'background_color': (tr('Background color'), 'bg'),
             'accent_color': (tr('Accent color'), 'strong'),
@@ -116,9 +129,9 @@ class DesktopSettings:
         ttk.Label(appearance,text=tr('Chat backgrounds stay independent and appear over the interface image.'),wraplength=480).pack(fill='x',pady=6)
         radii={}
         for key,label in [('button_radius','Button corners'),('menu_radius','Panel corners'),('bubble_radius','Bubble corners')]:
-            ttk.Label(appearance,text=tr(label)+' (0–24 px)').pack(anchor='w',pady=(8,2))
+            ttk.Label(appearance,text=tr(label)+f' ({RADIUS_RANGE[0]}–{RADIUS_RANGE[1]} px)').pack(anchor='w',pady=(8,2))
             radii[key]=tk.IntVar(value=self.preferences.values.get(key,0))
-            ttk.Spinbox(appearance,from_=0,to=24,textvariable=radii[key],width=6).pack(anchor='w')
+            ttk.Spinbox(appearance,from_=RADIUS_RANGE[0],to=RADIUS_RANGE[1],textvariable=radii[key],width=6).pack(anchor='w')
         ttk.Label(appearance,text=tr('System menus keep the shape chosen by your operating system.'),wraplength=480).pack(fill='x',pady=10)
         from .visual_effects import build_effect_settings
         effects=build_effect_settings(appearance,self.preferences.values)
@@ -191,7 +204,7 @@ class DesktopSettings:
         ttk.Checkbutton(chats,text=tr('Use Telegram chat backgrounds'),variable=flags['telegram_backgrounds'],style='Settings.TCheckbutton').pack(fill='x',pady=6)
         from .telegram_wallpapers import open_gallery
         ttk.Button(chats,text=tr('Telegram backgrounds'),command=lambda:open_gallery(self,enabled=flags['telegram_backgrounds'].get())).pack(fill='x',pady=4)
-        for key,label,parent in [('show_seconds','Show seconds in timestamps',chats),('ascii_text','Mostrar texto en ASCII (oculta emojis)',appearance),('enter_send','Enter envia mensajes',chats),('compact','Lista de chats compacta',chats),('bubbles','Message bubbles',chats),('inline_media','Show media previews inside chats',chats),('local_pins','Unlimited local pins (not synchronized)',chats),('background_notifications','Keep connected when closing the window',sections['Notifications'])]:
+        for key,label,parent in [('show_seconds','Show seconds in timestamps',chats),('ascii_text','Mostrar texto en ASCII (oculta emojis)',appearance),('enter_send','Enter envia mensajes',chats),('compact','Lista de chats compacta',chats),('bubbles','Message bubbles',chats),('inline_media','Show media previews inside chats',chats),('photo_previews',caption('Show photo previews','Mostrar previsualización de fotos'),chats),('local_pins','Unlimited local pins (not synchronized)',chats),('background_notifications','Keep connected when closing the window',sections['Notifications'])]:
             flags[key]=tk.BooleanVar(value=self.preferences.values[key]);ttk.Checkbutton(parent,text=tr(label),variable=flags[key],style='Settings.TCheckbutton').pack(fill='x',pady=6)
         # 1.4.1: keyboard shortcuts for sending and for a new line.
         from .composer_keys import options as shortcut_options, LABELS as SHORTCUT_LABELS
@@ -312,7 +325,7 @@ class DesktopSettings:
             if self.busy:return
             try:
                 values={**effects.read_values(),**{k:v.get() for k,v in flags.items()},**{k:v.get() for k,v in colors.items()},**{k:v.get() for k,v in radii.items()},**{k:('dark','light','system')[v.current()] for k,v in choices.items()},'font_size':size.get(),'font_family':families[font_choice.current()-1] if font_choice.current()>0 else ''}
-                if not 10<=values['font_size']<=20 or any(not 0<=values[k]<=24 for k in radii):raise ValueError(tr('Value out of range.'))
+                if not FONT_SIZE_RANGE[0]<=values['font_size']<=FONT_SIZE_RANGE[1] or any(not RADIUS_RANGE[0]<=values[k]<=RADIUS_RANGE[1] for k in radii):raise ValueError(tr('Value out of range.'))
                 name = display_name.get().strip()
                 if len(name) > 64 or (name and not name.isprintable()):
                     raise ValueError(tr('Value out of range.'))

@@ -36,7 +36,7 @@ def main():
               'Usa Python 3.12/3.13 y una arquitectura con rueda publicada para incluir llamadas.', flush=True)
     elif sys.platform == 'darwin':
         subprocess.run([sys.executable, '-m', 'pip', 'install', '--only-binary=:all:',
-                        '--retries', '0', '--timeout', '15', 'pyobjc-framework-AVFoundation>=10'])
+                        '--retries', '0', '--timeout', '15', 'pyobjc-framework-AVFoundation>=10', 'pyobjc-framework-AVKit>=10'])
     return 0
 
 if __name__=='__main__':raise SystemExit(main())

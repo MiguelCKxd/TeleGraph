@@ -256,6 +256,7 @@ class CallWindow:
     def __init__(self, owner, account, manager):
         self.owner, self.account, self.manager = owner, account, manager
         self.snapshot, self.pending, self.photo = {}, False, None
+        self.pip = None
         self.window = tk.Toplevel(owner.root)
         self.window.title(tr('Calls and video'))
         self.window.geometry('600x440')
@@ -296,6 +297,7 @@ class CallWindow:
             ('mute', 'Mute microphone', lambda: self.perform('mute', not self.snapshot.get('muted', False))),
             ('camera', 'Camera', lambda: self.perform('set_camera', not self.snapshot.get('video', False))),
             ('screen', 'Share screen', self.share_screen),
+            ('pip', 'Imagen dentro de imagen', self.show_call_pip),
             ('devices', 'Calls and video', self.device_settings),
             ('hangup', 'Hang up', self.hangup)):
             button = ttk.Button(row, text=tr(label), command=action)
@@ -311,6 +313,8 @@ class CallWindow:
             if int(platform.mac_ver()[0].split('.')[0] or 0) >= 14 and importlib.util.find_spec('AVFoundation'):
                 self.buttons['effects'] = ttk.Button(row, text=tr('Camera effects'), command=lambda: self.perform('camera_effects'))
         self.window.protocol('WM_DELETE_WINDOW', self.dismiss)
+        self.window.bind('<Unmap>', self.background_status, add='+')
+        self.window.bind('<Map>', self.foreground_status, add='+')
         self.window.bind('<Destroy>', self.destroyed, add='+')
         from .app_lock import hide_locked_dialog
         hide_locked_dialog(owner, self.window)
@@ -333,6 +337,7 @@ class CallWindow:
             # worker callback reaches Tk. Actions belong to a call, not a window.
             self.pending = False
             self._dismiss_when_ended = False
+            self.close_call_pip()
             if hasattr(self, 'local_picture'):
                 self.local_picture.place_forget()
                 self.local_picture.configure(image='')
@@ -370,6 +375,8 @@ class CallWindow:
                 visible = not incoming and not ended and bool(self.manager.can_manage) and not getattr(self.manager, 'conference', False)
             if key == 'end_all':
                 visible = not incoming and not ended and bool(self.manager.can_manage)
+            if key == 'pip':
+                visible = state == 'active' and bool(snapshot.get('video') or snapshot.get('remote_video') or snapshot.get('screen'))
             if key == 'hangup' and incoming:
                 visible = True
             button.flow_hidden = not visible
@@ -383,6 +390,11 @@ class CallWindow:
             self.picture.configure(image='')
             self.photo = None
         if ended:
+            self.close_call_pip()
+            background_notice = getattr(self, '_background_notice', None)
+            if background_notice and self.owner.status.get() == background_notice:
+                self.owner.status.set(tr('Call ended'))
+            self._background_notice = None
             if getattr(self, '_dismiss_when_ended', False):
                 self.window.destroy()
         elif getattr(self, 'timer', None) is None:
@@ -613,15 +625,93 @@ class CallWindow:
     def dismiss(self):
         if self.snapshot.get('state') not in ('idle', 'ended', 'closed', 'failed'):
             self._dismiss_when_ended = True
-            self.hangup()
+            self.window.iconify()
+            self.background_status()
         else:
             self.window.destroy()
+
+    def background_status(self, event=None):
+        if event is not None and (event.widget is not self.window or self.window.state() != 'iconic'):
+            return
+        if self.snapshot.get('state') in ('idle', 'ended', 'closed', 'failed'):
+            return
+        self._background_notice = tr('La llamada continúa en segundo plano.')
+        self.owner.status.set(self._background_notice)
+
+    def foreground_status(self, event):
+        notice = getattr(self, '_background_notice', None)
+        if event.widget is self.window and notice:
+            if self.owner.status.get() == notice:
+                self.owner.status.set(self.status.cget('text'))
+            self._background_notice = None
+
+    def show_call_pip(self):
+        from .app_lock import is_locked
+        from .desktop_call_pip import open_call_pip
+        if self.snapshot.get('state') != 'active' or is_locked(self.owner):
+            return
+        self.close_call_pip()
+        try:
+            self.pip = open_call_pip(self)
+            self._pip_last_remote = self._pip_last_shown = 0
+        except (RuntimeError, AttributeError, tk.TclError) as error:
+            self.close_call_pip()
+            self.status.configure(text=str(error))
+
+    def close_call_pip(self):
+        pip, self.pip = getattr(self, 'pip', None), None
+        if pip:
+            pip.close()
+
+    def poll_call_pip(self):
+        from time import monotonic
+        from .app_lock import is_locked
+        pip = self.pip
+        if is_locked(self.owner):
+            self.close_call_pip()
+            return False
+        if not pip.displaying():
+            failed = getattr(pip, 'failed_to_open', False) is True
+            self.close_call_pip()
+            if not failed:
+                return False
+            from .desktop_call_pip import CompactCallWindow
+            self.pip = pip = CompactCallWindow(self)
+        if getattr(self, '_pip_decoding', False):
+            return True
+        token = self.snapshot.get('token')
+        remote = self.manager.take_frame()
+        local = self.manager.take_local_frame()
+        now = monotonic()
+        if remote:
+            self._pip_last_remote = now
+        if remote is None and now - self._pip_last_remote > 1.2 and self.snapshot.get('video'):
+            remote = local
+        if not remote or remote.get('token') != token:
+            if self._pip_last_shown and now - self._pip_last_shown > 2:
+                pip.clear()
+                self._pip_last_shown = 0
+            return True
+        from .calls_native import frame_image
+        self._pip_decoding = True
+        def done(image):
+            self._pip_decoding = False
+            if self.pip is pip and self.snapshot.get('token') == token and not is_locked(self.owner) and image is not None:
+                pip.show(image)
+                self._pip_last_shown = monotonic()
+        def failed(_):
+            self._pip_decoding = False
+        self.owner.worker.submit(asyncio.to_thread(frame_image, remote, (480, 270)), done, failed)
+        return True
 
     def poll_frame(self):
         self.timer = None
         if not self.alive() or self.owner.closed:
             return
         from .app_lock import is_locked
+        if getattr(self, 'pip', None) and self.poll_call_pip():
+            self.timer = self.window.after(85, self.poll_frame)
+            return
         self.poll_local_frame()
         if getattr(self.manager, 'group_call', False) and getattr(self.manager, 'video_grid', False) is True and hasattr(self.manager, 'take_frames'):
             self.poll_tiles()
@@ -817,6 +907,7 @@ class CallWindow:
     def destroyed(self, event):
         if event.widget is not self.window:
             return
+        self.close_call_pip()
         if self.timer is not None:
             self.window.after_cancel(self.timer)
             self.timer = None

@@ -124,6 +124,11 @@ class SharedMediaBrowser:
         self.selector.bind('<<ComboboxSelected>>',lambda _:self.tabs.select(self.selector.current()))
         self.tabs.bind('<<NotebookTabChanged>>',self.changed);self.tabs.bind('<Configure>',self.resize)
         self.query.entry.bind('<Return>',lambda _:self.fetch());self.window.after_idle(self.changed)
+        from .secret_chats import is_secret_peer
+        self.search_scope = None if is_secret_peer(peer) else f'messages:{peer}'
+        from .recent_search_ui import RecentStrip
+        if self.search_scope:
+            RecentStrip(app,outer,self.query,self.search_scope,pick=lambda _:self.fetch(),before=self.tabs)
         self.window.bind('<Destroy>',self.close,add='+')
     def close(self,event=None):
         if event is not None and event.widget is not self.window:return
@@ -147,6 +152,9 @@ class SharedMediaBrowser:
         kind=self.kind()
         if not profile_feature_enabled(self.app,kind):return
         query=self.query.get();request=self.pages.begin(kind,query,more)
+        if not more and query.strip() and self.search_scope:
+            from .recent_search_ui import remember
+            remember(self.app,self.search_scope,query)
         if request is None:return
         ticket,offset=request;self.status.set(tr('Loading...'))
         previous=self._requests.pop(kind,None)

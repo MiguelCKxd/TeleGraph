@@ -18,3 +18,19 @@ class RoundScreenWrapTests(TestCase):
             width = max(12, int(250 / size))
             old = '\n'.join(textwrap.fill(line, width) if line else '' for line in text.split('\n'))
             self.assertEqual(round_wrap(text, size), old)
+
+
+class WatchTypefaceTests(TestCase):
+    def test_every_phone_font_has_a_wear_family(self):
+        import ast
+        from pathlib import Path
+        source = (Path(__file__).resolve().parents[1] / 'src/tg_ascii_mobile/core.py').read_text(encoding='utf-8')
+        fonts = next(ast.literal_eval(node.value) for node in ast.walk(ast.parse(source))
+                     if isinstance(node, ast.Assign) and getattr(node.targets[0], 'id', None) == 'FONTS')
+        watch = (Path(__file__).resolve().parents[1] / 'src/tg_ascii_watch/app.py').read_text(encoding='utf-8')
+        tree = ast.parse(watch)
+        values = {node.targets[0].id: ast.literal_eval(node.value) for node in tree.body
+                  if isinstance(node, ast.Assign) and getattr(node.targets[0], 'id', None) in ('TYPEFACES', 'ANDROID_FAMILIES')}
+        self.assertEqual(set(fonts) - {''} - set(values['TYPEFACES']), set())
+        self.assertTrue(set(values['TYPEFACES'].values()) <= {'monospace', 'sans-serif', 'serif', 'cursive'})
+        self.assertTrue(set(values['ANDROID_FAMILIES']) <= set(fonts))

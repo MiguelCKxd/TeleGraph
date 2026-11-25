@@ -9,6 +9,7 @@ from unittest.mock import Mock, AsyncMock, patch
 import xml.etree.ElementTree as ET
 from tg_ascii.notifications import NotificationCenter, WindowsCenter, MacCenter, notification_xml, notification_key, app_foreground
 from tg_ascii.desktop_plus import DesktopPlus
+from tg_ascii.i18n import tr
 
 
 class NotificationTests(unittest.TestCase):
@@ -159,7 +160,7 @@ class NotificationTests(unittest.TestCase):
         message=NS(outgoing=False,id=1,text='private',sender='Ada')
         DesktopPlus.notify_message(app,'one',42,message)
         coro,loaded=requests.pop();coro.close();loaded(dict(enabled=True,preview=True,sound=True))
-        app.inline_notice.show.assert_called_once_with('Account · Ada','New message','open_callback','callback')
+        app.inline_notice.show.assert_called_once_with('Account · Ada',tr('New message'),'open_callback','callback')
         app.notification_center.show.assert_not_called()
         root.state=lambda:'withdrawn'
         message.id=2;DesktopPlus.notify_message(app,'one',42,message)

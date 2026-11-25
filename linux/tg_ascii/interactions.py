@@ -103,11 +103,17 @@ class DesktopInteractions:
             # Capture the three-dots hit on release too, without opening/reading a chat.
             def single_chat(peer):
                 press=getattr(self,'_chat_press_column',None)
-                if press=='#1' and self.selection_kind!='chats':self.chat_actions(peer)
+                # 3.2: the chat's picture opens its settings menu, not the chat.
+                on_picture=getattr(self,'_chat_press_element',None)=='image'
+                if (press=='#1' or on_picture) and self.selection_kind!='chats':self.chat_actions(peer)
                 else:open_chat(peer)
             self.chat_gesture=ContextGesture(self.chat_list,target_chat,self.chat_actions,single_chat,scope=lambda:self.ui_account,consume=True)
             original=self.chat_gesture.press
-            def press(event):self._chat_press_column=self.chat_list.identify_column(event.x);return original(event)
+            def press(event):
+                self._chat_press_column=self.chat_list.identify_column(event.x)
+                try:self._chat_press_element=self.chat_list.identify_element(event.x,event.y)
+                except tk.TclError:self._chat_press_element=None
+                return original(event)
             self.chat_list.bind('<ButtonPress-1>',press)
         self.classic_gesture=ContextGesture(self.history,self.message_at,self.message_actions,
             single=lambda m:self.toggle_message_selection(m) if self.selection_kind=='messages' else None,

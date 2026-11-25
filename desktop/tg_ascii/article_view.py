@@ -84,7 +84,8 @@ class ArticleView(ttk.Frame):
         # Same switch as chats: with 'Show media previews inside chats' off the
         # article keeps its textual [Photo]/[Video] placeholders.
         values = getattr(getattr(self.app, 'preferences', None), 'values', {})
-        if self.backend is None or getattr(self.app, 'demo', False) or not values.get('inline_media', True):
+        if self.backend is None or getattr(self.app, 'demo', False) or not values.get('inline_media', True) \
+                or not values.get('photo_previews', True):
             return False
         from .article_carousel import PhotoCarousel, slide_items
         items = slide_items(block, self.photo_index)

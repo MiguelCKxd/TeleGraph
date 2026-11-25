@@ -24,6 +24,8 @@ def decode_appearance(data):
             bold=values.get('bold') is True,
             italic=values.get('italic') is True,
             bubbles=values.get('bubbles') is True,
+            name=str(values.get('name') or 'TeleGraph')[:50],
+            photo_previews=values.get('photo_previews') is not False,
             font=values['font'] if values.get('font') in Core.FONTS else '',
             icon=values['icon'] if values.get('icon') in Core.ICONS else 'default',
             brand_logo=Core.brand_logo(values.get('brand_logo')),

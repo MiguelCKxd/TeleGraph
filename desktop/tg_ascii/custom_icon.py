@@ -104,10 +104,12 @@ def choose_icon(app):
     controls=[]
     def settings():return {key:value.get() for key,value in values.items()}
     def draw(*_):worker.preview(settings())
-    for key,label,low,high in [('zoom','Zoom',1,3),('x','Horizontal position',0,1),('y','Vertical position',0,1)]:
+    from .number_input import slider
+    for key,label,low,high,typed in [('zoom','Zoom',1,3,8),('x','Horizontal position',0,1,1),('y','Vertical position',0,1,1)]:
         ttk.Label(frame,text=tr(label)).pack(anchor='w')
-        control=ttk.Scale(frame,from_=low,to=high,variable=values[key],command=draw,state='disabled')
-        control.pack(fill='x');controls.append(control)
+        row=slider(frame,values[key],low,high,draw,typed_high=typed)
+        row.scale.configure(state='disabled');row.field.configure(state='disabled')
+        row.pack(fill='x');controls.extend((row.scale,row.field))
     def enable(value):
         for control in controls:control.configure(state='normal' if value else 'disabled')
     def failed(error):

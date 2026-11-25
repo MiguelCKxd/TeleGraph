@@ -24,12 +24,44 @@ public final class LauncherActivity extends Activity {
     }
 
     private static final String PREFIX = "telegraph-chat:";
+    private static final String HOME_SHORTCUT = "telegraph-home";
     private static final String OPEN = "org.tgas.launcher.OPEN_CONVERSATION";
     private static final String PENDING = "pending";
     private static volatile Runnable onConversation;
 
     public static void setConversationListener(Runnable listener) {
         onConversation = listener;
+    }
+
+    /** Update our single named Home shortcut, or ask the launcher to pin it on user request. */
+    public static void updateHomeShortcut(Activity activity, String title, boolean requestPin) {
+        if (Build.VERSION.SDK_INT < 26) return;
+        ShortcutManager manager = activity.getSystemService(ShortcutManager.class);
+        if (manager == null) return;
+        try {
+            ShortcutInfo pinned = null;
+            for (ShortcutInfo item : manager.getPinnedShortcuts()) {
+                if (HOME_SHORTCUT.equals(item.getId())) {
+                    pinned = item;
+                    break;
+                }
+            }
+            if (pinned == null && (!requestPin || !manager.isRequestPinShortcutSupported())) return;
+            Intent launcher = activity.getPackageManager().getLaunchIntentForPackage(activity.getPackageName());
+            if (launcher == null || launcher.getComponent() == null) return;
+            ComponentName alias = launcher.getComponent();
+            if (pinned != null && title.contentEquals(pinned.getShortLabel()) && alias.equals(pinned.getActivity())) return;
+            int icon = activity.getPackageManager().getActivityInfo(alias, 0).getIconResource();
+            ShortcutInfo.Builder builder = new ShortcutInfo.Builder(activity, HOME_SHORTCUT)
+                    .setShortLabel(title).setLongLabel(title).setActivity(alias)
+                    .setIntent(mainIntent(activity));
+            if (icon != 0) builder.setIcon(Icon.createWithResource(activity, icon));
+            ShortcutInfo shortcut = builder.build();
+            if (pinned != null) manager.updateShortcuts(java.util.Collections.singletonList(shortcut));
+            else manager.requestPinShortcut(shortcut, null);
+        } catch (android.content.pm.PackageManager.NameNotFoundException | IllegalStateException | SecurityException ignored) {
+            // The home app can change, or shortcuts can be unavailable while the user is locked.
+        }
     }
 
     private static SharedPreferences routes(Context context) {

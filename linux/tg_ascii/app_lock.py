@@ -105,8 +105,10 @@ class UnlockPanel:
         self.window,self.store,self.unlocked=window,store,unlocked
         self.closed=False;self.pending=False;self.attempts=0;self.next_attempt=0
         self.cancel=threading.Event();self.events=queue.SimpleQueue();self.timer=None
-        window.title(APP_NAME + ' · ' + tr('App lock'));window.geometry('440x340');window.minsize(360,300)
+        from .startup_look import display_name,heading
+        window.title(display_name() + ' · ' + tr('App lock'));window.geometry('440x380');window.minsize(360,320)
         self.body=ttk.Frame(window,padding=24);self.body.pack(fill='both',expand=True)
+        heading(self.body).pack(anchor='w',pady=(0,8))
         ttk.Label(self.body,text=tr('Unlock the app to continue.'),wraplength=370).pack(fill='x',pady=(0,16))
         self.password=tk.StringVar(master=window)
         self.entry=ttk.Entry(self.body,textvariable=self.password,show='•');self.entry.pack(fill='x')

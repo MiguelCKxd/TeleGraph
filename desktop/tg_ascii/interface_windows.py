@@ -736,7 +736,8 @@ class LinkedChatWindow(DesktopTools):
                         bind_text_action(self.history, link, '<Button-1>', lambda _, target=url: self.app.open_link(target))
             if message.media:
                 self.history.insert('end', '\n' + (message.filename or tr('Archivo adjunto')), tag)
-                if message.media_kind in ('image', 'video', 'sticker') and self.app.preferences.values['inline_media']:
+                from .preferences import shows_preview
+                if message.media_kind in ('image', 'video', 'sticker') and shows_preview(self.app.preferences.values, message.media_kind):
                     self.history.insert('end', '\n', tag)
                     marker = f'media_{message.id}'
                     self.history.mark_set(marker, 'end-1c')

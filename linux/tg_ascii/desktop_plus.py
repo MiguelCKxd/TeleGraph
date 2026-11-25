@@ -24,6 +24,17 @@ from .preferences import animated_emoji_enabled
 AVATAR_CONCURRENCY = 4
 
 
+
+def photo_less(entity):
+    """True only when Telegram says the peer has no photo (not on failures)."""
+    if entity is None or not hasattr(entity,'photo'):return False
+    photo=entity.photo
+    return photo is None or type(photo).__name__ in ('UserProfilePhotoEmpty','ChatPhotoEmpty')
+
+
+def peer_color(entity):
+    return getattr(getattr(entity,'color',None),'color',None)
+
 class DesktopPlus(DesktopModern):
     def init_plus(self):
         self.init_tools()
@@ -295,9 +306,13 @@ class DesktopPlus(DesktopModern):
                 continue
             if key in self._avatar_pending or len(self._avatar_pending)>=network_slots(AVATAR_CONCURRENCY):continue
             self._avatar_pending.add(key);self.preview_pending.add(key)
-            async def fetch(peer=chat.id,entity=chat.entity):
+            async def fetch(peer=chat.id,entity=chat.entity,name=chat.name):
                 path=self.preview_dir/f'{account}-{peer}-avatar.jpg'
                 if (account,peer,'avatar') not in self.preview_cache or not path.is_file():path=await backend.avatar(peer,path,entity=entity)
+                if not path and photo_less(entity):
+                    # Telegram's initials placeholder; the peer stays photo-less.
+                    from . import default_avatar
+                    path=await asyncio.to_thread(default_avatar.path,self.preview_dir,peer,name,30,peer_color(entity))
                 if path:await asyncio.to_thread(player.prepare,path,(30,30),enabled)
                 return path
             def completed(key=key):
@@ -686,17 +701,20 @@ class DesktopPlus(DesktopModern):
         from .logos import VARIANTS
         variant = self.preferences.values['logo_variant']
         asset = self.selected_logo_path(theme)
-        icon_key = (str(asset), variant, theme)
+        from .launcher_names import chosen_name
+        launcher_name = chosen_name(self.preferences.values)
+        icon_key = (str(asset), variant, theme, launcher_name)
         photo = self.load_photo(asset, (32, 32) if self.stage == 'ready' else (72, 72)) if asset.exists() else None
         if asset.exists() and getattr(self, '_icon_theme', None) != icon_key:
             try:
                 from .themes import set_app_icon
-                set_app_icon(self.root, asset, windows_shortcuts=not self.demo)
+                set_app_icon(self.root, asset, windows_shortcuts=not self.demo, name=launcher_name,
+                             state_root=None if self.demo else self.preferences.path.parent)
                 if sys.platform.startswith('linux') and not self.demo and not getattr(self, '_linked_owner', None):
                     from .saved_windows import is_independent
                     from .linux_runtime import sync_launcher_icon
                     if not is_independent(self.preferences.path.parent):
-                        sync_launcher_icon(asset)
+                        sync_launcher_icon(asset, launcher_name)
                 self._icon_theme = icon_key
                 if getattr(self, 'background', None): self.background.update_icon(asset)
             except (OSError, AttributeError, tk.TclError): pass

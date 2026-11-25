@@ -24,6 +24,7 @@ import types
 from weakref import WeakValueDictionary
 
 from .siri_vocabulary import SiriVocabulary, suspend_vocabulary
+from .gallery import ProfileGallery
 from .stories import MobileStories
 from .wallpapers import ChatWallpapers
 from .native_logos import NAMES, NATIVE_LOGOS
@@ -135,7 +136,7 @@ def _safe_mimetypes():
         mimetypes.init()
 
 
-class Core(MobileStories, ChatWallpapers):
+class Core(MobileStories, ChatWallpapers, ProfileGallery):
     def __init__(self, data_dir, system, locale=''):
         self.root = Path(data_dir)
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -183,6 +184,7 @@ class Core(MobileStories, ChatWallpapers):
         self._incoming_call_notice = None
         self.native_call_manager = None
         self.native_call_engine = None
+        self.call_pip = None
         self.native_call_available = None
         self.native_call_permission = None
         self.native_call_media_start = None
@@ -479,6 +481,8 @@ class Core(MobileStories, ChatWallpapers):
             else:
                 self.connection = getattr(recovery, 'state', None) or 'online'
             self.load_drafts()
+            if getattr(self.accounts, 'identities', {}).get(self.account):
+                self.loop.create_task(self.cache_account_portrait(self.account, self.backend))
             self.set_stage('ready')
             self.schedule_draft_sync(pull=True)
             if getattr(self, '_push_token', None):
@@ -503,10 +507,11 @@ class Core(MobileStories, ChatWallpapers):
         from tg_ascii import offline_store
         self.forget_fresh_histories()
         self.forget_details()
-        self.chats, self.histories, self.previews = [], {}, {}
+        self.chats, self.histories, self.previews, self.folder_records = [], {}, {}, []
         snapshot = offline_store.read(self.root, self.account)
         if snapshot is not None:
-            self.chats, _folders, self.histories = snapshot
+            self.chats, folders, self.histories = snapshot
+            self.folder_records = folders or []
         try:
             self.previews = {int(k): v for k, v in json.loads(self.previews_path().read_text('utf-8')).items()}
         except (OSError, ValueError, AttributeError):
@@ -523,13 +528,13 @@ class Core(MobileStories, ChatWallpapers):
         from tg_ascii import offline_store
         from tg_ascii.secret_chats import is_secret_peer
         self._save_handle = None
-        account, chats = self.account, list(self.chats)
+        account, chats, folders = self.account, list(self.chats), list(self.folder_records)
         histories = {peer: list(messages) for peer, messages in self.histories.items()}
         previews = {peer: value for peer, value in self.previews.items() if not is_secret_peer(peer)}
         path = self.previews_path()
 
         def write():
-            offline_store.write(self.root, account, chats, None, histories)
+            offline_store.write(self.root, account, chats, folders, histories)
             path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             temporary = path.with_suffix('.tmp')
             descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -572,6 +577,8 @@ class Core(MobileStories, ChatWallpapers):
                         else self.draft_store.get(self.account, chat.id)) or {}
         return {'status': status,'id': chat.id, 'name': self.text(chat.name), 'unread': chat.unread, 'pinned': self.is_pinned(chat),
                 'kind': chat.kind, 'muted': chat.muted, 'archived': chat.archived,
+                'color': getattr(getattr(chat.entity, 'color', None), 'color', None),
+                'protected': bool(getattr(chat.entity, 'noforwards', False)),
                 'username': getattr(chat.entity, 'username', None),
                 'emoji_status': emoji_status_id(chat.entity),
                 'photo': str(self.photo_id(chat.id) or '') or None,
@@ -604,7 +611,7 @@ class Core(MobileStories, ChatWallpapers):
                 'thread_root': message.thread_id,
                 'read': message.read, 'sender_id': message.sender_id, 'color': message.sender_color,
                 'service': message.service, 'forwarded': message.forwarded,
-                'edited': message.edited_at is not None, 'protected': message.protected,
+                'edited_at': _timestamp(message.edited_at), 'edited': message.edited_at is not None, 'protected': bool(message.protected or getattr(message.media, 'ttl_seconds', None)),
                 'reactions': [[str(value), count, chosen] for value, count, chosen in message.reactions],
                 'poll': poll_json(message.media), 'keyboard': keyboard_json(message.reply_markup),
                 'custom_emojis': [[str(ident), alt] for ident, alt in (message.custom_emojis or ())][:200],
@@ -654,12 +661,50 @@ class Core(MobileStories, ChatWallpapers):
                            'error': item.error, 'reply_to': item.reply_to, 'created': item.created, 'thread_root': item.thread_root}
                           for item in items]}
 
+    def account_portrait(self, key):
+        # The startup chooser reads only the portrait of a registered account.
+        entry = (self.accounts.entries if self.accounts else {}).get(key)
+        if not entry or type(entry.get('user_id')) is not int:
+            return None
+        peer = entry['user_id']
+        folder = self.root / 'mobile-avatars' / key
+        return folder / f'{peer}.jpg'
+
+    async def cache_account_portrait(self, account, backend):
+        path = self.account_portrait(account)
+        if not path or not getattr(backend, 'client', None):
+            return
+        try:
+            me = await asyncio.wait_for(backend.client.get_me(), 10)
+            if me is None or self.account != account or self.backend is not backend:
+                return
+            version = path.with_suffix('.id')
+            photo = getattr(me, 'photo', None)
+            revision = getattr(photo, 'photo_id', None)
+            if not revision:
+                path.unlink(missing_ok=True)
+                version.unlink(missing_ok=True)
+                return
+            if path.is_file() and version.is_file() and version.read_text() == str(revision):
+                return
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            if self._avatar_slots is None:
+                self._avatar_slots = asyncio.Semaphore(4)
+            downloaded = await self._download_avatar(backend, me, path, path.with_suffix('.none'), False)
+            if downloaded and self.account == account and self.account_portrait(account) == path:
+                version.write_text(str(revision))
+        except (OSError, ValueError, TimeoutError):
+            return
+        except Exception:
+            # A failed or offline portrait request must leave login usable.
+            return
+
     def account_list(self):
         if not self.accounts:
             return []
         aliases = (self.prefs.values.get('account_aliases') or {}) if self.prefs else {}
         return [{'key': key, 'label': self.accounts.labels.get(key, ''), 'alias': aliases.get(key, ''),
-                 'current': key == self.account, 'failure': self.accounts.failures.get(key, ''),
+                 'user_id': entry.get('user_id'), 'current': key == self.account, 'failure': self.accounts.failures.get(key, ''),
                  'premium': bool(entry.get('premium'))}
                 for key, entry in self.accounts.entries.items()]
 
@@ -684,6 +729,9 @@ class Core(MobileStories, ChatWallpapers):
                 'ask_account_startup', 'animated_emoji', 'reduce_animations', 'notify_sound', 'notify_active', 'inline_media',
                 'local_pins', 'app_display_name', 'bubble_in_color', 'bubble_out_color', 'accent_color', 'text_color', 'background_color', 'bubble_radius', 'button_radius', 'menu_radius')
         snapshot = {key: self.prefs.values.get(key) for key in keys}
+        from tg_ascii.preferences import FONT_SIZE_RANGE, RADIUS_RANGE
+        snapshot.update(font_min=FONT_SIZE_RANGE[0], font_max=FONT_SIZE_RANGE[1], radius_max=RADIUS_RANGE[1],
+                        photo_previews=self.prefs.values.get('photo_previews', True))
         snapshot['advanced_features'] = mobile_features(self.prefs.values)
         snapshot['quick_reaction'] = self.default_reaction(self.account)
         return snapshot
@@ -1179,7 +1227,9 @@ class Core(MobileStories, ChatWallpapers):
         from tg_ascii.i18n import tr
         return {'id': int(message['id']), 'sender': tr('Tu') if message.get('out') else (message.get('sender') or ''),
                 'text': text, 'time': message.get('time') or '', 'out': bool(message.get('out')),
-                'translatable': bool(message.get('translatable'))}
+                'translatable': bool(message.get('translatable')), 'sender_id': message.get('sender_id'),
+                'date': message.get('date'), 'edited_at': message.get('edited_at'), 'read': message.get('read'),
+                'color': message.get('color')}
 
     def client_for(self, key=None):
         service = self.accounts.services.get(key or self.account) if self.accounts else None
@@ -1279,7 +1329,9 @@ class Core(MobileStories, ChatWallpapers):
             result['strong'] = values['accent_color']
         appearance = self.appearance()
         effects = appearance['effects']
-        result.update(brand_logo=appearance['brand_logo'], icon=appearance['icon'], scale=max(0.8, min(1.6, int(values.get('font_size') or 12) / 12)),
+        result.update(name=values.get('app_display_name') or 'TeleGraph',
+                      photo_previews=values.get('photo_previews', True),
+                      brand_logo=appearance['brand_logo'], icon=appearance['icon'], scale=max(0.8, min(1.6, int(values.get('font_size') or 12) / 12)),
                       bold=bool(effects.get('text_bold')), italic=bool(effects.get('text_italic')),
                       font=appearance['font'], bubbles=bool(values.get('bubbles')),
                       reduce_animations=bool(values.get('reduce_animations')))
@@ -1307,6 +1359,16 @@ class Core(MobileStories, ChatWallpapers):
         if self.stage != 'ready':
             return {'error': tr('Conectando...')}
         op = request.get('op')
+        if op == 'avatar':
+            import base64
+            owner = self.account
+            path = await self.avatar_file(int(request['peer']))
+            if self.locked or self.account != owner or not path or not path.is_file() or path.stat().st_size > 40000:
+                return {}
+            return {'image': base64.b64encode(path.read_bytes()).decode('ascii')}
+        if op == 'message_dates':
+            return await self.api_message_read_details(self.account, int(request['peer']), int(request['id']),
+                                                       bool(request.get('group')))
         if op == 'move_pin':
             await self.api_move_pin(int(request['peer']), int(request['direction']), self.account)
             return {'ok': True}
@@ -1943,6 +2005,12 @@ class Core(MobileStories, ChatWallpapers):
             self.locale = locale
         return self.state_snapshot(window_account)
 
+    async def api_launch_ready(self):
+        ready = getattr(self, 'native_page_ready', None)
+        if ready:
+            self.native_page_ready = None
+            ready()
+
     async def api_strings(self, keys=(), include_web=False):
         from tg_ascii.i18n import tr
         if include_web:
@@ -2107,7 +2175,8 @@ class Core(MobileStories, ChatWallpapers):
             return {'queued': isinstance(result, Queued)}
         return True
 
-    async def api_older(self, peer, before):
+    async def api_older(self, peer, before, account=None):
+        self.check_active_account(account)
         account, backend = self.account, self.backend
         messages = await self.history_page(peer, backend.older_messages(peer, before))
         if self.account != account or self.backend is not backend:
@@ -2379,17 +2448,22 @@ class Core(MobileStories, ChatWallpapers):
         return True
 
     # -- folders, search, contacts, profile -------------------------------------------
-    async def api_folders(self, refresh=True):
+    async def api_folders(self, refresh=True, account=None):
         """Telegram chat folders and which chats each one shows (refresh asks
         Telegram again; otherwise the last folders are matched to the list)."""
         from telethon import utils
         from tg_ascii.telegram_features import compile_folder, in_chat_list
-        backend = self.backend
+        self.check_active_account(account)
+        owner, backend = self.account, self.backend
         if backend is not None and hasattr(backend, 'folders') and (refresh or not self.folder_records):
             try:
-                self.folder_records = await asyncio.wait_for(backend.folders(), 30)
+                records = await asyncio.wait_for(backend.folders(), 30)
             except Exception:
-                pass
+                records = None
+            if self.account != owner or self.backend is not backend:
+                raise ValueError('The active account changed.')
+            if records is not None:
+                self.folder_records = records
         result = []
         for folder in self.folder_records:
             compiled = compile_folder(folder)
@@ -2407,6 +2481,34 @@ class Core(MobileStories, ChatWallpapers):
         wanted = [int(item) for item in ids]
         by_id = {chat.id: chat for chat in self.chats}
         return [self.chat_json(by_id[item]) for item in wanted if item in by_id]
+
+    async def api_recent_searches(self, account, scope, query=None, clear=False):
+        from tg_ascii.recent_searches import RecentSearches
+        from tg_ascii.secret_chats import is_secret_peer
+        self.check_active_account(account)
+        scope = str(scope)
+        if not scope or len(scope) > 100:
+            raise ValueError('Invalid search scope')
+        if scope.startswith('messages:') and is_secret_peer(int(scope.split(':')[1])):
+            return []
+        history = RecentSearches(self.root)
+        if clear:
+            return history.clear(account, scope)
+        return history.list(account, scope) if query is None else history.remember(account, scope, query)
+
+    async def api_frequent_peers(self, account):
+        from tg_ascii.recent_searches import frequent_peers
+        self.check_active_account(account)
+        stamp, peers = self.__dict__.get('_frequent_peers', {}).get(account, (0, []))
+        if stamp and time.monotonic() - stamp < 300:
+            return peers
+        backend = self.backend
+        if self.connection != 'online' or backend is None:
+            return peers
+        peers = await asyncio.wait_for(frequent_peers(backend), 6)
+        self.check_active_account(account)
+        self.__dict__.setdefault('_frequent_peers', {})[account] = (time.monotonic(), peers)
+        return peers
 
     async def api_search_global(self, query):
         """Public chats and people (contacts.search) and messages from every chat."""
@@ -2516,6 +2618,7 @@ class Core(MobileStories, ChatWallpapers):
                 'note': self.text(data.get('note') or ''), 'online': data.get('online_count') or 0,
                 'admins': data.get('admins_count') or 0, 'can_leave': can_leave, 'can_join': can_join,
                 'personal_photo': bool(data.get('personal_photo')), 'has_photo': data.get('photo_id') is not None,
+                'photo_id': str(data['photo_id']) if data.get('photo_id') else None,
                 # Group / channel management: what this account may change (desktop: profile settings).
                 'rights': {key: bool(data.get(key)) for key in ('can_edit_info', 'can_change_username', 'can_set_ttl', 'can_ban',
                                                                  'can_manage_reactions', 'can_invite', 'can_view_members')},
@@ -2721,6 +2824,42 @@ class Core(MobileStories, ChatWallpapers):
         return {'standard': [value for value in standard if isinstance(value, str)],
                 # Custom emoji reactions (Telegram Premium), most recent first.
                 'custom': [str(value) for value in custom or () if isinstance(value, int)][:40]}
+
+    async def api_report_message(self, account, peer, id, option='', comment=''):
+        from telethon import functions, types
+        from tg_ascii.secret_chats import is_secret_peer
+
+        self.check_active_account(account)
+        peer, ident = int(peer), int(id)
+        if is_secret_peer(peer) or ident <= 0 or len(option) > 2048 or len(comment) > 1024:
+            raise ValueError('Invalid report.')
+        backend = self.backend
+        target = await backend.client.get_input_entity(peer)
+        self.check_active_account(account)
+        answer = await asyncio.wait_for(backend.client(functions.messages.ReportRequest(
+            target, [ident], bytes.fromhex(option), str(comment))), 20)
+        self.check_active_account(account)
+        if isinstance(answer, types.ReportResultChooseOption):
+            return {'title': answer.title, 'options': [{'text': item.text, 'option': item.option.hex()}
+                                                        for item in answer.options]}
+        if isinstance(answer, types.ReportResultAddComment):
+            return {'comment': True, 'optional': bool(answer.optional), 'option': answer.option.hex()}
+        return {'reported': isinstance(answer, types.ReportResultReported)}
+
+    async def api_message_read_details(self, account, peer, id, group=False):
+        self.check_active_account(account)
+        backend = self.backend
+        if group:
+            from telethon import functions
+            entity = await backend.client.get_input_entity(peer)
+            readers = await asyncio.wait_for(backend.client(
+                functions.messages.GetMessageReadParticipantsRequest(entity, int(id))), 10)
+            result = {'readers': sorted(({'id': r.user_id, 'date': r.date.timestamp()} for r in readers
+                                         if getattr(r, 'date', None)), key=lambda r: r['date'])}
+        else:
+            result = {'read': await self.api_read_time(peer, id)}
+        self.check_active_account(account)
+        return result
 
     async def api_read_time(self, peer, id):
         from telethon import errors
@@ -2935,6 +3074,8 @@ class Core(MobileStories, ChatWallpapers):
         if self.lock_record() is not None and not self.locked:
             self.disconnect_tv()
             self.locked = True
+            if getattr(self, 'call_pip', None):
+                self.call_pip.close()
             if self.voice_recording is not None:
                 self.loop.create_task(self.api_voice_cancel(capture=self.voice_recording['capture']))
             self.emit('lock', True)
@@ -3210,10 +3351,22 @@ class Core(MobileStories, ChatWallpapers):
         chats = await asyncio.wait_for(self.backend.profile_common_chats(peer), 30)
         return [{'id': chat.id, 'name': self.text(chat.name), 'kind': chat.kind} for chat in chats]
 
-    async def api_shared_media(self, peer, kind='photos'):
+    async def api_shared_media(self, peer, kind='photos', offset=0, account=None):
         if kind not in ('photos', 'files', 'links', 'voice', 'audio', 'gifs', 'polls'):
             raise ValueError('kind')
-        found = await asyncio.wait_for(self.backend.search_messages(peer, '', kind), 30)
+        self.check_active_account(account)
+        owner, backend = self.account, self.backend
+        from tg_ascii.secret_chats import is_secret_peer
+        if kind == 'photos' and not is_secret_peer(int(peer)):
+            from telethon import types
+            raw = await asyncio.wait_for(backend.client.get_messages(int(peer), search='',
+                filter=types.InputMessagesFilterPhotoVideo(), limit=50, offset_id=int(offset)), 30)
+            await backend.resolve_missing_senders(raw)
+            found = [backend.message(message) for message in raw if isinstance(message, types.Message)]
+        else:
+            found = await asyncio.wait_for(backend.search_messages(peer, '', kind, int(offset)), 30)
+        if self.account != owner or self.backend is not backend or self.locked:
+            raise PermissionError('The active account changed.')
         messages = found[0] if isinstance(found, tuple) else found
         return [item for item in (self.message_json(m) for m in messages or []) if item]
 
@@ -3236,11 +3389,16 @@ class Core(MobileStories, ChatWallpapers):
     # -- appearance only on this device (backgrounds, icon, typeface) -------------------
     APPEARANCE = {'background': '', 'dim': 55, 'chats': {}, 'icon': 'default', 'font': '',
                   'layout': 'auto', 'side_width': 0, 'windows': [], 'watch_own': False,
+                  'swipe_right': 'read', 'swipe_left': 'menu',
                   'keep_connected': False, 'background_sync': False, 'chat_sync': {}, 'effects': {},
                   'brand_logo': {}, 'brand_photo': '', 'official_logo': ''}
     LAYOUTS = ('auto', 'single', 'double')
     ICONS = tuple(NATIVE_LOGOS)
-    FONTS = ('', 'courier', 'sans', 'serif')
+    FONTS = ('', 'courier', 'sans', 'serif', 'system', 'rounded', 'humanist', 'classic', 'book', 'mono', 'sf',
+             # 3.2: Apple system faces and Android system families (web/app.js FONTS).
+             'sf_rounded', 'sf_mono', 'new_york', 'sf_compact',
+             'condensed', 'light', 'medium', 'noto_serif', 'typewriter', 'casual', 'handwriting', 'smallcaps')
+    SWIPE_ACTIONS = ('none', 'menu', 'read', 'archive', 'pin', 'mute', 'profile', 'folders')
 
     def appearance_path(self):
         return self.root / 'mobile' / 'appearance.json'
@@ -3267,7 +3425,7 @@ class Core(MobileStories, ChatWallpapers):
                            if name == 'interface' or (folder / str(name)).is_file()}
         if values['background'] and not (folder / values['background']).is_file():
             values['background'] = ''
-        values['dim'] = max(0, min(90, int(values['dim'])))
+        values['dim'] = max(0, min(100, int(values['dim'])))
         values['icon'] = values['icon'] if values['icon'] in self.ICONS else 'default'
         values['brand_logo'] = self.brand_logo(values['brand_logo'], values['icon'])
         if values['brand_photo'] and self.logo_photo_file(values['brand_photo']) is None:
@@ -3387,7 +3545,10 @@ class Core(MobileStories, ChatWallpapers):
             if values.get('brand_photo') == '':
                 current['brand_photo'] = ''
             if 'dim' in values:
-                current['dim'] = max(0, min(90, int(values['dim'])))
+                current['dim'] = max(0, min(100, int(values['dim'])))
+            for direction in ('swipe_left', 'swipe_right'):
+                if values.get(direction) in self.SWIPE_ACTIONS:
+                    current[direction] = values[direction]
             if values.get('font') in self.FONTS:
                 current['font'] = values['font']
             if 'watch_own' in values:
@@ -3577,29 +3738,55 @@ class Core(MobileStories, ChatWallpapers):
         return path if path.is_file() else None
 
     # -- files and links outside the app ----------------------------------------------
-    async def api_open_file(self, peer, id, action='file'):
+    async def api_open_file(self, peer, id, action='file', account=None):
         """Full file, downloaded once, then: 'file' open it with the system viewer,
         'save' keep a copy on the device (Downloads), 'share' the share sheet."""
         if action not in ('file', 'save', 'share'):
             raise ValueError(action)
+        self.check_active_account(account)
+        owner, backend = self.account, self.backend
         from tg_ascii.secret_chats import is_secret_peer
         if is_secret_peer(int(peer)):
             return await self.open_secret_attachment(int(peer), int(id), action)
+        message = next((m for m in self.histories.get(int(peer)) or [] if m.id == int(id)), None)
+        chat = next((c for c in self.chats if c.id == int(peer)), None)
+        if (getattr(message, 'protected', False) or getattr(getattr(message, 'media', None), 'ttl_seconds', None)
+                or getattr(getattr(chat, 'entity', None), 'noforwards', False)):
+            raise PermissionError('Protected content')
+        if action in ('save', 'share'):
+            rights = await asyncio.wait_for(backend.selected_message_policy(int(peer), [int(id)]), 30)
+            if not rights.get('copy'):
+                raise PermissionError('Protected content')
+        if self.locked or self.account != owner or self.backend is not backend:
+            raise PermissionError('The active account changed.')
         path = await asyncio.wait_for(self.media_file(int(peer), int(id), False), 600)
         if path is None:
             raise LookupError('no file')
-        message = next((m for m in self.histories.get(int(peer)) or [] if m.id == int(id)), None)
+        if self.locked or self.account != owner or self.backend is not backend:
+            raise PermissionError('The active account changed.')
         name = Path(getattr(message, 'filename', '') or '').name
-        if name:
-            # Open it under its real name (the cache uses peer-id names).
-            import shutil
-            folder = self.root / 'mobile-open'
-            shutil.rmtree(folder, ignore_errors=True)
-            folder.mkdir(parents=True, exist_ok=True, mode=0o700)
-            named = folder / name
+        if not name or name in ('.', '..') or chr(0) in name or name == path.name:
+            return await self.open_file_with_system(path, action)
+        import shutil
+        folder = self.root / 'mobile-open'
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        directory = Path(tempfile.mkdtemp(dir=folder))
+        keep = False
+
+        def release():
+            shutil.rmtree(directory, ignore_errors=True)
+
+        try:
+            named = directory / name
             await asyncio.to_thread(shutil.copyfile, path, named)
-            path = named
-        return await self.open_file_with_system(path, action)
+            if self.locked or self.account != owner or self.backend is not backend:
+                raise PermissionError('The active account changed.')
+            result = await self.open_file_with_system(named, action, release=release if self.system == 'iOS' else None)
+            keep = self.system == 'iOS' and result['opened']
+            return result
+        finally:
+            if not keep:
+                release()
 
     async def open_secret_attachment(self, peer, ident, action):
         import shutil
@@ -3791,10 +3978,13 @@ class Core(MobileStories, ChatWallpapers):
             await self.backend.set_chat_unread(peer, False)
         return {'read': True}
 
-    async def api_chats_batch(self, peers, action, value=True):
+    async def api_chats_batch(self, peers, action, value=True, account=None):
         """Selected chats in the list: archive, mute, read, pin, folder, delete."""
+        self.check_active_account(account)
+        owner = self.account
         done = 0
         for peer in [int(item) for item in peers][:200]:
+            self.check_active_account(owner)
             try:
                 if action == 'archive':
                     await self.api_archive_chat(peer, bool(value))
@@ -3805,7 +3995,7 @@ class Core(MobileStories, ChatWallpapers):
                 elif action == 'pin':
                     await self.api_pin_chat(peer, bool(value))
                 elif action == 'folder':
-                    await self.api_folder_membership(int(value), peer, True)
+                    await self.api_folder_membership(int(value), peer, True, owner)
                 elif action == 'delete':
                     chat = next((item for item in self.chats if item.id == peer), None)
                     if chat is not None and chat.kind in ('group', 'channel'):
@@ -3819,6 +4009,7 @@ class Core(MobileStories, ChatWallpapers):
                 raise
             except Exception as exc:
                 print('batch:', action, peer, exc)
+        self.check_active_account(owner)
         return {'done': done}
 
     async def api_folder_pin(self, folder, peer, account, pinned=None, direction=None):
@@ -3839,7 +4030,9 @@ class Core(MobileStories, ChatWallpapers):
         self.check_active_account(account)
         return await self.api_folders(True)
 
-    async def api_folder_membership(self, folder, peer, include=True):
+    async def api_folder_membership(self, folder, peer, include=True, account=None):
+        self.check_active_account(account)
+        account, backend = self.account, self.backend
         records = {item.id: item for item in self.folder_records}
         if int(folder) not in records:
             await self.api_folders(True)
@@ -3847,8 +4040,9 @@ class Core(MobileStories, ChatWallpapers):
         record = records.get(int(folder))
         if record is None:
             raise ValueError('folder')
-        await asyncio.wait_for(self.backend.folder_membership(record, int(peer), bool(include)), 30)
-        return await self.api_folders(True)
+        self.check_active_account(account)
+        await asyncio.wait_for(backend.folder_membership(record, int(peer), bool(include)), 30)
+        return await self.api_folders(True, account)
 
     async def api_scheduled(self, peer, thread_root=None):
         from tg_ascii.backend import Message
@@ -4189,6 +4383,8 @@ class Core(MobileStories, ChatWallpapers):
         notify(token, schedule_decline)
 
     async def close_call_manager(self):
+        if getattr(self, 'call_pip', None):
+            self.call_pip.close()
         async with self.call_manager_lock:
             manager, self.call_manager = self.call_manager, None
             if self.native_telecom is not None:
@@ -4203,7 +4399,7 @@ class Core(MobileStories, ChatWallpapers):
                     await item.close()
 
     def call_json(self, snapshot):
-        return {**snapshot, 'can_share_screen': hasattr(self.call_manager, 'share_screen')}
+        return {**snapshot, 'can_pip': bool(getattr(self, 'call_pip', None)), 'can_share_screen': hasattr(self.call_manager, 'share_screen')}
 
     async def api_call_state(self):
         await self.enable_call_manager()
@@ -4247,7 +4443,13 @@ class Core(MobileStories, ChatWallpapers):
             raise ValueError('call action')
         return self.call_json(manager.snapshot)
 
+    async def api_call_pip(self, token, group=False):
+        pip = getattr(self, 'call_pip', None)
+        return bool(pip and await pip.open(token, group))
+
     async def api_call_frames(self, token):
+        if getattr(self, 'call_pip', None) and self.call_pip.matches(token):
+            return {}
         manager = self.call_manager
         if manager is None or manager.snapshot['token'] != token:
             return {}
@@ -4285,6 +4487,7 @@ class Core(MobileStories, ChatWallpapers):
         chat = next((item for item in self.chats if item.id == snapshot.get('peer')), None)
         return {**snapshot, 'name': self.text(chat.name) if chat else '',
                 'conference': bool(manager and manager.conference),
+                'can_pip': bool(getattr(self, 'call_pip', None)),
                 'can_manage': bool(manager and manager.can_manage),
                 'can_share_screen': bool(manager and hasattr(manager, 'share_screen'))}
 
@@ -4398,6 +4601,8 @@ class Core(MobileStories, ChatWallpapers):
         return {'items': items, 'next': page['next'], 'control': control}
 
     async def api_group_call_frames(self, token):
+        if getattr(self, 'call_pip', None) and self.call_pip.matches(token):
+            return {}
         manager = self.group_call_manager
         if manager is None or manager.snapshot.get('token') != token:
             return {}
@@ -4843,7 +5048,8 @@ class Core(MobileStories, ChatWallpapers):
     async def api_settings(self, values=None):
         from tg_ascii.i18n import set_language
         if values:
-            changes = {key: value for key, value in values.items() if key in self.settings_snapshot() and key != 'advanced_features'}
+            changes = {key: value for key, value in values.items() if key in self.settings_snapshot()
+                       and key not in ('advanced_features', 'font_min', 'font_max', 'radius_max')}
             if isinstance(values.get('advanced_features'), dict):
                 # The desktop's Complex features, on unless turned off here (mobile_features).
                 stored = dict(self.prefs.values.get('mobile_features') or {})
@@ -4853,6 +5059,8 @@ class Core(MobileStories, ChatWallpapers):
             self.prefs.save(changes)
             if 'app_display_name' in changes and getattr(self, 'native_display_name', None):
                 self.native_display_name(self.prefs.values.get('app_display_name'))
+                if getattr(self, 'native_home_name', None):
+                    self.native_home_name(self.prefs.values.get('app_display_name'))
             if 'local_pins' in changes:
                 if changes['local_pins'] and self.chats and self.account not in self.local_pins.values:
                     self.local_pins.save_order(self.account, [c.id for c in self.chats if c.pinned])
@@ -4997,6 +5205,7 @@ class Core(MobileStories, ChatWallpapers):
                 except Exception:
                     pass
         # Profile photos of the list, then the latest messages of the first chats.
+        previews_enabled = self.prefs.values.get('photo_previews', True)
         await asyncio.gather(*(gently(self.avatar_file(chat.id)) for chat in chats))
         for chat in chats[:12]:
             if not current():
@@ -5010,7 +5219,8 @@ class Core(MobileStories, ChatWallpapers):
                 continue
             visual = [m for m in self.histories.get(chat.id) or () if m.media_kind in VISUAL_KINDS and m.media is not None]
             previews += [(chat.id, m.id) for m in visual[-6:]]
-        await asyncio.gather(*(gently(self.media_file(peer, ident, True)) for peer, ident in previews[:60]))
+        if previews_enabled and self.prefs.values.get('inline_media', True):
+            await asyncio.gather(*(gently(self.media_file(peer, ident, True)) for peer, ident in previews[:60]))
         emoji = {int(ident) for chat in chats for ident, _ in (self.previews.get(chat.id) or {}).get('emojis') or ()}
         await asyncio.gather(*(gently(self.sticker_file(ident)) for ident in list(emoji)[:80]))
 
@@ -5119,11 +5329,16 @@ class Core(MobileStories, ChatWallpapers):
         finally:
             self._push_logging_out.discard(key)
             if key not in self.accounts.entries:
+                from tg_ascii.recent_searches import RecentSearches
+                RecentSearches(self.root).forget_account(key)
+                self.__dict__.get('_frequent_peers', {}).pop(key, None)
                 self.siri_vocabulary.forget(key)
                 self.forget_notification_chats(key)
                 if (self.root / 'mobile' / 'notification-receipts.sqlite3').is_file():
                     with self.android_receipts() as db:
                         db.execute('DELETE FROM receipts WHERE account=?', (key,))
+                import shutil
+                shutil.rmtree(self.root / 'mobile-avatars' / key, ignore_errors=True)
                 self.purge_account_drafts(key)
                 self.purge_chat_wallpapers(key)
                 if self.__dict__.get('_translations', (None,))[0] == key:
@@ -5462,7 +5677,7 @@ class Core(MobileStories, ChatWallpapers):
 
 
 
-UNLOCKED_METHODS = {'state', 'strings', 'languages', 'unlock', 'lock_now', 'unlock_biometric', 'lock_info',
+UNLOCKED_METHODS = {'state', 'launch_ready', 'strings', 'languages', 'unlock', 'lock_now', 'unlock_biometric', 'lock_info',
                     'app_hidden', 'app_visible', 'draft', 'close'}
 
 
@@ -5470,8 +5685,8 @@ def _text(value):
     return getattr(value, 'text', value) if value is not None else ''
 
 
-EFFECT_LIMITS = {'text_border': 4, 'text_shadow': 8, 'text_underline': 8, 'button_border': 12, 'button_shadow': 12,
-                 'menu_border': 12, 'menu_shadow': 12}
+EFFECT_LIMITS = {'text_border': 16, 'text_shadow': 32, 'text_underline': 32, 'button_border': 48, 'button_shadow': 48,
+                 'menu_border': 48, 'menu_shadow': 48}
 EFFECT_FLAGS = ('text_bold', 'text_italic', 'text_strike', 'text_uppercase')
 
 

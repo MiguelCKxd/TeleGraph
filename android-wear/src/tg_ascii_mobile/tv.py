@@ -1,4 +1,5 @@
 """Share only the text of a conversation explicitly selected on the unlocked phone."""
+import base64
 import json
 
 
@@ -28,7 +29,14 @@ async def share_chat(core, peer, account):
             messages.append(message.raw_text[:1000])
     if not available():
         raise ValueError('La cuenta o el bloqueo ha cambiado.')
-    payload = json.dumps({'id': peer, 'title': core.text(chat.name), 'messages': messages[::-1]}, ensure_ascii=False)
+    look = core.watch_appearance()
+    from tg_ascii.logos import png_bytes
+    mark = look['brand_logo']
+    image = png_bytes(mark['variant'], mark['theme'], 128, color=mark['color'])
+    appearance = {key: look[key] for key in ('name', 'bg', 'text', 'strong', 'font', 'scale')}
+    appearance['logo'] = base64.b64encode(image).decode('ascii')
+    payload = json.dumps({'id': peer, 'title': core.text(chat.name), 'messages': messages[::-1],
+                          'appearance': appearance}, ensure_ascii=False)
     if not link.share_connection_(payload, str(connection)):
         raise ValueError('El Apple TV se ha desconectado.')
     return True

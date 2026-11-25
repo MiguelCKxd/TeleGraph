@@ -231,11 +231,13 @@ def image_editor(parent,path,output,accepted,wallpaper=False,native=None):
         if busy[0]:return
         if pending[0]: top.after_cancel(pending[0])
         pending[0]=top.after(60,refresh)
-    for key,label,low,high,initial in ([('zoom','Zoom',1,3,1),('x','Horizontal position',0,1,.5),('y','Vertical position',0,1,.5)] if wallpaper else [('brightness','Brightness',.25,2,1),('contrast','Contrast',.25,2,1),('saturation','Saturation',0,2,1)]):
+    from .number_input import slider
+    # Typed values may go beyond the slider (wallpaper zoom stays bounded by memory).
+    for key,label,low,high,initial,typed_low,typed_high in ([('zoom','Zoom',1,3,1,1,4),('x','Horizontal position',0,1,.5,0,1),('y','Vertical position',0,1,.5,0,1)] if wallpaper else [('brightness','Brightness',.25,2,1,0,4),('contrast','Contrast',.25,2,1,0,4),('saturation','Saturation',0,2,1,0,4)]):
         row=ttk.Frame(body);row.pack(fill='x',pady=2)
         ttk.Label(row,text=tr(label),width=20).pack(side='left')
         values[key]=tk.DoubleVar(value=initial)
-        ttk.Scale(row,from_=low,to=high,variable=values[key],command=schedule).pack(side='left',fill='x',expand=True)
+        slider(row,values[key],low,high,schedule,typed_low=typed_low,typed_high=typed_high).pack(side='left',fill='x',expand=True)
     def reset_geometry():
         if busy[0] or source is None:return False
         if layers and not messagebox.askyesno(tr('Preview and edit'),tr('Changing crop or orientation clears drawings and text. Continue?'),parent=top): return False
@@ -308,7 +310,8 @@ def image_editor(parent,path,output,accepted,wallpaper=False,native=None):
         ttk.Button(tools,text=tr('Undo'),command=undo).pack(side='left')
         pen=ttk.Frame(body);pen.pack(fill='x',pady=3)
         ttk.Label(pen,text=tr('Stroke width')).pack(side='left')
-        ttk.Scale(pen,from_=1,to=40,variable=width).pack(side='left',fill='x',expand=True)
+        from .number_input import slider
+        slider(pen,width,1,40,typed_high=200,integer=True).pack(side='left',fill='x',expand=True)
         line=ttk.Frame(body);line.pack(fill='x',pady=3)
         ttk.Label(line,text=tr('Text')).pack(side='left')
         ttk.Entry(line,textvariable=text).pack(side='left',fill='x',expand=True,padx=5)
