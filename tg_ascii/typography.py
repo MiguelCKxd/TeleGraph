@@ -30,6 +30,7 @@ def configure_fonts(root, requested, size):
     families = tkfont.families(root)
     fixed = terminal_family(root, families)
     available = {name.casefold(): name for name in families}
+    available.update({name.casefold(): name for name in apple_system_families()})
     family = available.get(requested.casefold(), fixed)
     for name in ('TkDefaultFont', 'TkTextFont', 'TkMenuFont', 'TkHeadingFont',
                  'TkCaptionFont', 'TkSmallCaptionFont', 'TkIconFont', 'TkTooltipFont'):
@@ -40,3 +41,20 @@ def configure_fonts(root, requested, size):
         root.option_add(pattern, 'TkDefaultFont')
     root._font_configuration = (*key, family)
     return family
+
+
+# 3.2: macOS system faces (San Francisco), usable from Tk by their private names.
+APPLE_SYSTEM_FAMILIES = {
+    '.AppleSystemUIFont': 'SF Pro (sistema)',
+    '.AppleSystemUIFontRounded': 'SF Pro Rounded (sistema)',
+    '.AppleSystemUIFontMonospaced': 'SF Mono (sistema)',
+    '.AppleSystemUIFontSerif': 'New York (sistema)',
+}
+
+
+def apple_system_families(platform=None):
+    """{family: label} of the SF faces on Apple systems; empty elsewhere."""
+    if (platform or sys.platform) != 'darwin':
+        return {}
+    from .i18n import tr
+    return {family: label.replace('(sistema)', '(' + tr('System') + ')') for family, label in APPLE_SYSTEM_FAMILIES.items()}

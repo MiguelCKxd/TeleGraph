@@ -51,7 +51,8 @@ class UITests(unittest.IsolatedAsyncioTestCase):
             backend.send = fail
             await ui.perform(lambda: ui.dispatch(ui.editor.text))
             self.assertEqual(ui.editor.text, 'No perder')
-            self.assertIn('Borrador conservado', ui.status)
+            from tg_ascii.i18n import tr
+            self.assertIn(tr(' Borrador conservado; revisa el chat antes de reintentar.').strip(), ui.status)
             old = list(ui.messages)
             backend.history = fail
             await ui.perform(lambda: ui.open_chat(1))

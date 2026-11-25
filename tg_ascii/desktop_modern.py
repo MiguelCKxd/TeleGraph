@@ -457,6 +457,19 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
             entries+=[None,*list_entries(self,self.active,chat,include_pin=False)]
         popup_menu(self.root,entries,anchor=self.pinned_button)
 
+    def go_back(self):
+        """3.2 back step: another tab returns to Chats; an open chat closes."""
+        if self.busy or getattr(self, 'stage', None) != 'ready':
+            return False
+        notebook = getattr(self, 'notebook', None)
+        if notebook is not None and notebook.winfo_exists() and notebook.select() != str(self.chat_page):
+            notebook.select(self.chat_page); return True
+        if getattr(self, 'selection_kind', None):
+            self.clear_selection(); return True
+        if self.active is not None and not getattr(self, '_chat_only', False):
+            self.close_active_chat(); return True
+        return False
+
     def close_active_chat(self):
         """Close the open chat in this window (1.5.2): its draft is kept and
         the conversation goes back to "choose a chat"."""

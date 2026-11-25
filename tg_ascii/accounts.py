@@ -105,6 +105,11 @@ class Accounts:
         self.entries[key] = {'label': label, 'user_id': identity}
         if not self.demo:
             self.entries[key]['premium'] = getattr(me, 'premium', False) is True
+            # 3.2: the startup chooser shows each account's own picture.
+            from .account_photos import remember
+            task = asyncio.get_running_loop().create_task(remember(self.root, key, service.client, me))
+            self.__dict__.setdefault('_photo_tasks', set()).add(task)
+            task.add_done_callback(self._photo_tasks.discard)
         self.failures.pop(key, None)
         self.persist()
 
@@ -265,6 +270,10 @@ class Accounts:
             await asyncio.to_thread(offline_store.purge, self.root, key)
             await asyncio.to_thread(pending_actions.purge, self.root, key)
             await asyncio.to_thread(secret_chats.purge, self.root, key)
+            from .account_photos import photo_path
+            await asyncio.to_thread(photo_path(self.root, key).unlink, missing_ok=True)
+            from .recent_searches import RecentSearches
+            await asyncio.to_thread(RecentSearches(self.root).forget_account, key)
         self.services.pop(key, None)
         self.entries.pop(key, None)
         self.labels.pop(key, None)

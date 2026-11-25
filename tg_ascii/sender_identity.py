@@ -23,6 +23,9 @@ def author_id(message):
     if ident is None:
         peer=getattr(message,'peer_id',None)
         if getattr(message,'post',False) or not getattr(message,'out',False) and isinstance(peer,types.PeerUser):ident=peer_id(peer)
+        # Anonymous group admins (and members posting as the group) arrive
+        # without from_id: Telegram shows the group itself as the author.
+        elif isinstance(peer,(types.PeerChannel,types.PeerChat)) and not getattr(message,'action',None):ident=peer_id(peer)
     return ident
 
 
