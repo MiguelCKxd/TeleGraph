@@ -8,8 +8,19 @@ from .contact_appearance import CONTACT_DEFAULTS, validated_contact
 
 MAX_SETTINGS_BYTES = 2 * 1024 * 1024
 
+def shows_preview(values, kind):
+    """Inline preview for a message of ``kind``; photos also obey photo_previews (3.2)."""
+    if not values.get('inline_media', True):
+        return False
+    return kind != 'image' or values.get('photo_previews', True)
+
+
+# 3.2: wider limits, shared with the mobile settings.
+FONT_SIZE_RANGE = (8, 40)
+RADIUS_RANGE = (0, 48)
+
 DEFAULTS = {'interface_background':'', 'custom_icon':'', 'official_icon_label':'', 'animated_emoji':True, 'reduce_animations':False, 'telegram_backgrounds':False, 'text_color':'', 'background_color':'', 'accent_color':'', 'bubble_in_color':'', 'bubble_out_color':'', 'app_display_name':'', 'button_radius':0, 'menu_radius':0, 'bubble_radius':0, 'language': 'en', 'font_size': 12, 'ascii_text': False,
-            'enter_send': True, 'compact': False, 'inline_media': True, 'local_pins': False,
+            'enter_send': True, 'compact': False, 'inline_media': True, 'photo_previews': True, 'local_pins': False,
             'notifications': True, 'notify_preview': True, 'notify_sound': True,
             'notify_active': False, 'theme': 'dark', 'logo_theme': 'dark',
             'font_family': '', 'background_notifications': True, 'logo_variant': 'title-short', 'logo_color': 'default', 'bubbles': False, 'quick_reaction': '👍'}
@@ -160,14 +171,14 @@ class Preferences:
             if isinstance(color,str) and re.fullmatch(r'#[0-9a-fA-F]{6}',color):result[key]=color.lower()
         for key in ('button_radius','menu_radius','bubble_radius'):
             value=values.get(key,0)
-            if type(value) is int and 0<=value<=24:result[key]=value
+            if type(value) is int and RADIUS_RANGE[0]<=value<=RADIUS_RANGE[1]:result[key]=value
         for key in ('interface_background','custom_icon'):
             path=values.get(key,'')
             if isinstance(path,str) and len(path)<=4096 and not any(ord(c)<32 for c in path):result[key]=path
         label=values.get('official_icon_label','')
         if isinstance(label,str) and len(label)<=160 and not any(ord(c)<32 for c in label):result['official_icon_label']=label
         size = values.get('font_size', 12)
-        result['font_size'] = size if type(size) is int and 10 <= size <= 20 else 12
+        result['font_size'] = size if type(size) is int and FONT_SIZE_RANGE[0] <= size <= FONT_SIZE_RANGE[1] else 12
         from .menu_style import validated_custom
         result['menu_custom'] = validated_custom(values.get('menu_custom'))
         aliases = values.get('account_aliases')

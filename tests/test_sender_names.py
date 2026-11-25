@@ -84,3 +84,16 @@ class SenderNamesTests(unittest.IsolatedAsyncioTestCase):
         msg=message(sender_id=None,peer_id=t.PeerChannel(12),post=True,chat=channel)
         await self.backend.resolve_missing_senders([msg])
         self.assertEqual(self.backend.message(msg).sender,'News');self.client.get_entity.assert_not_called()
+
+    async def test_anonymous_group_admin_is_shown_as_the_group(self):
+        group=t.Channel(34,'Club',t.ChatPhotoEmpty(),datetime.now(timezone.utc),megagroup=True)
+        msg=message(sender_id=None,from_id=None,peer_id=t.PeerChannel(34),post=False,chat=group,post_author='Admin')
+        await self.backend.resolve_missing_senders([msg])
+        result=self.backend.message(msg)
+        self.assertEqual(result.sender,'Club · Admin');self.assertEqual(result.sender_id,-1000000000034)
+        self.client.get_entity.assert_not_called()
+
+    async def test_group_service_message_without_author_stays_a_service_message(self):
+        msg=message(sender_id=None,from_id=None,peer_id=t.PeerChat(5),action=t.MessageActionChatCreate('x',[]))
+        from tg_ascii.sender_identity import author_id
+        self.assertIsNone(author_id(msg))

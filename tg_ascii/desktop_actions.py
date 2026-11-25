@@ -337,10 +337,7 @@ class DesktopActions(DesktopAdvancedMixin, DesktopProfile, DesktopTools):
             ttk.Button(body,text=tr('Enviar >'),command=send).pack(fill='x',pady=8)
         def edit():
             close(); self.edit_message_dialog(backend,account,peer,message)
-        def read_time():
-            if not self.busy:
-                self.call(backend.read_time(peer,message.id,seconds=self.preferences.values.get('show_seconds',False)),lambda value:messagebox.showinfo(tr('Read time'),value,parent=window),tr('Cargando...'))
-        for label, action, permission in [('Reply',reply,'reply'),('Reactions',lambda:(close(),self.reaction_picker(message)),'react'),('Pinned messages',lambda:(close(),self.pin_message_dialog(message)),'pin'),('Forward message',forward,'forward'),('Edit message',edit,'edit'),('Delete for me',lambda:remove(False),'delete_self'),('Delete for everyone',lambda:remove(True),'delete'),('Read time',read_time,'read_time'),('Translation / AI',lambda:(close(),DesktopTools.message_actions(self,message)),None)]:
+        for label, action, permission in [('Reply',reply,'reply'),('Reactions',lambda:(close(),self.reaction_picker(message)),'react'),('Pinned messages',lambda:(close(),self.pin_message_dialog(message)),'pin'),('Forward message',forward,'forward'),('Edit message',edit,'edit'),('Delete for me',lambda:remove(False),'delete_self'),('Delete for everyone',lambda:remove(True),'delete'),('Translation / AI',lambda:(close(),DesktopTools.message_actions(self,message)),None)]:
             if label=='Translation / AI' and not self.message_tool_kinds(message):continue
             allowed = caps.kind in ('self','user','bot','group','secret') if permission == 'delete_self' else permission is None or caps.allows_message(permission,message)
             if not allowed: continue
@@ -362,7 +359,38 @@ class DesktopActions(DesktopAdvancedMixin, DesktopProfile, DesktopTools):
         if caps.allows_message('forward',message):
             entries.insert(2,(tr('Save to Saved Messages'),lambda:self.save_message_to_self(message,backend,account,peer)))
         entries.extend(self.advanced_message_actions(message))
-        popup_menu(self.root,entries)
+        self.show_message_menu(message,entries,caps,backend,account,peer)
+
+    def show_message_menu(self,message,entries,caps,backend,account,peer):
+        """Read and edit dates head the tools of a single message (Telegram 3.2)."""
+        from .app_dialogs import popup_menu
+        from .timestamps import date_text
+        selected=getattr(self,'selected_messages',()) or ()
+        if len(selected)>1 and self.message_selected(message.id):
+            popup_menu(self.root,entries);return
+        values=self.preferences.values
+        edited=[(tr('Edited')+': '+date_text(message.edited_at,values),lambda:None,False)] if getattr(message,'edited_at',None) is not None else []
+        def present(read):
+            if (account,peer)!=(self.ui_account,self.active) or backend is not self.service.backend:return
+            info=([(tr('Read time')+': '+read,lambda:None,False)] if read else [])+edited
+            popup_menu(self.root,info+[None]+entries if info else entries)
+        if not caps.allows_message('read_time',message):
+            present(None);return
+        cache=self.__dict__.setdefault('_read_dates',{})
+        key=(account,peer,message.id,bool(values.get('show_seconds',False)))
+        if key in cache:
+            present(cache[key]);return
+        settled=[False]
+        def finish(value):
+            if settled[0]:return
+            settled[0]=True
+            if value:
+                cache[key]=value
+                while len(cache)>256:cache.pop(next(iter(cache)))
+            present(value)
+        # Show the menu promptly even when Telegram is slow to answer.
+        self.worker.submit(backend.read_time(peer,message.id,seconds=key[3]),finish,lambda _:finish(None))
+        self.root.after(900,lambda:finish(None))
 
     def remember_replies(self,replies):
         """Bound old contexts without evicting visible or composed reply targets."""
@@ -621,11 +649,27 @@ class DesktopActions(DesktopAdvancedMixin, DesktopProfile, DesktopTools):
             if not valid(): return
             results[:] = items; listing.delete(0,'end')
             for chat in items: listing.insert('end', f'{chat.name} [{chat.kind}]')
+        from .recent_search_ui import RecentStrip, remember as remember_search
         def find():
-            if valid() and not self.busy: self.call(backend.search_public(query.get()), loaded, tr('Cargando...'))
+            if valid() and not self.busy:
+                remember_search(self,'global',query.get())
+                self.call(backend.search_public(query.get()), loaded, tr('Cargando...'))
         def open_chat():
             if not valid() or self.busy or not listing.curselection(): return
             chat = results[listing.curselection()[0]]; window.destroy(); self.open_resolved(chat)
+        def open_peer(ident):
+            if not valid() or self.busy: return
+            known = next((chat for chat in self.chats if chat.id == ident), None)
+            if known is not None: window.destroy(); self.open_resolved(known); return
+            self.call(backend.resolve_chat(ident), lambda chat: (window.destroy(), self.open_resolved(chat)) if valid() else None, tr('Cargando...'))
+        def suggestions(done):
+            # Telegram's own ranking (contacts.getTopPeers) when the user enabled it.
+            from .recent_searches import frequent_peers
+            self.worker.submit(frequent_peers(backend),
+                               lambda items: done([(item['name'], lambda ident=item['id']: open_peer(ident)) for item in items]) if valid() else None,
+                               lambda _: None)
+        query.entry.bind('<Return>', lambda _: find(), add='+')
+        RecentStrip(self, frame, query, 'global', pick=lambda _: find(), suggestions=suggestions, before=listing)
         ttk.Button(frame, text=tr('Search Telegram'), command=find).pack(fill='x', pady=4)
         ttk.Button(frame, text=tr('Abrir chat'), command=open_chat).pack(fill='x', pady=4)
         def join():

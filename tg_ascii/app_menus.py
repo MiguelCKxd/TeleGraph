@@ -469,6 +469,10 @@ def _builtin_askcolor(color=None, **options):
         scale = ttk.Scale(row, from_=0, to=255, command=slid)
         scale.pack(side='left', fill='x', expand=True)
         scales.append(scale)
+        from .number_input import NumberField
+        channel = tk.IntVar(master=row, value=0)
+        scale.configure(variable=channel)
+        NumberField(row, channel, 0, 255, command=lambda _value: slid(), integer=True, width=4).pack(side='left', padx=(6, 0))
     preview.pack(fill='x', pady=4)
     code = ttk.Frame(body)
     code.pack(fill='x', pady=4)

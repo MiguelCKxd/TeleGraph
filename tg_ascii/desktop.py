@@ -252,6 +252,8 @@ class Desktop(DesktopFeatures):
         from .interface_background import InterfaceBackground
         self.interface_background = InterfaceBackground(self)
         self.wheel_router = linked_owner.wheel_router if linked_owner is not None else WheelRouter(root)
+        from .back_gesture import install as install_back
+        install_back(root, self.go_back)
         if linked_owner is not None:
             self.wheel_router.install(root)
         self.status_label = ttk.Label(root, textvariable=self.status, padding=(8, 3), style='Muted.TLabel')
@@ -521,6 +523,9 @@ class Desktop(DesktopFeatures):
         self.logo_label = ttk.Label(card)
         self.logo_label.pack(anchor='w', pady=(0, 12))
         self.refresh_logo()
+        from .startup_look import display_name
+        ttk.Label(card, text=display_name(self.preferences.values), style='Title.TLabel', font=(self.font_family, 22, 'bold'),
+                  foreground=self.preferences.values.get('accent_color') or GREEN).pack(anchor='w', pady=(0, 4))
         ttk.Label(card, text=tr('Tu Telegram. A tu gusto.'), style='Muted.TLabel').pack(anchor='w', pady=(0, 26))
         self.login_value = tk.StringVar()
         self.login_hash = tk.StringVar()
@@ -716,6 +721,10 @@ class Desktop(DesktopFeatures):
             self.search.trace_add('write', lambda *_: self.render_chats())
             list_frame = ttk.Frame(sidebar)
             list_frame.pack(fill='both', expand=True)
+            # 3.2: recent chat searches of this account under the field.
+            from .recent_search_ui import RecentStrip, remember as remember_search
+            self.recent_chat_searches = RecentStrip(self, sidebar, self.search, 'chats', before=list_frame)
+            self.search.entry.bind('<Return>', lambda _: remember_search(self, 'chats', self.search.get()), add='+')
             self.chat_list = ttk.Treeview(list_frame, height=6, show='tree', selectmode='browse')
             self.chat_list.column('#0', width=245, minwidth=160, stretch=True)
             bar = ttk.Scrollbar(list_frame, orient='vertical', command=self.chat_list.yview)
@@ -987,6 +996,9 @@ class Desktop(DesktopFeatures):
         if not selected:
             return
         chat_id = int(selected[0])
+        if getattr(self, 'search', None) is not None and self.search.get().strip():
+            from .recent_search_ui import remember as remember_search
+            remember_search(self, 'chats', self.search.get())
         if chat_id == self.active:
             # Clicking the chat that is already open: look again (1.5.0.2).
             if hasattr(self, 'preview_cache'):
@@ -1307,7 +1319,8 @@ class Desktop(DesktopFeatures):
                 self.history.tag_configure(tag, foreground=GREEN, underline=True)
                 bind_text_action(self.history,tag, '<Button-1>', lambda event, item=message: self.view_message_media(item))
                 self.history.insert('end', (tr('Play') if message.media_kind == 'audio' else tr('[Ver / guardar archivo]')) + '\n', tag)
-                if hasattr(self, 'preview_cache') and self.preferences.values['inline_media'] and message.media_kind != 'audio':
+                from .preferences import shows_preview
+                if hasattr(self, 'preview_cache') and shows_preview(self.preferences.values, message.media_kind) and message.media_kind != 'audio':
                     mark = f'preview_{message.id}'
                     self.history.mark_set(mark, 'end-1c')
                     self.history.mark_gravity(mark, 'left')
@@ -1775,6 +1788,9 @@ def run_desktop(demo=False, configure=False):
         from .windows_launcher import identify_process
         identify_process()
     root = tk.Tk(className='tg-ascii') if sys.platform.startswith('linux') else tk.Tk()
+    # 3.2: the saved look and name apply from the first frame (start/lock screens).
+    from .startup_look import apply as apply_startup_look
+    apply_startup_look(root)
     from .instance import InstanceLock
     from .preferences import data_root
     lock = None if demo else InstanceLock(data_root())
