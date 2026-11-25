@@ -1,0 +1,20 @@
+# Privacidad en TeleGraph
+
+Actualizado el 25 de noviembre de 2026. TeleGraph es un cliente independiente que utiliza la API de Telegram. Las personas que lo usan inician sesión con su cuenta de Telegram. La aplicación se publica desde el proyecto MiguelCKxd/TeleGraph. [Proyecto y contacto técnico](https://github.com/MiguelCKxd/TeleGraph/issues)
+
+## Al usar la aplicación
+
+- **Cuenta y conversaciones.** El cliente se comunica con Telegram para iniciar sesión, sincronizar contactos y chats y realizar las acciones que eliges, como enviar mensajes o archivos e iniciar una llamada. Telegram trata la información de la cuenta y las conversaciones conforme a su política. Los chats en la nube y los chats secretos tienen modelos de cifrado y conservación distintos. [Privacidad de Telegram](https://telegram.org/privacy) · [Chats secretos](https://telegram.org/faq#secret-chats)
+- **En tu dispositivo.** La instalación conserva datos de sesión, preferencias y, según los ajustes y las funciones utilizadas, contenido en caché, miniaturas, borradores, acciones pendientes y copias para trabajar sin conexión. Los términos de búsqueda recordados se guardan por cuenta y buscador en este dispositivo. Las sugerencias de contactos frecuentes pueden proceder de Telegram. En el buscador puedes borrar las consultas recientes.
+- **Cámara, micrófono y archivos.** TeleGraph utiliza estos recursos para las funciones que actives, por ejemplo grabar un audio, participar en una videollamada, leer un código QR o adjuntar una imagen. Al compartir un archivo con otra aplicación, el destino que elijas recibe ese archivo. Puedes administrar los permisos en los ajustes del sistema.
+- **Avisos.** Si activas las notificaciones, según la plataforma intervienen Telegram y el servicio de notificaciones del sistema. En Apple se utiliza APNs y en Android, donde está configurado, Firebase Cloud Messaging. Los tokens de entrega identifican la instalación ante esos servicios. El texto que aparece en una notificación depende de los ajustes de previsualización y del bloqueo.
+- **Relojes y televisores.** Un reloj vinculado puede recibir el aspecto y las conversaciones solicitadas desde el teléfono. Un reloj configurado con conexión propia conserva una sesión de Telegram en ese dispositivo. En Apple TV el teléfono comparte el texto de los chats que seleccionas. El televisor vacía esas conversaciones cuando termina la conexión o la aplicación deja de estar activa. Puede conservar el nombre, los colores y el logotipo de la interfaz para el siguiente arranque.
+- **Bloquear y denunciar.** Puedes bloquear usuarios desde su perfil. En el teléfono, «Denunciar mensaje» envía a Telegram la referencia al mensaje, el motivo y el comentario que decidas incluir. Telegram gestiona la revisión.
+
+## Eliminar datos o la cuenta
+
+En TeleGraph puedes borrar la caché desde Ajustes, cerrar una sesión o usar «Borrar todos los datos» para limpiar esta instalación. En Telegram puedes administrar las sesiones abiertas en Dispositivos. Los archivos que hayas guardado por separado en Fotos, Descargas u otra aplicación se administran desde ese destino.
+
+Para **eliminar definitivamente la cuenta de Telegram** abre Ajustes → Cuentas → Eliminar mi cuenta de Telegram o sigue el enlace oficial desde un navegador. Telegram te pedirá identificarte y confirmar. La eliminación es irreversible. Los destinatarios pueden conservar sus propias copias. [Iniciar la eliminación de la cuenta](https://my.telegram.org/auth?to=delete) · [Consecuencias de la eliminación](https://telegram.org/faq#q-what-happens-if-i-delete-my-account)
+
+Para comunicar un problema del cliente, utiliza el contacto técnico del proyecto. El formulario de incidencias es público. Describe los pasos para reproducir el problema con ejemplos ficticios y mantén tus números de teléfono, códigos de acceso y conversaciones personales fuera del informe. Para cuestiones sobre los datos en el servicio de Telegram, utiliza su canal de soporte. [Contacto de TeleGraph](https://github.com/MiguelCKxd/TeleGraph/issues) · [Soporte de Telegram](https://telegram.org/support)
