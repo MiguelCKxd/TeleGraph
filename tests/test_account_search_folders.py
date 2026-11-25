@@ -83,3 +83,16 @@ class AccountStateTests(IsolatedAsyncioTestCase):
         self.assertEqual(await report('one', 42, 123, comment['option'], 'Ejemplo'), {'reported': True})
         request = client.await_args.args[0]
         self.assertEqual((request.id, request.option, request.message), ([123], b'comment', 'Ejemplo'))
+
+
+    async def test_watch_keeps_identity_photo_when_content_previews_are_disabled(self):
+        self.core.stage = 'ready'
+        self.core.prefs = SimpleNamespace(values={'photo_previews': False})
+        portrait = self.core.root / 'portrait.jpg'
+        portrait.write_bytes(b'portrait')
+        self.core.avatar_file = AsyncMock(return_value=portrait)
+        request = {'op': 'avatar', 'peer': 33}
+        self.assertEqual(await self.core.watch_request(request), {'image': 'cG9ydHJhaXQ='})
+        self.core.locked = True
+        self.assertIn('error', await self.core.watch_request(request))
+        self.core.avatar_file.assert_awaited_once_with(33)

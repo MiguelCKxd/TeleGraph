@@ -252,13 +252,13 @@ struct ChatView: View {
             Circle().fill(LinearGradient(colors: [Color(hex: palette[index].0), Color(hex: palette[index].1)],
                                          startPoint: .top, endPoint: .bottom))
             Text(initials.uppercased()).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
-            if appearance.look.photo_previews != false, let bytes = portraits[uid], let image = UIImage(data: bytes) {
+            if let bytes = portraits[uid], let image = UIImage(data: bytes) {
                 Image(uiImage: image).resizable().scaledToFill()
             }
         }
         .frame(width: 24, height: 24).clipShape(Circle()).accessibilityHidden(true)
         .task(id: uid) {
-            guard uid != 0, appearance.look.photo_previews != false, requestedPortraits.insert(uid).inserted else { return }
+            guard uid != 0, requestedPortraits.insert(uid).inserted else { return }
             if let portrait = try? await engine.request(["op": "avatar", "peer": uid], as: SenderPortrait.self),
                let data = portrait.image { portraits[uid] = data }
         }
