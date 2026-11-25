@@ -11,8 +11,6 @@ from functools import partial
 import toga
 from toga.style import Pack
 
-BACKGROUND = '#08100c'
-
 
 def system_name():
     if sys.platform == 'ios' or platform.system() == 'iOS':
@@ -49,7 +47,9 @@ def data_folder(default, system):
 class TgAsciiMobile(toga.App):
     def startup(self):
         from .runtime import get_core
+        from .launch_appearance import launch_appearance, set_android_typeface, set_apple_typeface, set_launch_wallpaper
         system = system_name()
+        self._system = system
         self.core = get_core(data_folder(self.paths.data, system), system, device_locale())
         if system == 'iOS':
             from rubicon.objc import ObjCClass
@@ -66,8 +66,42 @@ class TgAsciiMobile(toga.App):
             else:
                 self.core.tv_link.start()
         port = self.core.port
-        self.webview = toga.WebView(style=Pack(flex=1, background_color=BACKGROUND))
         self.main_window = toga.MainWindow(title=self.formal_name)
+        look = launch_appearance(self.core, self.system_dark(system))
+        self.launch_background = look['background']
+        self.main_window.title = look['title']
+        if system == 'iOS':
+            from .ios_webview import InlineWebView
+            view_type = InlineWebView
+        else:
+            view_type = toga.WebView
+        self.webview = view_type(style=Pack(height=1, background_color=self.launch_background))
+        splash = toga.Box(style=Pack(direction='column', flex=1, align_items='center',
+                                     justify_content='center', background_color=self.launch_background))
+        if look['logo'].is_file():
+            try:
+                splash.add(toga.ImageView(look['logo'], style=Pack(width=112, height=112)))
+            except (OSError, ValueError):
+                pass  # A missing or damaged user image must still allow sign-in.
+        title_style = Pack(
+            color=look['foreground'], margin_top=12, text_align='center',
+            font_size=max(14, look['size']),
+            font_weight='bold' if look['bold'] else 'normal',
+            font_style='italic' if look['italic'] else 'normal',
+        )
+        title_label = toga.Label(look['title'], style=title_style)
+        splash.add(title_label)
+        set_launch_wallpaper(splash, look, system, self._impl.native)
+        content = toga.Box(children=[splash, self.webview], style=Pack(direction='column'))
+
+        def show_page():
+            if splash in content.children:
+                content.remove(splash)
+                del self.webview.style.height
+                self.webview.style.flex = 1
+
+        # Navigation completion doesn't imply that the async first render ran.
+        self.core.native_page_ready = lambda: self.on_ui_thread(show_page)
         def update_title(name):
             title = name or 'TeleGraph'
             def apply():
@@ -85,11 +119,24 @@ class TgAsciiMobile(toga.App):
             else:
                 self.loop.call_soon_threadsafe(apply)
         self.core.native_display_name = update_title
+        if system == 'Android':
+            self.core.native_home_name = lambda name: self.loop.call_soon_threadsafe(
+                self.update_android_home, name or 'TeleGraph', bool(name))
         if self.core.prefs:
             update_title(self.core.prefs.values.get('app_display_name'))
-        self.main_window.content = self.webview
-        self.adapt_chrome(system)
+        self.main_window.content = content
         self.main_window.show()
+        if system == 'iOS':
+            try:
+                set_apple_typeface(title_label, look['font'])
+            except (AttributeError, NameError, TypeError, ValueError):
+                pass  # Keep the system font if the device cannot resolve a typeface.
+        elif system == 'Android':
+            set_android_typeface(title_label, look['font'])
+        self.on_ui_thread(lambda: self.start_web_interface(system, port, show_page))
+
+    def start_web_interface(self, system, port, show_page):
+        self.adapt_chrome(system)
         # Background / foreground (Android onStop/onStart, iOS scene): app lock.
         import asyncio as _asyncio
         core = self.core
@@ -100,10 +147,25 @@ class TgAsciiMobile(toga.App):
         self._port, self._system = port, system
         self._page_query = f'?t={self.core.token}&platform={system}&top={top}&bottom={bottom}{mac}'
         self.webview.url = f'http://127.0.0.1:{port}/{self._page_query}'
+        # Let WebKit/Chromium display its normal error screen if navigation fails.
+        self.core.loop.call_soon_threadsafe(self.core.loop.call_later, 5, self.on_ui_thread, show_page)
         if system == 'iOS' and not mac:
             self.install_safe_area_timer(system)
         if system == 'iOS':
             self.install_ios_foreground_observer()
+
+    def system_dark(self, system):
+        if system == 'iOS':
+            return self.main_window._impl.native.traitCollection.userInterfaceStyle == 2
+        if system == 'Android':
+            configuration = self._impl.native.getResources().getConfiguration()
+            return configuration.uiMode & 0x30 == 0x20
+        return True
+
+    def update_android_home(self, title, request_pin=False):
+        from java import jclass
+        launcher = jclass('org.tgas.launcher.LauncherActivity')
+        launcher.updateHomeShortcut(self._impl.native, title, request_pin)
 
     def resumed(self):
         """Back in the foreground: repair the local server if the system closed
@@ -220,7 +282,8 @@ class TgAsciiMobile(toga.App):
                 controller = self.main_window._impl.native.rootViewController
                 if hasattr(controller, 'setNavigationBarHidden_animated_'):
                     controller.setNavigationBarHidden_animated_(True, False)
-                color = ObjCClass('UIColor').colorWithRed_green_blue_alpha_(8 / 255, 16 / 255, 12 / 255, 1.0)
+                rgb = bytes.fromhex(self.launch_background[1:])
+                color = ObjCClass('UIColor').colorWithRed_green_blue_alpha_(*(channel / 255 for channel in rgb), 1.0)
                 self.main_window._impl.native.backgroundColor = color
                 controller.view.backgroundColor = color
                 # Let the page handle the notch and home bar with CSS
@@ -259,9 +322,10 @@ class TgAsciiMobile(toga.App):
                 window = activity.getWindow()
                 # Android 15+ draws apps edge to edge: the bars are transparent
                 # and show the window background, so paint that too.
-                window.getDecorView().setBackgroundColor(Color.parseColor(BACKGROUND))
-                window.setStatusBarColor(Color.parseColor(BACKGROUND))
-                window.setNavigationBarColor(Color.parseColor(BACKGROUND))
+                color = Color.parseColor(self.launch_background)
+                window.getDecorView().setBackgroundColor(color)
+                window.setStatusBarColor(color)
+                window.setNavigationBarColor(color)
                 self.install_back_button(activity)
                 self.install_file_picker(activity)
                 self.install_android_opener(activity)
@@ -576,9 +640,16 @@ class TgAsciiMobile(toga.App):
                 if release is not None:
                     release()
 
+        class ShareDismissal(NSObject):
+            @objc_method
+            def presentationControllerDidDismiss_(self, presentation) -> None:
+                if self.finished is not None:
+                    self.finished()
+
         def opener(kind, target, done, *, release=None):
             def run():
                 completion = None
+                delegate = None
                 try:
                     NSURL = ObjCClass('NSURL')
                     root = app.main_window._impl.native.rootViewController
@@ -608,24 +679,53 @@ class TgAsciiMobile(toga.App):
                             return
                     controller = ObjCClass('UIActivityViewController').alloc().initWithActivityItems_applicationActivities_(
                         [url], None)
-                    if release is not None:
-                        def finished(_activity, _completed, _items, _error):
-                            release()
-                            open_completions.discard(completion)
+                    horizontal_size = root.traitCollection.horizontalSizeClass
+                    if callable(horizontal_size):
+                        horizontal_size = horizontal_size()
+                    compact = horizontal_size == 1
+                    presented = controller
+                    if compact:
+                        # UIKit can force a narrow popover when this WebView is
+                        # presenting. Give the system activity its own phone sheet.
+                        presented = ObjCClass('UINavigationController').alloc().initWithRootViewController_(controller)
+                        presented.setNavigationBarHidden_animated_(True, False)
+                        presented.setModalPresentationStyle_(1)  # UIModalPresentationPageSheet
+                    else:
+                        popover = controller.valueForKey_('popoverPresentationController')
+                        if popover is not None:  # iPad and Mac: anchor at the centre
+                            popover.sourceView = root.view
+                            bounds = root.view.bounds
+                            from rubicon.objc import CGRect
+                            popover.sourceRect = CGRect((bounds.size.width / 2, bounds.size.height / 2), (1, 1))
 
-                        completion = Block(finished, None, objc_id, ctypes.c_bool, objc_id, objc_id)
-                        open_completions.add(completion)
-                        controller.completionWithItemsHandler = completion
-                    popover = controller.popoverPresentationController
-                    if popover is not None:  # iPad and Mac: anchor at the centre
-                        popover.sourceView = root.view
-                        bounds = root.view.bounds
-                        from rubicon.objc import CGRect
-                        popover.sourceRect = CGRect((bounds.size.width / 2, bounds.size.height / 2), (1, 1))
-                    root.presentViewController_animated_completion_(controller, True, None)
+                    def cleanup():
+                        if completion in open_completions:
+                            open_completions.discard(completion)
+                            open_completions.discard(delegate)
+                            if delegate is not None:
+                                delegate.finished = None
+                            controller.completionWithItemsHandler = None
+                            if release is not None:
+                                release()
+
+                    def finished(_activity, _completed, _items, _error):
+                        if compact and presented.valueForKey_('presentingViewController') is not None:
+                            presented.dismissViewControllerAnimated_completion_(True, None)
+                        cleanup()
+
+                    completion = Block(finished, None, objc_id, ctypes.c_bool, objc_id, objc_id)
+                    open_completions.add(completion)
+                    controller.completionWithItemsHandler = completion
+                    root.presentViewController_animated_completion_(presented, True, None)
+                    if compact:
+                        delegate = ShareDismissal.alloc().init()
+                        delegate.finished = cleanup
+                        open_completions.add(delegate)
+                        presented.valueForKey_('presentationController').delegate = delegate
                     done(True)
                 except Exception as exc:
                     open_completions.discard(completion)
+                    open_completions.discard(delegate)
                     print('open:', exc)
                     done(False)
             self.on_main_thread(run)
@@ -713,6 +813,8 @@ class TgAsciiMobile(toga.App):
                         manager.setComponentEnabledSetting(ComponentName(package, previous),
                                                            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                                                            PackageManager.DONT_KILL_APP)
+                    if app.core.prefs:
+                        app.update_android_home(app.core.prefs.values.get('app_display_name') or 'TeleGraph')
                     done(True)
                 except Exception as exc:
                     print('icon:', exc)

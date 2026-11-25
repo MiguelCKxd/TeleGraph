@@ -1,4 +1,4 @@
-"""Check 16 KiB ELF load segments in an APK and its embedded Chaquopy wheels."""
+"""Check 16 KiB ELF load segments in an APK/AAB and its embedded Chaquopy wheels."""
 import argparse
 from io import BytesIO
 import struct
@@ -35,7 +35,7 @@ def main():
     with ZipFile(path) as apk:
         checks = list(inspect_libraries(apk))
         for name in apk.namelist():
-            if name.startswith('assets/chaquopy/') and name.endswith('.imy'):
+            if name.startswith(('assets/chaquopy/', 'base/assets/chaquopy/')) and name.endswith('.imy'):
                 with ZipFile(BytesIO(apk.read(name))) as embedded:
                     checks.extend(inspect_libraries(embedded, prefix=name + ':'))
     failures = [(name, bad) for name, bad in checks if bad]

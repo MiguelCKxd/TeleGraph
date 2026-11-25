@@ -10,6 +10,24 @@ from functools import lru_cache
 import unicodedata
 
 MOBILE = {
+    'Menú del chat': 'Chat menu',
+    'Archivo de audio': 'Audio file',
+    'Marcar como leído o no leído': 'Mark as read or unread',
+    'Archivar o desarchivar': 'Archive or unarchive',
+    'Fijar o desfijar': 'Pin or unpin',
+    'Sin acción': 'No action',
+    'Buscar en ajustes': 'Search settings',
+    'SF Compact (si está instalada)': 'SF Compact (when installed)', 'Política de privacidad': 'Privacy policy', 'Eliminar mi cuenta de Telegram': 'Delete my Telegram account',
+    'Continuar en Telegram para confirmar la eliminación definitiva': 'Continue to Telegram to confirm permanent deletion',
+    'Denunciar mensaje': 'Report message', 'Denuncia enviada a Telegram.': 'Report sent to Telegram.',
+    'Comentario': 'Comment', 'Búsquedas recientes': 'Recent searches',
+    'Borrar búsquedas recientes': 'Clear recent searches',
+    'Chats frecuentes': 'Frequent chats',
+    'Restablecer nombre': 'Reset app name',
+    'Editado el': 'Edited on',
+    'Previsualizar las fotos': 'Preview photos',
+    'Al deslizar un chat hacia la izquierda': 'Swipe a chat to the left',
+    'Al deslizar un chat hacia la derecha': 'Swipe a chat to the right',
     'Nombres de chats para Siri': 'Chat names for Siri',
     'Siri podrá usar los nombres de los chats que selecciones en esta cuenta.': 'Siri can use the names of the chats you select in this account.',
     'Desmarcar todos': 'Deselect all',
@@ -102,7 +120,7 @@ def web_keys():
     import re
     from pathlib import Path
     script = (Path(__file__).resolve().parent / 'web' / 'app.js').read_text('utf-8')
-    for feature_script in ('stories.js', 'wallpapers.js'):
+    for feature_script in ('stories.js', 'wallpapers.js', 'media_gallery.js', 'mobile_controls.js'):
         script += (Path(__file__).resolve().parent / 'web' / feature_script).read_text('utf-8')
     start = script.index('const KEYS = [')
     block = script[start:script.index('];', start)]
