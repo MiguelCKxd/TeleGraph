@@ -339,13 +339,13 @@ class GalleryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([(await source.at(index)).ident for index in range(3)],[9,3,2])
         self.assertIsNone(await source.at(3));backend.client.get_profile_photos.assert_awaited_once()
 
-    async def test_chat_navigation_requests_one_neighbor_without_loading_entire_chat(self):
+    async def test_chat_navigation_requests_bounded_metadata_without_loading_entire_chat(self):
         message=NS(id=4,media='photo',text='caption',filename='')
         backend=NS(client=NS(get_messages=AsyncMock(return_value=[message])),message=lambda value:value)
         source=ChatSource(backend,42);item=GalleryItem(5,None)
         self.assertEqual((await source.neighbor(item,1)).ident,4)
         self.assertEqual(backend.client.get_messages.call_args.kwargs['max_id'],5)
-        self.assertEqual(backend.client.get_messages.call_args.kwargs['limit'],1)
+        self.assertEqual(backend.client.get_messages.call_args.kwargs['limit'],20)
         await source.neighbor(item,-1)
         self.assertEqual(backend.client.get_messages.call_args.kwargs['min_id'],5)
         self.assertTrue(backend.client.get_messages.call_args.kwargs['reverse'])
@@ -360,14 +360,16 @@ class GalleryTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             backend=NS(download_media=AsyncMock(side_effect=[FileReferenceExpiredError(None),Path(directory)/'fresh.jpg']),
                        media_message=AsyncMock(return_value='fresh media'))
-            gallery=NS(valid=lambda:True,profile=False,app=NS(preview_dir=Path(directory),busy=False),account='a',peer=42,
-                       backend=backend,path=None,requests=Mock(),save_button=Mock(),status=Mock(),loaded=Mock(),failed=Mock())
+            gallery=NS(valid=lambda:True,profile=False,app=NS(preview_dir=Path(directory),busy=False,ui_account='a',service=NS(backend=backend)),account='a',peer=42,
+                       window=Mock(),expired=Mock(),backend=backend,path=None,requests=Mock(),save_button=Mock(),status=Mock(),loaded=Mock(),failed=Mock())
+            gallery.download=lambda *args,**kwargs:MediaGallery.download(gallery,*args,**kwargs)
             item=GalleryItem(7,'old media');MediaGallery.load(gallery,item)
             _,operation,done,_=gallery.requests.submit.call_args.args
             done(await operation)
             self.assertFalse(gallery.app.busy);self.assertEqual(backend.download_media.await_count,2)
             backend.media_message.assert_awaited_once_with(42,7)
             self.assertEqual(backend.download_media.call_args.args[0],'fresh media')
+            gallery.lease.close()
 
 
 class CompositionTests(unittest.TestCase):

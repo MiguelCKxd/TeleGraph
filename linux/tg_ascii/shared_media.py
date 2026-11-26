@@ -23,8 +23,22 @@ class SharedPhotoGrid(StickerGrid):
             self.documents=messages;self.layout()  # More keeps scroll, tiles and photos.
         else:self.set_documents(messages)
 
+    def paint(self):
+        if not self.winfo_exists() or not self.winfo_viewable() or not hasattr(self,'columns'):return
+        super().paint()
+        for index in self._cells:
+            message=self.documents[index]
+            tag=f'tile:{index}:video'
+            if message.media_kind=='video' and not self.canvas.find_withtag(tag):
+                self.canvas.create_text((index%self.columns)*self.cell+20,
+                    (index//self.columns)*self.cell+20,text='▶',fill='white',
+                    tags=('tile',f'tile:{index}',tag))
+
     def load(self,message):
         from .media_retry import grid_failed_recently,remember_grid_failure
+        if self.account!=self.app.ui_account:return
+        from .desktop_media_lifetime import private_preview
+        if private_preview(self.app,message,self.peer):return
         epoch=self.version;request=(epoch,message.id)
         if self.account!=self.app.ui_account or request in self.pending or grid_failed_recently(self,message.id) or len(self.pending)>=8:return
         self.pending.add(request)
@@ -94,7 +108,7 @@ class SharedMediaBrowser:
         self.app=app;self.peer=peer;self.account=app.ui_account;self.backend=app.service.backend
         self.window,outer=app.dialog('Shared media' if media else 'Search in chat','730x650')
         from .advanced_features import feature_enabled
-        entries=[('photos','Photos'),('files','Files'),('audio','Audio'),('voice','Voice messages'),('gifs','GIFs')]
+        entries=[('media','Photos and videos'),('photos','Photos'),('videos','Videos'),('files','Files'),('audio','Audio'),('voice','Voice messages'),('gifs','GIFs')]
         if feature_enabled(app,'links'):entries.append(('links','Links'))
         if feature_enabled(app,'polls'):entries.append(('polls','Encuestas'))
         chat=next((c for c in getattr(app,'chats',()) if c.id==peer),None)
@@ -111,9 +125,9 @@ class SharedMediaBrowser:
         self.compact=None
         for kind,label in zip(self.kinds,names):
             page=ttk.Frame(self.tabs);self.tabs.add(page,text=tr(label))
-            if kind=='photos':
+            if kind in ('media','photos','videos'):
                 self.widgets[kind]=SharedPhotoGrid(page,app,self.account,self.backend,self.peer,
-                    lambda message:app.open_image_message(message,self.peer) if self.valid() and not app.busy else None)
+                    lambda message,kind=kind:self.open_gallery(message,kind))
                 self.widgets[kind].pack(fill='both',expand=True)
             else:
                 listing=tk.Listbox(page,exportselection=False,height=10);listing.pack(side='left',fill='both',expand=True)
@@ -130,6 +144,10 @@ class SharedMediaBrowser:
         if self.search_scope:
             RecentStrip(app,outer,self.query,self.search_scope,pick=lambda _:self.fetch(),before=self.tabs)
         self.window.bind('<Destroy>',self.close,add='+')
+    def open_gallery(self,message,kind):
+        if self.valid() and not self.app.busy:
+            from .media_gallery import open_chat_gallery
+            open_chat_gallery(self.app,message,self.peer,kind=kind,query=self.pages.queries.get(kind,''))
     def close(self,event=None):
         if event is not None and event.widget is not self.window:return
         for future in self._requests.values():future.cancel()
@@ -177,7 +195,7 @@ class SharedMediaBrowser:
         if future is not None:self._requests[kind]=future
     def render(self,kind):
         target=self.widgets[kind]
-        if kind=='photos':
+        if kind in ('media','photos','videos'):
             target.set_messages(self.pages.rows[kind])
         else:
             target.delete(0,'end')
@@ -185,7 +203,7 @@ class SharedMediaBrowser:
     def open(self,jump=False):
         if not self.valid() or self.app.busy:return
         kind=self.kind()
-        if not profile_feature_enabled(self.app,kind) or kind=='photos':return
+        if not profile_feature_enabled(self.app,kind) or kind in ('media','photos','videos'):return
         selected=self.widgets[kind].curselection()
         if not selected:return
         message=self.pages.rows[kind][selected[0]]

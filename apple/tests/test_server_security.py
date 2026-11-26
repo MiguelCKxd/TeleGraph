@@ -213,6 +213,9 @@ class ServerSecurityTests(IsolatedAsyncioTestCase):
 
         core = Core(Path(self.files.name), 'iOS')
         self.addCleanup(core.loop.close)
+        # The offline snapshot proves this is ordinary, retained media. An
+        # unclassified file from an old release is not enough to bypass TTL.
+        core.histories[42] = [SimpleNamespace(id=8, media=None)]
         folder = core.media_folder()
         folder.mkdir(parents=True)
         original = folder / '42-8'

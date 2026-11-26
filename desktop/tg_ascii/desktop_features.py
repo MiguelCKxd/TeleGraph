@@ -111,6 +111,8 @@ class DesktopFeatures(DesktopCalls, DesktopPeerTools, DesktopCustomization, Atta
         if self.stage == 'ready':
             self.stash_account()
         self.cancel_qr()
+        from .preload import stop as stop_preload
+        stop_preload(self)
         old = self.ui_account
         for popup in self.popups:
             if popup.winfo_exists():
@@ -547,28 +549,38 @@ class DesktopFeatures(DesktopCalls, DesktopPeerTools, DesktopCustomization, Atta
         if message.media_kind in ('poll','checklist','location','contact','gift','article'):
             return self.open_advanced_message(message,peer)
         from .menu_style import uses_system
+        from .desktop_media_lifetime import export_blocked
         kind = {'audio': 'audio_player', 'voice': 'audio_player', 'video': 'video_player', 'gif': 'video_player',
                 'video_note': 'video_player', 'image': 'image_viewer', 'photo': 'image_viewer'}.get(message.media_kind, 'file_viewer')
         from .custom_menus import handled
         if handled(kind, self, message, peer):
             return  # 1.5.2: the user's own viewer (menus/<kind>/menu.py)
-        if uses_system(kind) and not self.demo and hasattr(self, 'open_message_natively'):
+        if uses_system(kind) and not export_blocked(message,self,peer) and not self.demo and hasattr(self, 'open_message_natively'):
             return self.open_message_natively(message, peer)  # 1.5.1 Settings › Menus
         if message.media_kind == 'audio': return self.play_message_audio(message,peer)
+        if message.media_kind == 'video':
+            from .media_gallery import open_chat_gallery
+            return open_chat_gallery(self,message,peer)
         backend,account = self.service.backend,self.ui_account
         async def fetch():
-            return await backend.media_message(peer, message.id)
+            from .desktop_media_lifetime import source_message
+            return await source_message(backend,peer,message.id)
         def ready(media):
             if account!=self.ui_account or backend is not self.service.backend:return
-            self.media_dialog(media, message.filename, message.media_kind, message.text, message.size)
+            self.media_dialog(media, message.filename, message.media_kind, message.text, message.size,message=message,peer=peer)
         self.call(fetch(), ready, tr('Cargando...'))
 
-    def media_dialog(self, media, filename='', kind='file', caption='', size=0, story=None):
+    def media_dialog(self, media, filename='', kind='file', caption='', size=0, story=None,*,message=None,peer=None):
         backend,account = self.service.backend,self.ui_account
         window, frame = self.dialog('Visor de archivos', '560x340')
         from .contact_profile import ProfileRequests
         from .media_formats import preview_available,thumbnail_preview,download_name
         requests=ProfileRequests(self,window,account,backend)
+        from .desktop_media_lifetime import ViewerMedia,export_blocked
+        peer=self.active if peer is None else peer
+        source=message if message is not None else media
+        blocked=export_blocked(source,self,peer) or export_blocked(media,self,peer)
+        current_lease=[None];viewer_window=[None]
         window.bind('<Destroy>',lambda event:requests.close() if event.widget is window else None,add='+')
         def valid():return requests.valid()
         ttk.Label(frame, text=filename or tr('Archivo adjunto'), wraplength=510).pack(anchor='w', pady=12)
@@ -580,35 +592,46 @@ class DesktopFeatures(DesktopCalls, DesktopPeerTools, DesktopCustomization, Atta
             if size > 64 * 1024 * 1024 and not thumbnail:
                 self.show_error(ValueError(tr('Archivo demasiado grande para la vista previa. Guardalo primero.')))
                 return
-            directory = tempfile.TemporaryDirectory(prefix='tg-ascii-media-', ignore_cleanup_errors=True)
-            self.media_temps.append(directory)
-            target = Path(directory.name) / ('preview.jpg' if thumbnail else 'media')
+            if current_lease[0] is not None:current_lease[0].close()
+            if viewer_window[0] is not None and viewer_window[0].winfo_exists():viewer_window[0].destroy()
+            def expired():
+                requests.reset()
+                if viewer_window[0] is not None and viewer_window[0].winfo_exists():viewer_window[0].destroy()
+            lease=current_lease[0]=ViewerMedia(self,window,account,backend,peer,getattr(source,'id',0),source,expired)
+            try:lease.update(media)
+            except PermissionError as error:lease.expire();self.show_error(error);return
             def loaded(path):
                 if not valid():return
-                if not thumbnail and kind in ('image','photo') and __import__('tg_ascii.menu_style',fromlist=['x']).uses_system('image_viewer'):
+                lease.check()
+                if not lease.restricted and not thumbnail and kind in ('image','photo') and __import__('tg_ascii.menu_style',fromlist=['x']).uses_system('image_viewer'):
                     from .native_open import open_with_system
-                    open_with_system(path,filename,on_error=lambda error:self.worker.events.put((self.show_error,error)))
+                    lease.retain_copy()
+                    open_with_system(path,filename,on_error=lambda error:self.worker.events.put((self.show_error,error)),
+                        on_done=lambda:self.worker.events.put((lambda _:lease.release_copy(close=True),None)))
                     return
                 try:
-                    viewer = show_image(self.root, path, caption[:300], thumbnail, name=filename or None,
+                    viewer = show_image(window, path, caption[:300], thumbnail, name=filename or None,
                                         on_error=lambda error:self.worker.events.put((self.show_error,error)))
+                    viewer_window[0]=viewer;lease.attach(viewer);lease.viewed()
+                    if lease.export_blocked:viewer._open_native=lambda:self.show_error(PermissionError(tr('Protected content')))
                     if window.winfo_exists(): window.grab_release()
                     self.popups.append(viewer)
                     if story is not None:
                         self.call(backend.view_story(story), lambda _: None, tr('Historia abierta.'))
                 except (ImportError, OSError, ValueError) as exc:
                     self.show_error(exc)
-            requests.submit('preview',backend.download_media(media,target,thumbnail=thumbnail),loaded,self.show_error,timeout=None)
+            requests.submit('preview',lease.download(media,thumbnail=thumbnail),loaded,self.show_error,timeout=None)
         def save():
             if not valid() or 'save' in requests.jobs:return
+            if blocked:self.show_error(PermissionError(tr('Protected content')));return
             # A basename only: never trust a remote attachment's path.
             base = download_name(media,filename)
             destination = filedialog.asksaveasfilename(parent=window, initialfile=base)
             if destination and valid():
-                requests.submit('save',backend.download_media(media,Path(destination)),lambda _:self.status.set(tr('Archivo guardado.')),self.show_error,timeout=None)
+                requests.submit('save',backend.download_media(getattr(media,'media',None) or media,Path(destination)),lambda _:self.status.set(tr('Archivo guardado.')),self.show_error,timeout=None)
         if preview_available(media,kind,filename):
             ttk.Button(frame, text=tr('Ver imagen / vista previa'), command=preview).pack(fill='x', pady=12)
-        ttk.Button(frame, text=tr('Guardar archivo como...'), command=save).pack(fill='x', pady=6)
+        ttk.Button(frame, text=tr('Guardar archivo como...'), command=save,state='disabled' if blocked else 'normal').pack(fill='x', pady=6)
 
     def build_story_tab(self):
         from .advanced_features import feature_enabled

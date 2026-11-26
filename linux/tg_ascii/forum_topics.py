@@ -469,7 +469,7 @@ class ForumTopics:
 
     @tracked_transfer
     async def forum_send(self, peer, topic_id, text='', spans=(), emojis=(), *, paths=(), reply_to=None,
-                         progress=None, silent=False, schedule=None, as_photo=False, voice=False, duration=0):
+                         progress=None, silent=False, schedule=None, as_photo=False, voice=False, duration=0, photo_quality=None):
         from .backend import attachment_path
         from .emoji_usage import note
         from .message_tools import formatted_entities
@@ -486,40 +486,45 @@ class ForumTopics:
             request = f.messages.SendMessageRequest(entity, text, entities=entities, **opt)
             item = await self._structured_sent(request)
             return [item] if item else []
+        from .media_quality import photo_paths, validate_photo_quality, is_photo_path, is_video_path, is_media_path
+        validate_photo_quality(photo_quality)
         album = len(paths) > 1
         photos = all(utils.is_image(str(p)) for p in paths) and (album or as_photo)
+        media_files=(photos or (photo_quality is not None and all(is_media_path(p) for p in paths) and
+                     (album or as_photo or all(is_video_path(p) for p in paths)))) and photo_quality!='original'
         for path in paths:
-            media_right = ('send_voices' if voice else 'send_photos' if photos else
-                           'send_videos' if utils.is_video(str(path)) else
+            media_right = ('send_voices' if voice else 'send_photos' if media_files and is_photo_path(path) else
+                           'send_videos' if media_files and is_video_path(path) else
                            'send_audios' if utils.is_audio(str(path)) else 'send_docs')
             if not _allowed(entity, 'send_media', media_right):
                 raise _denied()
-        with ExitStack() as stack:
-            streams = [stack.enter_context(path.open('rb')) for path in paths]
-            async with transfer_timeout(progress) as report:
-                media = []
-                total = sum(p.stat().st_size for p in paths)
-                transferred = 0
-                for stream, path in zip(streams, paths):
-                    async def on_progress(done, size):
-                        await report(transferred + done, total)
-                    attributes = [t.DocumentAttributeAudio(duration=max(1, round(duration)), voice=True)] if voice else None
-                    _, prepared, _ = await self.client._file_to_media(stream, force_document=not photos and not voice,
-                        attributes=attributes, mime_type='audio/ogg' if voice else None, voice_note=voice,
-                        progress_callback=on_progress, nosound_video=True if album else None)
-                    if album:
-                        uploaded = await self.client(f.messages.UploadMediaRequest(entity, prepared))
-                        prepared = utils.get_input_media(uploaded.photo if isinstance(uploaded, t.MessageMediaPhoto) else uploaded.document)
-                    media.append(prepared)
-                    transferred += path.stat().st_size
-                if not album:
-                    request = f.messages.SendMediaRequest(entity, media[0], text, entities=entities, **opt)
-                    item = await self._structured_sent(request)
-                    return [item] if item else []
-                single = [t.InputSingleMedia(m, message=text if i == 0 else '', entities=entities if i == 0 else None)
-                          for i, m in enumerate(media)]
-                request = f.messages.SendMultiMediaRequest(entity, single, **opt)
-                result = await self.client(request)
-                input_peer = await self.client.get_input_entity(entity)
-                sent = self.client._get_response_message([m.random_id for m in single], result, input_peer)
-                return [self.message(m) for m in sent or () if m is not None]
+        async with photo_paths(paths,photo_quality,photos=media_files) as paths:
+            with ExitStack() as stack:
+                streams = [stack.enter_context(path.open('rb')) for path in paths]
+                async with transfer_timeout(progress) as report:
+                    media = []
+                    total = sum(p.stat().st_size for p in paths)
+                    transferred = 0
+                    for stream, path in zip(streams, paths):
+                        async def on_progress(done, size):
+                            await report(transferred + done, total)
+                        attributes = [t.DocumentAttributeAudio(duration=max(1, round(duration)), voice=True)] if voice else None
+                        _, prepared, _ = await self.client._file_to_media(stream, force_document=not media_files and not voice,
+                            attributes=attributes, mime_type='audio/ogg' if voice else None, voice_note=voice,
+                            progress_callback=on_progress, nosound_video=True if album else None)
+                        if album:
+                            uploaded = await self.client(f.messages.UploadMediaRequest(entity, prepared))
+                            prepared = utils.get_input_media(uploaded.photo if isinstance(uploaded, t.MessageMediaPhoto) else uploaded.document)
+                        media.append(prepared)
+                        transferred += path.stat().st_size
+                    if not album:
+                        request = f.messages.SendMediaRequest(entity, media[0], text, entities=entities, **opt)
+                        item = await self._structured_sent(request)
+                        return [item] if item else []
+                    single = [t.InputSingleMedia(m, message=text if i == 0 else '', entities=entities if i == 0 else None)
+                              for i, m in enumerate(media)]
+                    request = f.messages.SendMultiMediaRequest(entity, single, **opt)
+                    result = await self.client(request)
+                    input_peer = await self.client.get_input_entity(entity)
+                    sent = self.client._get_response_message([m.random_id for m in single], result, input_peer)
+                    return [self.message(m) for m in sent or () if m is not None]

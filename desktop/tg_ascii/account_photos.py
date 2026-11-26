@@ -6,7 +6,9 @@ without a photo get Telegram's placeholder (default_avatar) but are still
 recorded as photo-less.
 """
 import asyncio
+import os
 from pathlib import Path
+import tempfile
 
 FOLDER = 'account-photos'
 DOWNLOAD_TIMEOUT = 15
@@ -24,12 +26,15 @@ def has_photo(user):
 async def remember(root, key, client, me):
     """Refresh the thumbnail after the account connected (best effort)."""
     target = photo_path(root, key)
+    temporary = None
     try:
         if not has_photo(me):
             target.unlink(missing_ok=True)
             return False
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        temporary = target.with_suffix('.tmp')
+        descriptor, name = tempfile.mkstemp(prefix=f'.{key}-', suffix='.jpg', dir=target.parent)
+        os.close(descriptor)
+        temporary = Path(name)
         result = await asyncio.wait_for(client.download_profile_photo(me, file=str(temporary), download_big=False),
                                         DOWNLOAD_TIMEOUT)
         if not result:
@@ -41,6 +46,9 @@ async def remember(root, key, client, me):
     except Exception:
         # Telegram errors must never block opening an account.
         return False
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def display_path(root, key, label, user_id, folder):

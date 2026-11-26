@@ -316,36 +316,44 @@ class DesktopTools:
         path = Path(directory.name) / 'voice.ogg'
         self.audio_dialog(path, voice=True, recording=True)
 
-    def audio_dialog(self, path, voice=False, recording=False, sending=True, filename=None):
+    def audio_dialog(self, path, voice=False, recording=False, sending=True, filename=None,media_lease=None):
         from .chat_capabilities import chat_capabilities
         permission = 'send_voices' if voice else 'send_audios'
         if sending and not chat_capabilities(self).allows(permission):return
         self.audio_jobs = [job for job in self.audio_jobs if not job.done.is_set()]
         account, peer, backend = self.ui_account, self.active, self.service.backend
         window, frame = self.dialog('Audio', '520x360')
+        if media_lease is not None:
+            media_lease.attach(window)
+            media_lease.on_expire=window.destroy
         ttk.Label(frame, text=path.name, wraplength=460).pack(anchor='w', pady=8)
         status = tk.StringVar(value=tr('Recording...') if recording else tr('Ready'))
         ttk.Label(frame, textvariable=status, wraplength=460).pack(anchor='w', pady=8)
         if recording: ttk.Label(frame, text=tr('Maximum recording: 10 minutes. Stop, preview, then send.'), wraplength=460).pack(anchor='w')
         job = [AudioJob().record(path) if recording else None]
+        poll_timer=[None]
         duration, sent = [0], [False]
         if job[0]: self.audio_jobs.append(job[0])
         def alive(): return window.winfo_exists() and not self.closed
         def stop():
             if job[0]: job[0].stop()
         def play():
+            if media_lease is not None and not media_lease.active():return
             if recording and duration[0] <= 0: return
             if job[0] and not job[0].done.is_set(): return
+            if media_lease is not None:media_lease.viewed()
             job[0] = AudioJob().play(path)
             self.audio_jobs.append(job[0])
             status.set(tr('Playing...'))
             poll(False)
         def poll(is_record):
+            if poll_timer[0] is not None:
+                window.after_cancel(poll_timer[0]);poll_timer[0]=None
             if not alive(): return
             active = job[0]
             if active and not active.done.is_set():
                 status.set((tr('Recording...') if is_record else tr('Playing...')) + f' {active.seconds:.1f}s')
-                window.after(150, lambda: poll(is_record))
+                poll_timer[0]=window.after(150, lambda: poll(is_record))
             else:
                 if active and active.error:
                     status.set(str(active.error))
@@ -380,29 +388,48 @@ class DesktopTools:
         if sending: send.pack(fill='x', pady=4)
         else:
             def save_audio():
+                if media_lease is not None and (not media_lease.active() or media_lease.export_blocked):return
                 import shutil
                 destination = filedialog.asksaveasfilename(parent=window, initialfile=Path(filename).name if filename else 'audio.ogg')
                 if destination:
                     try: shutil.copyfile(path, destination)
                     except OSError as exc: self.show_error(exc)
-            ttk.Button(frame, text=tr('Save'), command=save_audio).pack(fill='x', pady=4)
+            ttk.Button(frame, text=tr('Save'), command=save_audio,state='disabled' if media_lease is not None and media_lease.export_blocked else 'normal').pack(fill='x', pady=4)
         def destroyed(event):
-            if event.widget == window: stop()
-        window.bind('<Destroy>', destroyed)
+            if event.widget == window:
+                if poll_timer[0] is not None:window.after_cancel(poll_timer[0]);poll_timer[0]=None
+                stop()
+        window.bind('<Destroy>', destroyed,add='+')
         if recording: poll(True)
+        return window
 
     def play_message_audio(self, message, peer=None):
         if self.busy: return
         peer=self.active if peer is None else peer
         backend, account = self.service.backend, self.ui_account
-        directory = tempfile.TemporaryDirectory(prefix='tg-as-audio-', ignore_cleanup_errors=True)
-        self.media_temps.append(directory)
+        from .desktop_media_lifetime import ViewerMedia
+        from .contact_profile import ProfileRequests
+        window,frame=self.dialog('Audio','520x180')
+        ttk.Label(frame,text=tr('Descargando...')).pack(fill='x')
+        requests=ProfileRequests(self,window,account,backend)
+        lease=ViewerMedia(self,window,account,backend,peer,message.id,message,window.destroy)
+        window.bind('<Destroy>',lambda event:requests.close() if event.widget is window else None,add='+')
         async def fetch():
-            media = await backend.media_message(peer, message.id)
-            return await backend.download_media(media, Path(directory.name) / 'audio')
+            from .desktop_media_lifetime import source_message
+            media = await source_message(backend,peer,message.id)
+            lease.update(media)
+            return await lease.download(media)
         def ready(path):
-            if self.ui_account == account and backend is self.service.backend: self.audio_dialog(Path(path), sending=False, filename=message.filename)
-        self.call(fetch(), ready, tr('Descargando...'),timeout=None)
+            if not lease.active():return
+            # The player takes ownership before the loading window closes.
+            # Its title differs so dialog uniqueness cannot destroy that owner early.
+            window.title(tr('Descargando...'))
+            self.audio_dialog(Path(path),sending=False,filename=message.filename,media_lease=lease)
+            if window.winfo_exists():window.destroy()
+        def failed(error):
+            if window.winfo_exists():window.destroy()
+            self.show_error(error)
+        requests.submit('audio',fetch(),ready,failed,timeout=None)
 
     def language_target(self, frame):
         codes = list(LANGUAGES)

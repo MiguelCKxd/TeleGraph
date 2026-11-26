@@ -172,7 +172,7 @@ async def _emoji_file(app, document, account, backend, side=128):
     mime = getattr(document, 'mime_type', '')
     # Emoji/sticker documents are immutable: keep their downloads and (CPU
     # heavy) renders across launches in the account's persistent cache.
-    from .media_cache import emoji_base, touch
+    from .media_cache import emoji_base, touch, prune_once
     base = emoji_base(backend, document.id) or app.preview_dir / f'{account}-emoji-{document.id}'
     animated=animated_emoji_enabled(app.preferences.values)
     if not animated:
@@ -191,12 +191,15 @@ async def _emoji_file(app, document, account, backend, side=128):
             rendered=base.with_suffix(f'.animated{size_tag}.webp' if animated else f'.still{size_tag}.webp')
             if rendered.is_file() and rendered.stat().st_size:
                 touch(rendered)
+                await prune_once(backend)
                 return rendered
             source=base.with_suffix('.source')
             path=source if source.is_file() and source.stat().st_size==getattr(document,'size',0) else await backend.download_media(document,source,thumbnail=False)
             if not path:raise ValueError('Animation download is empty')
             from .decode_pool import run as decode_run
-            return await decode_run(render_animation, str(path), str(rendered), mime, animated, side)  # process_decoding: another core
+            result = await decode_run(render_animation, str(path), str(rendered), mime, animated, side)  # process_decoding: another core
+            await prune_once(backend, Path(path).stat().st_size + Path(result).stat().st_size)
+            return result
         except REFERENCE_ERRORS:raise
         except (ImportError, OSError, ValueError, RuntimeError, KeyError, IndexError, RPCError):
             pass

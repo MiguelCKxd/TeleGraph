@@ -40,6 +40,14 @@ class CallPermissionsTests(unittest.TestCase):
         app.preferences['advanced_features']['calls'] = False
         self.assertFalse(call_allowed(app))
 
+    def test_locked_app_never_starts_a_group_call_or_creation_dialog(self):
+        app, _ = app_fixture()
+        app.worker = Mock()
+        with patch('tg_ascii.app_lock.is_locked', return_value=True), patch('tg_ascii.app_dialogs.messagebox.askyesno') as confirm:
+            DesktopCalls.start_group_call(app, create=True)
+        app.worker.submit.assert_not_called()
+        confirm.assert_not_called()
+
     def test_late_event_cannot_replace_current_call_window(self):
         app, backend = app_fixture()
         backend.call_manager = NS(snapshot={'token': 'new'})
@@ -132,3 +140,20 @@ class CallControlsTests(unittest.TestCase):
         self.view.update({'state': 'active', 'token': 'call', 'peer': 2, 'remote_video': False})
         self.view.picture.configure.assert_called_with(image='')
         self.assertIsNone(self.view.photo)
+
+    def test_gpu_window_closes_on_lock_or_feature_off(self):
+        for locked, enabled in ((True, True), (False, False)):
+            gpu = self.view.gpu = Mock()
+            with patch('tg_ascii.app_lock.is_locked', return_value=locked), patch('tg_ascii.advanced_features.feature_enabled', return_value=enabled):
+                self.assertFalse(self.view.gpu_grid([123], {}, {}, False))
+            gpu.close.assert_called_once()
+            self.assertIsNone(self.view.gpu)
+
+    def test_new_call_closes_previous_gpu_window_and_allows_fresh_renderer(self):
+        self.view.snapshot = {'token': 'old'}
+        self.view._gpu_declined = True
+        gpu = self.view.gpu = Mock()
+        self.view.update({'state': 'active', 'token': 'new', 'peer': 2})
+        gpu.close.assert_called_once()
+        self.assertIsNone(self.view.gpu)
+        self.assertFalse(self.view._gpu_declined)

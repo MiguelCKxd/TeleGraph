@@ -57,10 +57,14 @@ class GroupLifecycleTests(unittest.IsolatedAsyncioTestCase):
         snapshot = await self.manager.start(-1000000000041)
         self.assertEqual(snapshot['state'], 'active')
         engine = FakeGroupMedia.instances[-1]
+        self.manager._tiles[123] = {'token': snapshot['token'], 'data': b'old frame'}
+        self.manager._tile_seen[123] = 9999999999
         await self.manager.hangup(token=snapshot['token'])
         self.assertTrue(engine.stopped)
         self.assertIsNone(CallManager._capture_owner)
         self.client.assert_not_called()
+        self.assertEqual(self.manager.take_frames(), {})
+        self.assertEqual(self.manager.active_tiles(), [])
 
     async def test_server_join_failure_still_releases_native_resources(self):
         FakeGroupMedia.fail = True

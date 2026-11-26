@@ -186,8 +186,10 @@ def evidence(app):
     elif at_bottom(app) and unread and visible:
         stuck = 'count_stays'
     since = app.__dict__.setdefault('_read_stuck_since', {})
+    for reason in ('visible_not_sent', 'count_stays'):
+        if reason != stuck:
+            since.pop((key, reason), None)
     if stuck is None:
-        since.pop(key, None)
         return
     first = since.setdefault((key, stuck), time.monotonic())
     noted = app.__dict__.setdefault('_read_stuck_noted', set())

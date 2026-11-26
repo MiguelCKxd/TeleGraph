@@ -37,7 +37,10 @@ class MobileStories:
     async def api_story_read(self, account, peer, id):
         backend = self.story_backend(account)
         # A creator can replay their own story without registering a viewer or a read receipt.
-        if int(peer) != await backend.client.get_peer_id('me'):
+        own = await backend.client.get_peer_id('me')
+        if self.story_backend(account) is not backend:
+            raise PermissionError('Account changed')
+        if int(peer) != own:
             await backend.view_story(SimpleNamespace(peer=int(peer), id=int(id)))
         return True
 

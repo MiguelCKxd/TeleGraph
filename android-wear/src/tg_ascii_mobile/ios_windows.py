@@ -13,6 +13,7 @@ from urllib.parse import quote
 ACTIVITY = 'org.tgas.chat'
 _windows = {}      # scene pointer -> (window, web view, peer, activity)
 _installed = False
+_glass_windows = {}  # native SwiftUI hosts, detached with their scene
 
 
 def install(app):
@@ -135,6 +136,8 @@ def install(app):
             window.rootViewController = controller
             self.window = window
             window.makeKeyAndVisible()
+            from .ios_liquid_glass import attach
+            _glass_windows[scene.ptr.value] = attach(web)
             if activity is not None:
                 scene.title = str(activity.title or '')
                 session.userInfo = activity.userInfo
@@ -163,6 +166,12 @@ def install(app):
         @objc_method
         def sceneDidDisconnect_(self, scene) -> None:
             entry = _windows.pop(scene.ptr.value, None)
+            glass = _glass_windows.pop(scene.ptr.value, None)
+            if glass is not None:
+                try:
+                    glass.detach()
+                except Exception as exc:
+                    print("native glass detach:", type(exc).__name__)
             if entry and entry[2] is not None and account_of(entry[3]) == core.account:
                 import asyncio
                 asyncio.run_coroutine_threadsafe(core.api_close(entry[2], window=True), core.loop)

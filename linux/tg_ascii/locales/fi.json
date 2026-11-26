@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "Telegram ei palauttanut uutta aihetta. Päivitä aiheluettelo.",
   "This group must be upgraded to enable topics.": "Muunna ryhmä superryhmäksi, jotta voit ottaa aiheet käyttöön.",
   "Reopen this group to check its topic settings.": "Avaa ryhmä uudelleen ja tarkista aiheiden asetukset.",
-  "The call continues in the background.": "Puhelu jatkuu taustalla."
+  "The call continues in the background.": "Puhelu jatkuu taustalla.",
+  "Original media in the viewer": "Alkuperäiset katseluohjelmassa",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "Näytä kuvat Telegramin parhaalla saatavilla olevalla laadulla ilman uudelleenpakkausta. Esikatselut pysyvät pieninä. Käyttää enemmän dataa ja muistia.",
+  "Photos and videos": "Kuvat ja videot",
+  "SD · Standard": "SD · Normaali",
+  "HD · High quality": "HD · Korkea laatu",
+  "Original as file": "Alkuperäinen tiedostona",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "Kuvateksti liitetään ensimmäiseen tiedostoon. Kuvat ja videot muodostavat albumin; muut sekoitetut tiedostot lähetetään asiakirjoina."
 }

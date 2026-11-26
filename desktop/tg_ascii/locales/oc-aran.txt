@@ -674,3 +674,10 @@
 673|Convertís aguest grop en un supergrop entà activar es tèmas.
 674|Torna a daurir eth grop entà verificar es ajustaments des tèmas.
 675|Era telefonada contunhe en rèireplan.
+676|Originaus en visor
+677|Mostrar es fotos damb era maxima qualitat disponibla en Telegram, sense recomprimir. Es previsualizacions demoren petites. Utilize mès donades e memòria.
+678|Fotos e vidèos
+679|SD · Estandard
+680|HD · Nauta qualitat
+681|Originau coma fichèr
+682|Eth tèxte s’adjunh ath prumèr fichèr. Es fotos e es vidèos formen un àlbum; es autes combinacions de fichèrs s’envien coma documents.

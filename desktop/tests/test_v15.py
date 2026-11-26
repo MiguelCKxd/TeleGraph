@@ -70,8 +70,10 @@ class BusyTokenTests(unittest.TestCase):
 
         async def never():
             await asyncio.sleep(3600)
-        app.call(never(), lambda _: None, 'one')
-        app.call(never(), lambda _: None, 'two')
+        first, second = never(), never()
+        self.addCleanup(first.close); self.addCleanup(second.close)
+        app.call(first, lambda _: None, 'one')
+        app.call(second, lambda _: None, 'two')
         self.assertTrue(app.busy)
         submitted[0][0](None)
         self.assertTrue(app.busy)  # The second operation still holds its token.

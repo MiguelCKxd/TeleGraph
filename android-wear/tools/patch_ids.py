@@ -631,6 +631,8 @@ elif platform == 'ios':
         if include not in source:
             source = include + '\n' + source
     main.write_text(source)
+    from configure_glass import configure_glass
+    configure_glass(build / 'ios' / 'xcode')
     from configure_siri import configure_siri
     configure_siri(build / 'ios' / 'xcode')
     from add_notification_target import add_notification_target

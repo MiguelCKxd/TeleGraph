@@ -38,7 +38,16 @@ def maybe_start(app):
     if app.ui_account in done:
         return
     done.add(app.ui_account)
-    Preloader(app).start()
+    stop(app)
+    app._preloader = Preloader(app)
+    app._preloader.start()
+
+
+def stop(app):
+    current = getattr(app, '_preloader', None)
+    if current is not None:
+        current.cancel()
+        app._preloader = None
 
 
 class Preloader:
@@ -49,6 +58,7 @@ class Preloader:
         self.cancelled = False
         self.frame = None
         self.total = self.done = 0
+        self.future = None
 
     # -- Tk side -----------------------------------------------------------
     def valid(self):
@@ -90,6 +100,8 @@ class Preloader:
 
     def cancel(self):
         self.cancelled = True
+        if self.future is not None:
+            self.future.cancel()
         self.finish()
 
     def start(self):
@@ -99,7 +111,7 @@ class Preloader:
         if not self.total:
             return
         self.show()
-        app.worker.submit(self.run(chats), self.finish, lambda _: self.finish())
+        self.future = app.worker.submit(self.run(chats), self.finish, lambda _: self.finish())
 
     def tick(self):
         self.done += 1
@@ -112,7 +124,7 @@ class Preloader:
         enabled = animated_emoji_enabled(app.preferences.values)
         # 1. Avatars of every chat.
         for chat in chats:
-            if self.cancelled:
+            if not self.valid():
                 return
             key = (account, chat.id, 'avatar')
             path = app.preview_dir / f'{account}-{chat.id}-avatar.jpg'
@@ -121,10 +133,10 @@ class Preloader:
                     result = await asyncio.wait_for(backend.avatar(chat.id, path, entity=chat.entity), 20)
                 else:
                     result = path
-                if result and player is not None:
+                if result and player is not None and self.valid():
                     await asyncio.to_thread(player.prepare, result, (30, 30), enabled)
                 if result:
-                    app.worker.events.put((lambda value, key=key: app.preview_cache.__setitem__(key, value), result))
+                    app.worker.events.put((lambda value, key=key: self.cache_avatar(key, value), result))
             except errors.FloodWaitError:
                 break
             except Exception:
@@ -134,7 +146,7 @@ class Preloader:
         # 2. Recent messages of the first chats, 3. their custom emoji.
         emoji_ids = []
         for chat in chats[:HISTORY_CHATS]:
-            if self.cancelled:
+            if not self.valid():
                 return
             try:
                 messages = await asyncio.wait_for(backend.history(chat.id), 20)
@@ -149,10 +161,19 @@ class Preloader:
                 pass
             self.tick()
             await asyncio.sleep(SPACING)
-        if emoji_ids and not self.cancelled:
+        if emoji_ids and self.valid():
             app.worker.events.put((self.warm_emoji, emoji_ids[:200]))
-        while self.done < self.total and not self.cancelled:
+        while self.done < self.total and self.valid():
             self.tick()
+
+    def cache_avatar(self, key, value):
+        if not self.valid():
+            return
+        from .resources import cache_entries
+        cache = self.app.preview_cache
+        cache[key] = value
+        while len(cache) > cache_entries(512):
+            cache.pop(next(iter(cache)))
 
     def cache_history(self, item):
         if not self.valid():

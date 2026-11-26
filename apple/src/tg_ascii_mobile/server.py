@@ -70,11 +70,28 @@ REASONS = {200: 'OK', 206: 'Partial Content', 416: 'Range Not Satisfiable', 204:
            405: 'Method Not Allowed', 413: 'Payload Too Large', 500: 'Internal Server Error'}
 
 
+def file_range(headers, size):
+    """One byte range; unsupported multipart ranges may receive the full file."""
+    match = re.fullmatch(r'bytes=(\d*)-(\d*)', headers.get('range', '').strip())
+    start, end = 0, size - 1
+    if match and (match.group(1) or match.group(2)):
+        if match.group(1):
+            start = int(match.group(1))
+            if match.group(2):
+                end = min(int(match.group(2)), end)
+        else:
+            start = max(0, size - int(match.group(2)))
+        return (416 if start > end else 206), start, end
+    return 200, start, end
+
+
 class Server:
     def __init__(self, core):
         self.core = core
         self.port = None
         self.story_downloads = {}
+        from .media_stream import VideoRanges
+        self.video_ranges = VideoRanges(core)
 
     async def start(self, port=0):
         server = await asyncio.start_server(self.handle, '127.0.0.1', port, limit=MAX_BODY + 65536)
@@ -109,6 +126,7 @@ class Server:
 
     # -- HTTP ------------------------------------------------------------------
     async def handle(self, reader, writer):
+        writer.tg_reader = reader
         try:
             first = True
             while await self.handle_one(reader, writer, first):
@@ -197,6 +215,7 @@ class Server:
         if path == '/profile-photo' and method == 'GET':
             if not self.authorised(headers, query) or self.core.locked:
                 return await self.respond(writer, 403, b'token')
+            current = self.account_guard()
             try:
                 asset = await asyncio.wait_for(self.core.profile_gallery_file(
                     query['peer'], query['photo'], query['account'], query.get('offset', 0), query.get('thumb') == '1'), 120)
@@ -208,7 +227,7 @@ class Server:
                 asset = None
             if asset is None or not asset.is_file():
                 return await self.respond(writer, 404, b'')
-            return await self.send_file(writer, headers, asset, 'Cache-Control: no-store')
+            return await self.send_file(writer, headers, asset, 'Cache-Control: no-store', guard=current)
         if path == '/account-avatar' and method == 'GET':
             if not self.authorised(headers, query) or self.core.locked or self.core.stage not in ('choose_account', 'ready'):
                 return await self.respond(writer, 403, b'')
@@ -228,7 +247,7 @@ class Server:
             asset = self.core.chat_wallpaper_file(query.get('account'), query.get('name'), query.get('preview') == '1')
             if asset is None:
                 return await self.respond(writer, 404, b'')
-            return await self.send_file(writer, headers, asset, 'Cache-Control: no-store')
+            return await self.send_file(writer, headers, asset, 'Cache-Control: no-store', guard=self.account_guard())
         if path == '/background' and method == 'GET':
             return await self.background(writer, headers, query)
         if path == '/logo' and method == 'GET':
@@ -321,18 +340,24 @@ class Server:
             return await self.respond(writer, 403, b'token')
         if length <= 0 or length > MAX_UPLOAD:
             return await self.respond(writer, 413, b'')
+        current = self.account_guard()
         target = self.core.staging_path(query.get('name') or 'file')
         try:
             with target.open('wb') as stream:
                 remaining = length
                 while remaining:
                     chunk = await asyncio.wait_for(reader.read(min(remaining, 1 << 20)), REQUEST_READ_TIMEOUT)
+                    current()
                     if not chunk:
                         raise ConnectionError('upload interrupted')
                     stream.write(chunk)
                     remaining -= len(chunk)
             os.chmod(target, 0o600)
-        except Exception:
+        except PermissionError:
+            target.unlink(missing_ok=True)
+            writer.tg_keep = False  # The unread request body cannot be reused.
+            return await self.respond(writer, 403, b'account')
+        except BaseException:
             target.unlink(missing_ok=True)
             raise
         writer.tg_keep = reusable
@@ -341,6 +366,11 @@ class Server:
         return await self.respond(writer, 200, data, 'application/json; charset=utf-8')
 
     async def media(self, writer, headers, query):
+        from .media_lifetime import media_response
+        async with media_response(self.core) as response:
+            return await self.media_request(writer, headers, query, response)
+
+    async def media_request(self, writer, headers, query, response):
         """A message's photo/sticker/video preview (thumb=1) or full file."""
         from tg_ascii.secret_chats import is_secret_peer
 
@@ -352,14 +382,29 @@ class Server:
             if is_secret_peer(peer):
                 return await self.secret_media(writer, headers, query, peer, ident, thumbnail)
             account = self.core.account
+            if not thumbnail and 'stream' in query and 'poll' not in query and 'photo' not in query:
+                if not re.fullmatch(r'[A-Za-z0-9-]{1,64}', query['stream']):
+                    return await self.respond(writer, 400, b'')
+                if await self.stream_video(writer, headers, peer, ident, query['stream']):
+                    return
             if 'poll' in query:
                 path = await asyncio.wait_for(self.core.poll_attachment(peer, ident, query['poll'], thumbnail), 120)
             elif 'photo' in query:  # a photo of an article (carousel)
                 path = await asyncio.wait_for(self.core.article_photo(peer, ident, int(query['photo'])), 120)
             else:
-                path = await asyncio.wait_for(self.core.media_file(peer, ident, thumbnail), 120)
+                quality = query.get('quality', 'original')
+                if quality not in ('original', 'display'):
+                    return await self.respond(writer, 400, b'')
+                options = {'quality': quality} if quality != 'original' else {}
+                # The downloader already times out stalled transfers. A progressing
+                # large original must not fail at an unrelated two-minute boundary.
+                path = await asyncio.wait_for(self.core.media_file(peer, ident, thumbnail, **options), 600)
         except (KeyError, ValueError):
             return await self.respond(writer, 400, b'')
+        except PermissionError:
+            return await self.respond(writer, 403, b'account')
+        except ConnectionError:
+            raise
         except Exception:
             return await self.respond(writer, 404, b'')
         if path is None or not path.is_file() or (thumbnail and path.stat().st_size > MAX_MEDIA):
@@ -369,8 +414,92 @@ class Server:
             path = await asyncio.to_thread(playable_caf, path)
         if self.core.locked or self.core.account != account:
             return await self.respond(writer, 403, b'token')
-        keep = self.keep_headers(query) if thumbnail and 'poll' not in query else ()
-        return await self.send_file(writer, headers, path, keep[0] if keep else 'Cache-Control: no-store')
+        keep = self.keep_headers(query) if thumbnail and 'poll' not in query and not response.temporary else ()
+        def current():
+            if self.core.locked or self.core.account != account:
+                raise PermissionError('The active account changed.')
+            response.check()
+        return await self.send_file(writer, headers, path, keep[0] if keep else 'Cache-Control: no-store', guard=current)
+
+    async def stream_video(self, writer, headers, peer, ident, view):
+        """Send original byte ranges immediately; False uses the full-file fallback."""
+        from .media_stream import BLOCK_SIZE
+        account, backend = self.core.account, self.core.backend
+        folder = self.core.media_folder()
+        index = await self.core._media_index(folder)
+        if self.core.locked or account != self.core.account or backend is not self.core.backend:
+            raise PermissionError('The active account changed.')
+        name = index.get(f'{peer}-{ident}')
+        if name:
+            cached = folder / name
+            if cached.is_file() and cached.stat().st_size:
+                # Core validates TTL/protection before reusing old disk entries.
+                # The source path for an expired message is never sufficient.
+                classify = getattr(self.core, 'media_message', None)
+                if classify is not None:
+                    _, restricted = await classify(peer, ident, account, backend)
+                    if restricted:
+                        return False
+                def current():
+                    if self.core.locked or account != self.core.account or backend is not self.core.backend:
+                        raise PermissionError('The active account changed.')
+                await self.send_file(writer, headers, cached, 'Cache-Control: no-store', guard=current)
+                return True
+        try:
+            source = await self.video_ranges.source(peer, ident, view)
+            if source is None:
+                return False
+            status, start, end = file_range(headers, source.size)
+            if status == 416:
+                await self.respond(writer, 416, b'', extra=(f'Content-Range: bytes */{source.size}',))
+                return True
+            # Resolve the first block before committing the HTTP response. CDN or
+            # unsupported streaming paths retain the normal downloader fallback.
+            first = await self.video_block(writer, source, start // BLOCK_SIZE)
+        except PermissionError:
+            raise
+        except (ConnectionError, asyncio.CancelledError):
+            raise
+        except Exception:
+            return False
+        mime = source.mime if re.fullmatch(r'video/[A-Za-z0-9.+-]+', source.mime) else 'application/octet-stream'
+        extra = ('Cache-Control: no-store', 'Accept-Ranges: bytes', FILE_CONTENT_POLICY)
+        if status == 206:
+            extra += (f'Content-Range: bytes {start}-{end}/{source.size}',)
+        writer.write(self.response_head(status, end - start + 1, mime, extra, getattr(writer, 'tg_keep', False)))
+        await writer.drain()
+        offset, payload = start, first
+        try:
+            while offset <= end:
+                self.video_ranges.check(source)
+                position = offset % BLOCK_SIZE
+                size = min(len(payload) - position, end - offset + 1)
+                if size <= 0:
+                    raise ConnectionError('Incomplete video range')
+                writer.write(memoryview(payload)[position:position + size])
+                await writer.drain()
+                offset += size
+                if offset <= end:
+                    payload = await self.video_block(writer, source, offset // BLOCK_SIZE)
+        except Exception as error:
+            # The headers are already on the wire: close this response, do not
+            # append a second HTTP error body to what the player sees as video.
+            raise ConnectionError('Video stream interrupted') from error
+        return True
+
+    async def video_block(self, writer, source, number):
+        task = asyncio.create_task(self.video_ranges.block(source, number))
+        try:
+            while not task.done():
+                reader = getattr(writer, 'tg_reader', None)
+                if writer.is_closing() or (reader is not None and reader.at_eof()):
+                    raise ConnectionError('Video reader closed')
+                await asyncio.wait((task,), timeout=.25)
+            return await task
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
     async def fetch_story(self, account, peer, ident):
         directory = TemporaryDirectory()
@@ -382,19 +511,43 @@ class Server:
         # The directory lives until the last active range reader and cache entry release it.
         return directory, path
 
+    async def story_download(self, writer, key, task):
+        task.readers = getattr(task, 'readers', 0) + 1
+        try:
+            while not task.done():
+                reader = getattr(writer, 'tg_reader', None)
+                if (getattr(writer, 'is_closing', lambda: False)() or
+                        (reader is not None and reader.at_eof())):
+                    raise ConnectionError('Story reader closed')
+                await asyncio.wait((task,), timeout=.25)
+            return task.result()
+        finally:
+            task.readers -= 1
+            if not task.readers and not task.done():
+                # Closing one range must preserve another reader, but an
+                # abandoned viewer must not consume a download slot for 120s.
+                task.cancel()
+                task.expiry.cancel()
+                if self.story_downloads.get(key) is task:
+                    self.story_downloads.pop(key)
+                await asyncio.gather(task, return_exceptions=True)
+
     async def story(self, writer, headers, query):
         if not self.authorised(headers, query) or self.core.locked:
             return await self.respond(writer, 403, b'token')
         account = query.get('account')
         try:
             peer, ident = int(query['peer']), int(query['id'])
-            self.core.story_backend(account)
+            backend = self.core.story_backend(account)
+            def current():
+                if self.core.story_backend(account) is not backend:
+                    raise PermissionError('The active account changed.')
             view = query.get('view', '')
             if not re.fullmatch(r'[a-zA-Z0-9-]{1,64}', view):
                 raise ValueError('Invalid viewer')
             # WebKit probes videos and requests byte ranges as playback advances.
             # Share one download within that viewing session, rechecking on next open.
-            key = (account, peer, ident, view)
+            key = (account, id(backend), peer, ident, view)
             task = self.story_downloads.pop(key, None)
             if task is None:
                 task = asyncio.create_task(self.fetch_story(account, peer, ident))
@@ -404,20 +557,22 @@ class Server:
                 task.expiry.cancel()
             self.story_downloads[key] = task
             task.expiry = asyncio.get_running_loop().call_later(120, self.story_downloads.pop, key, None)
-            directory, path = await asyncio.shield(task)
-            self.core.story_backend(account)
+            directory, path = await self.story_download(writer, key, task)
+            current()
         except PermissionError:
             return await self.respond(writer, 403, b'account')
         except (ValueError, KeyError):
             return await self.respond(writer, 400, b'')
+        except ConnectionError:
+            raise
         except Exception:
             return await self.respond(writer, 404, b'')
         if not path or not path.is_file() or path.stat().st_size > MAX_MEDIA:
             return await self.respond(writer, 404, b'')
-        return await self.send_file(writer, headers, path, 'Cache-Control: no-store')
+        return await self.send_file(writer, headers, path, 'Cache-Control: no-store', guard=current)
 
     async def secret_media(self, writer, headers, query, peer, ident, thumbnail):
-        account = self.core.account
+        current = self.account_guard()
         folder = self.core.root / 'secret-previews'
         folder.mkdir(parents=True, exist_ok=True, mode=0o700)
         with TemporaryDirectory(dir=folder) as directory:
@@ -426,9 +581,11 @@ class Server:
                 return await self.respond(writer, 404, b'')
             if query.get('play') == 'caf' and is_ogg(path):
                 path = await asyncio.to_thread(playable_caf, path)
-            if self.core.locked or self.core.account != account:
+            try:
+                current()
+            except PermissionError:
                 return await self.respond(writer, 403, b'token')
-            return await self.send_file(writer, headers, path, 'Cache-Control: no-store')
+            return await self.send_file(writer, headers, path, 'Cache-Control: no-store', guard=current)
 
     async def staged(self, writer, headers, query):
         """A file waiting to be sent (the voice message just recorded, to listen to it)."""
@@ -438,28 +595,45 @@ class Server:
             path = self.core.staged(query.get('key', ''))
         except ValueError:
             return await self.respond(writer, 404, b'')
-        return await self.send_file(writer, headers, path, 'Cache-Control: no-store')
+        return await self.send_file(writer, headers, path, 'Cache-Control: no-store', guard=self.account_guard())
 
-    async def send_file(self, writer, headers, path, cache):
+    def account_guard(self):
+        account, backend = self.core.account, getattr(self.core, 'backend', None)
+        def current():
+            if self.core.locked or self.core.account != account or getattr(self.core, 'backend', None) is not backend:
+                raise PermissionError('The active account changed.')
+        return current
+
+    async def send_file(self, writer, headers, path, cache, *, guard=None):
+        if guard is not None:
+            guard()
         kind = AUDIO_TYPES.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0]
         if not kind:
-            kind = 'audio/ogg' if is_ogg(path) else 'application/octet-stream'
+            # Older caches used bare peer-message names. With nosniff a video
+            # labelled as an unknown binary cannot play even when its bytes are intact.
+            with path.open('rb') as source:
+                signature = source.read(16)
+            if signature[4:8] == b'ftyp':
+                kind = 'video/mp4'
+            elif signature.startswith(b'\x1aE\xdf\xa3'):
+                kind = 'video/webm'
+            elif signature.startswith(b'OggS'):
+                kind = 'audio/ogg'
+            elif signature.startswith(b'caff'):
+                kind = 'audio/x-caf'
+            elif signature.startswith(b'\xff\xd8\xff'):
+                kind = 'image/jpeg'
+            elif signature.startswith(b'\x89PNG\r\n\x1a\n'):
+                kind = 'image/png'
+            else:
+                kind = 'application/octet-stream'
         extra = (cache, 'Accept-Ranges: bytes', FILE_CONTENT_POLICY)
-        match = re.fullmatch(r'bytes=(\d*)-(\d*)', headers.get('range', '').strip())
         with path.open('rb') as stream:
             size = os.fstat(stream.fileno()).st_size
-            status, start, end = 200, 0, size - 1
-            if match and (match.group(1) or match.group(2)):
-                # Video players (WebKit's above all) read in byte ranges.
-                if match.group(1):
-                    start = int(match.group(1))
-                    if match.group(2):
-                        end = min(int(match.group(2)), end)
-                else:
-                    start = max(0, size - int(match.group(2)))
-                if start > end:
-                    return await self.respond(writer, 416, b'', extra=(f'Content-Range: bytes */{size}',))
-                status = 206
+            status, start, end = file_range(headers, size)
+            if status == 416:
+                return await self.respond(writer, 416, b'', extra=(f'Content-Range: bytes */{size}',))
+            if status == 206:
                 extra += (f'Content-Range: bytes {start}-{end}/{size}',)
             length = end - start + 1
             writer.write(self.response_head(status, length, kind, extra, getattr(writer, 'tg_keep', False)))
@@ -468,6 +642,13 @@ class Server:
             stream.seek(start)
             remaining = length
             while remaining:
+                if guard is not None:
+                    try:
+                        guard()
+                    except Exception as error:
+                        # A response has already started. End it instead of
+                        # appending a second HTTP status to the media bytes.
+                        raise ConnectionError('Media stream interrupted') from error
                 chunk = stream.read(min(remaining, 64 * 1024))
                 if not chunk:
                     raise ConnectionError('media file truncated during playback')
@@ -551,7 +732,8 @@ class Server:
         writer.write(b'HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\n'
                      b'Connection: keep-alive\r\nX-Accel-Buffering: no\r\n\r\nretry: 1000\n: hello\n\n')
         await writer.drain()
-        queue = asyncio.Queue()
+        from .event_queue import EventQueue
+        queue = EventQueue()
         queue.window_account = headers.get('x-tg-window-account', query.get('window_account'))
         self.core.subscribers.add(queue)
         try:
@@ -568,3 +750,4 @@ class Server:
             pass
         finally:
             self.core.subscribers.discard(queue)
+            queue.clear()

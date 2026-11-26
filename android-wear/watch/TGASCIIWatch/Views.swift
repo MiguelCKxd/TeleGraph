@@ -75,7 +75,7 @@ struct ChatListView: View {
 
     private func move(_ chat: ChatItem, _ direction: Int) async {
         do {
-            _ = try await engine.request(["op": "move_pin", "peer": chat.id, "direction": direction], as: [String: Bool].self)
+            _ = try await engine.request(chat.request("move_pin", parameters: ["direction": direction]), as: [String: Bool].self)
             await load()
         } catch {
             problem = error.localizedDescription
@@ -307,8 +307,7 @@ struct ChatView: View {
                 }
                 .task(id: message.id) {
                     guard !isSecret, message.out else { return }
-                    let details = try? await engine.request(["op": "message_dates", "peer": chat.id,
-                        "id": message.id, "group": chat.kind == "group"], as: WatchReadDetails.self)
+                    let details = try? await engine.request(chat.request("message_dates", parameters: ["id": message.id, "group": chat.kind == "group"]), as: WatchReadDetails.self)
                     if !Task.isCancelled && selectedMessage?.id == message.id { readDetails = details }
                 }
             }
@@ -344,7 +343,7 @@ struct ChatView: View {
         .frame(width: 24, height: 24).clipShape(Circle()).accessibilityHidden(true)
         .task(id: uid) {
             guard uid != 0, requestedPortraits.insert(uid).inserted else { return }
-            if let portrait = try? await engine.request(["op": "avatar", "peer": uid], as: SenderPortrait.self),
+            if let portrait = try? await engine.request(chat.request("avatar", parameters: ["peer": uid]), as: SenderPortrait.self),
                let data = portrait.image { portraits[uid] = data }
         }
     }
@@ -364,10 +363,9 @@ struct ChatView: View {
         defer { translating = false }
         do {
             let language = locale.identifier
-            let result = try await engine.request([
-                "op": "translate", "peer": chat.id, "ids": ids,
-                "language": language, "chat": chatMode
-            ], as: [String: String].self)
+            let result = try await engine.request(chat.request("translate", parameters: [
+                "ids": ids, "language": language, "chat": chatMode
+            ]), as: [String: String].self)
             translations.merge(result) { _, new in new }
             problem = result.isEmpty ? L("No hay traducción disponible.", "No translation available.") : nil
         } catch {
@@ -377,7 +375,7 @@ struct ChatView: View {
 
     func loadSecretInfo() async {
         do {
-            secretInfo = try await engine.request(["op": "secret_info", "peer": chat.id], as: SecretInfoItem.self)
+            secretInfo = try await engine.request(chat.request("secret_info"), as: SecretInfoItem.self)
             showingSecret.toggle()
         } catch {
             problem = error.localizedDescription
@@ -386,7 +384,7 @@ struct ChatView: View {
 
     func setSecretTTL(_ seconds: Int) async {
         do {
-            secretInfo = try await engine.request(["op": "secret_ttl", "peer": chat.id, "seconds": seconds], as: SecretInfoItem.self)
+            secretInfo = try await engine.request(chat.request("secret_ttl", parameters: ["seconds": seconds]), as: SecretInfoItem.self)
             await load()
         } catch {
             problem = error.localizedDescription
@@ -395,7 +393,7 @@ struct ChatView: View {
 
     func startSecret() async {
         do {
-            _ = try await engine.request(["op": "secret_start", "peer": chat.id], as: ChatItem.self)
+            _ = try await engine.request(chat.request("secret_start"), as: ChatItem.self)
             problem = L("Chat secreto iniciado. Vuelve a la lista.", "Secret chat started. Go back to the list.")
         } catch {
             problem = error.localizedDescription

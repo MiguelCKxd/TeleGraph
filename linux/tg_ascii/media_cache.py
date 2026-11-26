@@ -20,10 +20,13 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import time
 
 CACHE_VERSION = 'v1'
 MAX_BYTES = 384 * 1024 * 1024
 TARGET_BYTES = 256 * 1024 * 1024
+PRUNE_INTERVAL = 60
+PRUNE_WRITTEN_BYTES = 16 * 1024 * 1024
 _SAFE_SUFFIXES = frozenset(('.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.webm', '.tgs', '.source'))
 
 
@@ -57,10 +60,20 @@ def media_identity(media):
     return None
 
 
+def has_expiry(media):
+    """Self-destructing media or an automatically deleted message is not durable."""
+    for source in (media, getattr(media, 'media', None)):
+        for name in ('ttl_seconds', 'ttl_period'):
+            value = getattr(source, name, None)
+            if isinstance(value, (int, float)) and value > 0:
+                return True
+    return False
+
+
 def preview_entry(backend, media, thumb, suffix):
     """Cache path for one preview of ``media``, or None when it must not be cached."""
     directory = getattr(backend, 'media_cache_dir', None)
-    if directory is None or suffix.lower() not in _SAFE_SUFFIXES:
+    if directory is None or suffix.lower() not in _SAFE_SUFFIXES or has_expiry(media):
         return None
     identity = media_identity(media)
     if identity is None:
@@ -123,8 +136,10 @@ def store(entry, source):
     try:
         if Path(source).is_file() and Path(source).stat().st_size > 0:
             _replace_from(source, entry)
+            return Path(source).stat().st_size
     except OSError:
         pass
+    return 0
 
 
 def touch(path):
@@ -164,14 +179,33 @@ def prune(directory, max_bytes=MAX_BYTES, target_bytes=TARGET_BYTES):
     return removed
 
 
-async def prune_once(backend):
+async def prune_once(backend, added_bytes=0):
+    """Amortized pruning throughout a session, coalescing simultaneous stores.
+
+    Keep the public name for existing callers; it now means once per interval
+    or batch of written bytes, rather than once per entire application session.
+    """
     directory = getattr(backend, 'media_cache_dir', None)
-    if directory is None or getattr(backend, '_media_cache_pruned', False):
+    if directory is None:
         return
-    backend._media_cache_pruned = True
     import asyncio
     from .resources import disk_cache
-    await asyncio.to_thread(prune, directory, *disk_cache(MAX_BYTES, TARGET_BYTES))
+    backend._media_cache_added = getattr(backend, '_media_cache_added', 0) + max(0, added_bytes or 0)
+    def due():
+        return (time.monotonic() - getattr(backend, '_media_cache_pruned_at', -float('inf')) >= PRUNE_INTERVAL
+                or backend._media_cache_added >= PRUNE_WRITTEN_BYTES)
+    if not due():
+        return
+    lock = getattr(backend, '_media_cache_prune_lock', None)
+    if lock is None:
+        lock = backend._media_cache_prune_lock = asyncio.Lock()
+    async with lock:
+        if not due():
+            return
+        written = backend._media_cache_added
+        await asyncio.to_thread(prune, directory, *disk_cache(MAX_BYTES, TARGET_BYTES))
+        backend._media_cache_added -= written
+        backend._media_cache_pruned_at = time.monotonic()
 
 
 def purge(root, account):

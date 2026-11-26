@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "טלגרם לא החזירה את הנושא החדש. יש לרענן את רשימת הנושאים.",
   "This group must be upgraded to enable topics.": "כדי להפעיל נושאים, יש להפוך את הקבוצה לקבוצת־על.",
   "Reopen this group to check its topic settings.": "יש לפתוח שוב את הקבוצה כדי לבדוק את הגדרות הנושאים.",
-  "The call continues in the background.": "השיחה ממשיכה ברקע."
+  "The call continues in the background.": "השיחה ממשיכה ברקע.",
+  "Original media in the viewer": "מקוריים במציג",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "הצגת תמונות באיכות הגבוהה ביותר הזמינה בטלגרם, ללא דחיסה מחדש. התצוגות המקדימות נשארות קטנות. משתמש ביותר נתונים וזיכרון.",
+  "Photos and videos": "תמונות וסרטונים",
+  "SD · Standard": "SD · רגילה",
+  "HD · High quality": "HD · איכות גבוהה",
+  "Original as file": "מקור כקובץ",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "הכיתוב מצורף לקובץ הראשון. תמונות וסרטונים יוצרים אלבום; קבצים מעורבים אחרים נשלחים כמסמכים."
 }

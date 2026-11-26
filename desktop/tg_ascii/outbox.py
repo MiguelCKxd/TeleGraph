@@ -17,6 +17,7 @@ restart; attachments are referenced by path, never copied.
 """
 import asyncio
 import contextvars
+from collections import Counter
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 import itertools
@@ -103,6 +104,15 @@ class Pending:
     progress: int = -1
     thread_root: int | None = None
     topic_id: int | None = None
+    photo_quality: str | None = None
+
+    def reserve_ids(self):
+        """Allocate before persisting, including before the first upload/RPC."""
+        count = max(1, len(self.paths))
+        changed = len(self.random_ids) < count
+        while len(self.random_ids) < count:
+            self.random_ids.append(int.from_bytes(os.urandom(8), 'big', signed=True))
+        return changed
 
     def schedule_date(self):
         return datetime.fromisoformat(self.schedule) if self.schedule else None
@@ -131,22 +141,23 @@ def build_operation(backend, item, progress=None, demo=False):
     formats = [tuple(span) for span in item.format_spans]
     custom = [tuple(span) for span in item.custom_spans]
     schedule = item.schedule_date()
+    quality={'photo_quality':item.photo_quality} if getattr(item,'photo_quality',None) is not None and not demo else {}
     if item.topic_id is not None:
         return backend.forum_send(item.peer, item.topic_id, text, formats, custom, paths=paths,
                                   reply_to=item.reply_to, progress=progress, silent=item.silent,
                                   schedule=schedule, voice=bool(item.voice), duration=item.voice,
                                   as_photo=bool(len(paths) == 1 and paths[0].suffix.lower() in
-                                                ('.jpg', '.jpeg', '.png', '.webp')))
+                                                ('.jpg', '.jpeg', '.png', '.webp')),**quality)
     if item.voice and len(paths) == 1 and not demo:
         return backend.send_audio(item.peer, paths[0], True, item.voice, reply_to=item.reply_to)
     if len(paths) > 1:
         return backend.send_batch(item.peer, paths, text, formats, custom, progress, reply_to=item.reply_to,
-                                  silent=item.silent, schedule=schedule)
+                                  silent=item.silent, schedule=schedule,**quality)
     path = paths[0] if paths else None
     photo = bool(path and path.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp'))
-    if not demo and (formats or item.reply_to or photo or item.silent or schedule):
+    if not demo and (formats or item.reply_to or photo or item.silent or schedule or (path and quality)):
         return backend.send_formatted(item.peer, text, formats, custom, path, progress if path else None,
-                                      reply_to=item.reply_to, as_photo=photo, silent=item.silent, schedule=schedule)
+                                      reply_to=item.reply_to, as_photo=photo, silent=item.silent, schedule=schedule,**quality)
     if path:
         if custom:
             return backend.send_custom(item.peer, text, custom, path, progress)
@@ -214,7 +225,8 @@ class Outbox:
                 raise
 
     # -- queue -------------------------------------------------------------
-    def add(self, item, *, require_persistence=False):
+    def add(self, item, *, require_persistence=True):
+        item.reserve_ids()
         self.items.append(item)
         try:
             if require_persistence:
@@ -277,21 +289,30 @@ class Outbox:
             return
         now = time.monotonic()
         waiting = False
+        from .resources import network_slots
+        limit = network_slots(4)
+        active = Counter(account for account, _ in self.inflight)
+        seen, backends = set(), {}
         for item in list(self.items):
             if item.state == 'failed':
                 continue
             waiting = True
             scope = (item.account, item.peer)
-            if scope in self.inflight or item.retry_at > now:
+            if scope in seen:
                 continue
+            seen.add(scope)
             # One message at a time per chat keeps Telegram order = typing order.
-            first = next(other for other in self.items if (other.account, other.peer) == scope and other.state != 'failed')
-            if first is not item:
+            # Remember the head even when it is waiting for a retry.
+            if scope in self.inflight or item.retry_at > now or active[item.account] >= limit:
                 continue
-            backend = self.backend_for(item.account)
+            if item.account not in backends:
+                backends[item.account] = self.backend_for(item.account)
+            backend = backends[item.account]
             if backend is None:
                 continue
             self.start(item, backend)
+            if scope in self.inflight:
+                active[item.account] += 1
         if self.timer is not None:
             try:
                 self.app.root.after_cancel(self.timer)
@@ -311,6 +332,15 @@ class Outbox:
     def start(self, item, backend):
         app = self.app
         scope = (item.account, item.peer)
+        if item.reserve_ids():
+            # Migrate queues written before ids were reserved at enqueue time.
+            try:
+                self.save(require_persistence=True)
+            except (OSError, TypeError, ValueError) as exc:
+                from .auth import error_message
+                item.state, item.error = 'failed', error_message(exc)
+                self.changed(*scope)
+                return
         item.state, item.attempts = 'sending', item.attempts + 1
         self.inflight[scope] = item
         self.changed(*scope)
@@ -321,9 +351,8 @@ class Outbox:
                 item.progress = value
                 app.worker.events.put((lambda _: self.changed(*scope), None))
 
-        operation = build_operation(backend, item, progress if item.paths else None, demo=app.demo)
-
         async def deliver():
+            operation = build_operation(backend, item, progress if item.paths else None, demo=app.demo)
             coroutine = with_random_ids(item.random_ids, operation)
             if item.paths:
                 return await coroutine  # transfer_timeout already bounds inactivity.

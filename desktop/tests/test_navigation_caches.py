@@ -85,11 +85,10 @@ class ReplyCacheTests(unittest.TestCase):
         self.assertEqual(first.call_count,1500)
         self.assertEqual(second.call_count,1500)
         first.assert_called_with(None);second.assert_called_with(None)
-        operation.assert_called_with()
-        self.assertEqual(operation.call_count,1500)
+        operation.assert_not_called()  # This fixture closes queued work before it starts.
         app.fetch_art(next(iter(app.preview_failed)),operation,first)
         self.assertFalse(app.jobs)
-        self.assertEqual(operation.call_count,1500)
+        operation.assert_not_called()
 
     def test_old_chats_are_evicted_while_visible_missing_and_composed_contexts_survive(self):
         app=self.app();visible=self.message(1);composed=self.message(3)

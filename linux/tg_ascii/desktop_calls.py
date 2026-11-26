@@ -92,6 +92,9 @@ class DesktopCalls:
         if self.demo or peer is None or not feature_enabled(self, 'calls'):
             return
         owner, account = root_owner(self), self.ui_account
+        from .app_lock import is_locked
+        if is_locked(owner) or owner.closing:
+            return
         backend = self.service.backend
         if create:
             from .app_dialogs import messagebox
@@ -338,6 +341,11 @@ class CallWindow:
             self.pending = False
             self._dismiss_when_ended = False
             self.close_call_pip()
+            previous_gpu = getattr(self, 'gpu', None)
+            if previous_gpu is not None:
+                previous_gpu.close()
+                self.gpu = None
+            self._gpu_declined = False
             if hasattr(self, 'local_picture'):
                 self.local_picture.place_forget()
                 self.local_picture.configure(image='')
@@ -726,10 +734,7 @@ class CallWindow:
             size = (max(1, self.picture.winfo_width()), max(1, self.picture.winfo_height()))
             def decode():
                 from .calls_native import frame_image
-                picture = frame_image(frame)
-                if picture is not None:
-                    picture.thumbnail(size)
-                return picture
+                return frame_image(frame, size)
             def decoded(picture):
                 self._decoding = False
                 if (picture is None or not self.alive() or token != self.snapshot.get('token')
@@ -828,8 +833,9 @@ class CallWindow:
         from .advanced_features import feature_enabled
         from .app_lock import is_locked
         gpu = getattr(self, 'gpu', None)
-        if ended or not active or not feature_enabled(self.owner, 'gpu_video') or getattr(self, '_gpu_declined', False):
-            if gpu is not None and (ended or not active):
+        if (ended or not active or is_locked(self.owner) or not feature_enabled(self.owner, 'gpu_video')
+                or getattr(self, '_gpu_declined', False)):
+            if gpu is not None:
                 gpu.close()
                 self.gpu = None
             return False
@@ -883,8 +889,7 @@ class CallWindow:
         def decode():
             from PIL import ImageOps
             from .calls_native import frame_image
-            image = frame_image(frame)
-            image.thumbnail(size)
+            image = frame_image(frame, size)
             return ImageOps.mirror(image)
         def decoded(image):
             self._decoding_local = False

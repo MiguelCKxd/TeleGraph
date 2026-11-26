@@ -1,0 +1,9 @@
+{
+  "version": "3.4.0",
+  "sources": {
+    "desktop": "2a672f6dac6915083f9081e844f2b0c1478649c7",
+    "linux": "7a8d154ee39aa3f01b7a25dc2215c1d130998ae7",
+    "android-wear": "d73bc0126d4c614f7380800b2a3f3c672e62a654",
+    "apple": "a37515242e6e26d7ebf157b7059692617d30ae38"
+  }
+}

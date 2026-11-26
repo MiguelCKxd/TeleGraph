@@ -118,7 +118,7 @@ class PhotoCarousel(ttk.Frame):
                     if index == self.index:
                         self.paint()
             self.app.request_photo(path, (900, HEIGHT), painted, owner=self.canvas, valid=self.alive)
-        self.app.worker.submit(self.backend.download_media(t.MessageMediaPhoto(photo), target, thumbnail=True),
+        self.app.worker.submit(self.backend.download_media(t.MessageMediaPhoto(photo=photo), target, thumbnail=True),
                                loaded, lambda _: None)
 
     def press(self, event):
@@ -155,11 +155,11 @@ class PhotoCarousel(ttk.Frame):
                 state['index'] = target
                 image = items[target][0]
                 destination = self.app.preview_dir / f'{self.account}-article-{image.id}-full'
-                self.app.worker.submit(self.backend.download_media(t.MessageMediaPhoto(image), destination),
+                self.app.worker.submit(self.backend.download_media(t.MessageMediaPhoto(photo=image), destination),
                                        lambda result: viewer._set_media(result, items[target][1]) if viewer.winfo_exists() else None,
                                        lambda _: None)
             viewer = show_image(self.app.root, path, text, navigate=navigate if len(items) > 1 else None)
             if hasattr(self.app, 'popups'):
                 self.app.popups.append(viewer)
-        self.app.worker.submit(self.backend.download_media(t.MessageMediaPhoto(photo), full), loaded,
+        self.app.worker.submit(self.backend.download_media(t.MessageMediaPhoto(photo=photo), full), loaded,
                                lambda error: self.app.show_error(error))

@@ -155,6 +155,9 @@ class GroupCallManager(CallManager):
                 elif not isinstance(entity, (types.Channel, types.Chat)):
                     raise CallError('Select a group or channel')
                 self._invited.clear()
+                with self._frame_lock:
+                    self._tiles.clear()
+                    self._tile_seen.clear()
                 self.view_only = view_only
                 self.conference = bool(conference)
                 self.can_manage = bool(conference is True or getattr(entity, 'creator', False)
@@ -228,7 +231,13 @@ class GroupCallManager(CallManager):
     async def _finish(self, c, error='', *, discard=False):
         # The group adapter leaves its InputGroupCall. Never send the P2P
         # DiscardCall RPC inherited by the individual-call implementation.
-        await super()._finish(c, error, discard=False)
+        try:
+            await super()._finish(c, error, discard=False)
+        finally:
+            if self._call is None or self._call is c:
+                with self._frame_lock:
+                    self._tiles.clear()
+                    self._tile_seen.clear()
 
     async def _control_info(self):
         handle = await self._engine.input_call()

@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "Telegram не вярнуў новую тэму. Абнавіце спіс тэм.",
   "This group must be upgraded to enable topics.": "Пераўтварыце групу ў супергрупу, каб уключыць тэмы.",
   "Reopen this group to check its topic settings.": "Адкрыйце групу зноў, каб праверыць налады тэм.",
-  "The call continues in the background.": "Выклік працягваецца ў фонавым рэжыме."
+  "The call continues in the background.": "Выклік працягваецца ў фонавым рэжыме.",
+  "Original media in the viewer": "Арыгіналы ў праглядальніку",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "Паказваць фота ў найвышэйшай даступнай якасці Telegram без паўторнага сціскання. Мініяцюры застаюцца малымі. Выкарыстоўвае больш даных і памяці.",
+  "Photos and videos": "Фота і відэа",
+  "SD · Standard": "SD · Стандартная",
+  "HD · High quality": "HD · Высокая якасць",
+  "Original as file": "Арыгінал як файл",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "Подпіс дадаецца да першага файла. Фота і відэа ўтвараюць альбом; іншыя змешаныя файлы адпраўляюцца як дакументы."
 }

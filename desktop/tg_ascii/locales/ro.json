@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "Telegram nu a returnat subiectul nou. Actualizează lista de subiecte.",
   "This group must be upgraded to enable topics.": "Transformă acest grup într-un supergrup pentru a activa subiectele.",
   "Reopen this group to check its topic settings.": "Redeschide grupul pentru a verifica setările subiectelor.",
-  "The call continues in the background.": "Apelul continuă în fundal."
+  "The call continues in the background.": "Apelul continuă în fundal.",
+  "Original media in the viewer": "Originale în vizualizator",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "Afișează fotografiile la cea mai bună calitate disponibilă pe Telegram, fără recomprimare. Previzualizările rămân mici. Folosește mai multe date și memorie.",
+  "Photos and videos": "Fotografii și videoclipuri",
+  "SD · Standard": "SD · Standard",
+  "HD · High quality": "HD · Calitate înaltă",
+  "Original as file": "Original ca fișier",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "Descrierea este atașată primului fișier. Fotografiile și videoclipurile formează un album; celelalte fișiere mixte sunt trimise ca documente."
 }

@@ -61,7 +61,9 @@ def message_signature(message, app=None):
             tuple(bytes(entity) for entity in message.entities),message.reply_to_id,message.read,
             tuple(message.reactions),message.sender_id,message.sender_color,message.reply_icon_id,
             bytes(message.reply_markup) if message.reply_markup is not None else None,
-            message.keyboard_applicable, getattr(message, 'comments_count', None))
+            message.keyboard_applicable, getattr(message, 'comments_count', None),
+            getattr(message, 'edited_at', None),getattr(message,'protected',False),
+            getattr(message,'ttl_period',0),getattr(message.media,'ttl_seconds',0))
 
 
 def layout_text_run(text,x,y,left,right,line,measure):
@@ -93,6 +95,7 @@ def bubble_left(width,bubble_width,outgoing):
 
 
 AUTHOR_AVATAR=34
+AUTHOR_PATH_LIMIT=256
 
 
 def time_and_status(clock,message):
@@ -213,7 +216,8 @@ class BubbleView(tk.Canvas):
                 if not valid():return
                 self.itemconfigure(item,image=photo);self.keep_photo(item,photo)
             app.request_photo(path,(AUTHOR_AVATAR,AUTHOR_AVATAR),apply,owner=self,valid=valid)
-        if key in paths:show(paths[key]);return
+        if key in paths:
+            path=paths.pop(key);paths[key]=path;show(path);return
         if key in waiting:waiting[key].append(show);return
         waiting[key]=[show]
         name=(message.sender or '').split(' · ')[0]
@@ -231,6 +235,7 @@ class BubbleView(tk.Canvas):
             return str(path)
         def loaded(path):
             paths[key]=path
+            while len(paths)>AUTHOR_PATH_LIMIT:paths.pop(next(iter(paths)))
             for callback in waiting.pop(key,()):callback(path)
         def failed(_):waiting.pop(key,None)
         app.worker.submit(fetch(),loaded,failed)

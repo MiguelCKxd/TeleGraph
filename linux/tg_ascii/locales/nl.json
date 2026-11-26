@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "Telegram heeft het nieuwe onderwerp niet teruggestuurd. Vernieuw de lijst met onderwerpen.",
   "This group must be upgraded to enable topics.": "Zet deze groep om in een supergroep om onderwerpen in te schakelen.",
   "Reopen this group to check its topic settings.": "Open de groep opnieuw om de instellingen voor onderwerpen te controleren.",
-  "The call continues in the background.": "Het gesprek gaat op de achtergrond door."
+  "The call continues in the background.": "Het gesprek gaat op de achtergrond door.",
+  "Original media in the viewer": "Originelen in de viewer",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "Toon foto’s in de hoogste kwaliteit die Telegram biedt, zonder opnieuw te comprimeren. Voorbeelden blijven klein. Gebruikt meer data en geheugen.",
+  "Photos and videos": "Foto’s en video’s",
+  "SD · Standard": "SD · Standaard",
+  "HD · High quality": "HD · Hoge kwaliteit",
+  "Original as file": "Origineel als bestand",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "Het bijschrift wordt aan het eerste bestand toegevoegd. Foto’s en video’s vormen een album; andere gemengde bestanden worden als documenten verstuurd."
 }

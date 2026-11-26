@@ -623,9 +623,11 @@ class DesktopActions(DesktopAdvancedMixin, DesktopProfile, DesktopTools):
             if self.busy or account!=self.ui_account or backend is not self.service.backend: return
             def saved(_):
                 if account==self.ui_account and window.winfo_exists():window.destroy(); self.refresh()
+            # Tk fields belong to this callback's thread, not the network worker.
+            first_name, last_name, phone_number = first.get(), last.get(), phone.get()
             note = note_value() if note_value else None
             async def operation():
-                result = await backend.save_contact(profile['id'], first.get(), last.get(), phone.get())
+                result = await backend.save_contact(profile['id'], first_name, last_name, phone_number)
                 if note is not None and note != (profile.get('note') or ''):
                     from .contact_tools import save_contact_note
                     await save_contact_note(backend, profile['id'], note)

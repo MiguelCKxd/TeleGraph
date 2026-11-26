@@ -20,6 +20,9 @@ class Accounts:
         self.on_change = None
         self.on_registry = None
         self.services, self.labels, self.identities = {}, {}, {}
+        self._photo_tasks, self._photo_ids = {}, {}
+        self._closing = False
+        self._leaving_accounts = set()
         self.current = 'account'
         self.credentials = None
         self.failures = {}
@@ -101,17 +104,48 @@ class Accounts:
                 await service.close()
                 self.services.pop(key, None)
                 raise ValueError(tr('Esta cuenta ya esta añadida. Vuelve y seleccionala.'))
+        if self._closing or key in self._leaving_accounts:
+            return
         self.labels[key], self.identities[key] = label, identity
         self.entries[key] = {'label': label, 'user_id': identity}
         if not self.demo:
             self.entries[key]['premium'] = getattr(me, 'premium', False) is True
             # 3.2: the startup chooser shows each account's own picture.
-            from .account_photos import remember
-            task = asyncio.get_running_loop().create_task(remember(self.root, key, service.client, me))
-            self.__dict__.setdefault('_photo_tasks', set()).add(task)
-            task.add_done_callback(self._photo_tasks.discard)
+            self._remember_photo(key, service.client, me)
         self.failures.pop(key, None)
         self.persist()
+
+    def _remember_photo(self, key, client, me):
+        from .account_photos import has_photo, photo_path, remember
+        identity = getattr(getattr(me, 'photo', None), 'photo_id', None)
+        signature = (getattr(me, 'id', None), identity, has_photo(me))
+        previous = self._photo_tasks.get(key)
+        if previous is not None:
+            if previous[0] == signature:
+                return
+            previous[1].cancel()
+        if self._photo_ids.get(key) == signature and (not has_photo(me) or photo_path(self.root, key).is_file()):
+            return
+        task = asyncio.get_running_loop().create_task(remember(self.root, key, client, me))
+        self._photo_tasks[key] = (signature, task)
+
+        def finished(done):
+            if self._photo_tasks.get(key) != (signature, done):
+                return
+            self._photo_tasks.pop(key, None)
+            if not done.cancelled() and done.exception() is None and (done.result() or not signature[2]):
+                self._photo_ids[key] = signature
+        task.add_done_callback(finished)
+
+    async def _cancel_photos(self, key=None):
+        keys = list(self._photo_tasks) if key is None else [key]
+        tasks = [value[1] for name in keys if (value := self._photo_tasks.pop(name, None)) is not None]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        if key is not None:
+            self._photo_ids.pop(key, None)
 
     def reorder(self, keys):
         """1.5.4: the order of the account picker (this window's data only)."""
@@ -242,6 +276,8 @@ class Accounts:
 
     async def close(self):
         # Disconnect saves SQLite sessions; log_out would revoke them.
+        self._closing = True
+        await self._cancel_photos()
         await asyncio.gather(*(service.close() for service in self.services.values()), return_exceptions=True)
 
     async def logout(self, key):
@@ -261,6 +297,8 @@ class Accounts:
                     from .recovery import Recovery
                     service.recovery=Recovery(service);service.recovery.start()
                 raise
+        self._leaving_accounts.add(key)
+        await self._cancel_photos(key)
         await service.close()
         if not self.demo:
             # Cached previews belong to the account that is leaving.
@@ -295,6 +333,7 @@ class AccountsView(Accounts):
     """
     _SHARED = frozenset(('root', 'demo', 'factory', 'services', 'labels', 'identities',
                          'entries', 'failures', 'credentials', '_restore_slots',
+                         '_photo_tasks', '_photo_ids', '_closing', '_leaving_accounts',
                          'registry', '_persisted_registry', 'on_registry'))
 
     def __init__(self, owner, current=None, pinned=False):

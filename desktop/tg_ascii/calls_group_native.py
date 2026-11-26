@@ -1,5 +1,6 @@
 """Native-only group binding proxy. MTProto and account state never enter the child."""
 import asyncio
+from concurrent.futures import Future as ThreadFuture
 from .calls_process import ProcessNativeEngine, NativeWorkerError
 from .calls_rpc_codec import METHODS, EVENTS, encode, decode
 
@@ -170,9 +171,14 @@ class GroupNativeProxy(ProcessNativeEngine):
 
     async def close(self):
         self._closing = True
-        for future in tuple(self._native_tasks):
+        tasks = tuple(task for task in self._native_tasks if task is not asyncio.current_task())
+        for future in tasks:
             future.cancel()
+        if tasks:
+            await asyncio.gather(*(asyncio.wrap_future(task) if isinstance(task, ThreadFuture) else task
+                                   for task in tasks), return_exceptions=True)
         self._native_tasks.clear()
+        self._native_callbacks.clear()
         if self._process is None:
             return
         try:
@@ -185,6 +191,8 @@ class GroupNativeProxy(ProcessNativeEngine):
                 await self._process.wait()
         finally:
             self.exit_code = self._process.returncode
+            from .app_lifecycle import unregister_child
+            unregister_child(self._process.pid)
             if self._reader:
                 await asyncio.gather(self._reader, return_exceptions=True)
             if self._process.stdin:

@@ -36,9 +36,13 @@ def load_state(root, account):
             'last': data.get('last') if isinstance(data.get('last'), dict) else {}}
 
 
-def save_state(root, account, state):
+def save_state(root, account, state, *, preserve_enabled=False):
     path = state_path(root, account)
     with _lock:
+        if preserve_enabled:
+            # A slow import must not overwrite a newer user decision to turn
+            # synchronization off while its last Telegram batch was in flight.
+            state = {**state, 'enabled': load_state(root, account)['enabled']}
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         descriptor, temporary = tempfile.mkstemp(prefix='.contacts-', dir=path.parent)
         try:

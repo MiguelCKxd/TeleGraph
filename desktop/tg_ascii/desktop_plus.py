@@ -205,6 +205,8 @@ class DesktopPlus(DesktopModern):
         from .media_retry import failed_recently,remember_failure,clear_failure
         if not self.preferences.values['inline_media'] or self.demo: return
         account, peer, backend = self.ui_account, self.active, self.service.backend
+        from .desktop_media_lifetime import private_preview
+        if private_preview(self,message,peer):return
         key = (account, peer, message.id)
         if key in self.preview_cache:
             self.insert_preview((epoch, mark, self.preview_cache[key]))
@@ -552,13 +554,12 @@ class DesktopPlus(DesktopModern):
         if owner is not None:
             return owner.notify_message(account, peer, message, source=source)
         key = (account, peer, message.id)
-        msg_summary = f'{message.sender}: {message.text[:160]}' if getattr(message, 'text', None) else (message.sender or '')
         if peer in getattr(self, '_suppressed_thread_peers', ()):
-            record_notice(self, 'suppressed', source, key, content=msg_summary)
+            record_notice(self, 'suppressed', source, key)
             return
-        record_notice(self,'received',source,key,content=msg_summary)
+        record_notice(self,'received',source,key)
         if key in self.notify_seen:
-            record_notice(self,'duplicate',source,key,content=msg_summary);return
+            record_notice(self,'duplicate',source,key);return
         self.notify_seen.add(key)
         if len(self.notify_seen) > 4000:
             # The persistent ledger keeps older IDs. Do not clear all recent
@@ -598,13 +599,13 @@ class DesktopPlus(DesktopModern):
         backend = self.service.service(account).backend
         def loaded(policy):
             if policy.get('_duplicate'):
-                record_notice(self,'duplicate',source,key,content=msg_summary);return
+                record_notice(self,'duplicate',source,key);return
             if getattr(self, 'closed', False) or getattr(self, 'closing', False):
                 release();return
             if account not in self.service.entries:
                 release();return
             if not policy['enabled'] or not self.preferences.values['notifications']:
-                record_notice(self,'suppressed',source,key,content=msg_summary);commit();return
+                record_notice(self,'suppressed',source,key);commit();return
             view = foreground_view(self)
             if reading_chat(view) and not self.preferences.values['notify_active']:
                 commit();return
@@ -619,6 +620,10 @@ class DesktopPlus(DesktopModern):
             if is_locked(self):
                 title=APP_NAME;body=tr('New message');reply=None;view=None
                 notice_content = APP_NAME + ': ' + tr('New message')
+            from .media_cache import has_expiry
+            from .secret_chats import is_secret_peer
+            if has_expiry(message) or getattr(message, 'protected', False) or is_secret_peer(peer):
+                notice_content = ''
             if view is not None:
                 try:
                     if policy['sound'] and self.preferences.values['notify_sound']: view.root.bell()
@@ -858,6 +863,12 @@ class DesktopPlus(DesktopModern):
 
     def account_change(self, event):
         account, kind, payload = event
+        if kind == 'delete':
+            from .desktop_media_lifetime import revoke
+            revoke(self, account, payload[0], payload[1])
+        elif kind in ('edit','advanced_media'):
+            from .desktop_media_lifetime import restricted,revoke
+            if restricted(payload[1],self,payload[0]):revoke(self,account,payload[0],{payload[1].id})
         if account not in self.service.entries or account in getattr(self, '_logging_out_accounts', ()):
             return
         if kind in ('call', 'group_call'):

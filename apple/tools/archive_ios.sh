@@ -68,6 +68,15 @@ xcrun nm -gU "$calls/TeleGraphCalls" | awk '
   END { if (!found) { print "Missing calls engine Python entry point" > "/dev/stderr"; exit 1 } }
 '
 codesign --verify --deep --strict "$phone"
+if [[ ! -f "$phone/app/tg_ascii_mobile/web/native_glass.js" ]]; then
+  echo "Missing native glass web bridge"
+  exit 1
+fi
+executable=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$phone/Info.plist")
+if ! xcrun nm -gU "$phone/$executable" | awk '$NF == "_OBJC_CLASS_$_TGNativeGlass" { found = 1 } END { exit !found }'; then
+  echo "Missing native SwiftUI glass implementation"
+  exit 1
+fi
 version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$phone/Info.plist")
 build=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$phone/Info.plist")
 out="$archive_dir/TeleGraph-iOS-$version-$build.xcarchive"

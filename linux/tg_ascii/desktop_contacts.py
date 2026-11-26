@@ -32,7 +32,7 @@ async def _sync(root, account, backend, contacts=None):
     try:
         return await import_contacts(backend, contacts, state)
     finally:
-        await asyncio.to_thread(save_state, root, account, state)
+        await asyncio.to_thread(save_state, root, account, state, preserve_enabled=True)
 
 
 def auto_sync(app):

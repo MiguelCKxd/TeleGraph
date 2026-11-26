@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "Telegram ने नया विषय नहीं लौटाया। विषयों की सूची रीफ़्रेश करें।",
   "This group must be upgraded to enable topics.": "विषय चालू करने के लिए इस समूह को सुपरग्रुप में बदलें।",
   "Reopen this group to check its topic settings.": "विषयों की सेटिंग जाँचने के लिए समूह दोबारा खोलें।",
-  "The call continues in the background.": "कॉल बैकग्राउंड में जारी है।"
+  "The call continues in the background.": "कॉल बैकग्राउंड में जारी है।",
+  "Original media in the viewer": "व्यूअर में मूल मीडिया",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "फ़ोटो को दोबारा संपीड़ित किए बिना Telegram पर उपलब्ध उच्चतम गुणवत्ता में दिखाएँ। पूर्वावलोकन छोटे रहते हैं। अधिक डेटा और मेमोरी लगती है।",
+  "Photos and videos": "फ़ोटो और वीडियो",
+  "SD · Standard": "SD · मानक",
+  "HD · High quality": "HD · उच्च गुणवत्ता",
+  "Original as file": "मूल फ़ाइल के रूप में",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "कैप्शन पहली फ़ाइल से जुड़ता है। फ़ोटो और वीडियो एक एल्बम बनाते हैं; अन्य मिश्रित फ़ाइलें दस्तावेज़ों के रूप में भेजी जाती हैं।"
 }

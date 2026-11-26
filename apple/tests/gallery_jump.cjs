@@ -22,8 +22,9 @@ const account = 'sendero';
 const calls = [];
 const passed = [];
 const promoted = new Set();
+const drafts = new Map();
 let nativeWindow = false;
-let delayMethod, release;
+let delayMethod, release, failMethod, pagedMedia = false;
 
 function message(id, fields = {}) {
   return {id, text: 'Mensaje ' + id, sender: 'Nora', sender_id: 71, date: 1770000000 + id,
@@ -45,6 +46,7 @@ async function api(name, args) {
     delayMethod = null;
     await new Promise(resolve => {release = resolve;});
   }
+  if (name === failMethod) { failMethod = null; throw new Error('Network unavailable'); }
   switch (name) {
     case 'state': return snapshot();
     case 'strings': return {'Go to message': 'Ir al mensaje', 'Shared media': 'Archivos compartidos'};
@@ -55,11 +57,17 @@ async function api(name, args) {
       const chat = chats.find(item => item.id === args.peer);
       if (chat.forum || promoted.has(chat.id)) return {forum: true, chat: {...chat, forum: true}};
       if (name === 'window_send') return {key: 'queue'};
-      return {chat, messages: [message(809)], draft: {text: '', files: [], formats: [], custom: [], reply: null}};
+      return {chat, messages: [message(809)], draft: drafts.get(args.account + ':' + args.peer) ||
+        {text: '', files: [], formats: [], custom: [], reply: null}};
     }
     case 'appearance': return args.values || {};
-    case 'window_close': case 'draft': return true;
-    case 'send': return {key: 'queue'};
+    case 'window_close': return true;
+    case 'draft':
+      drafts.set(args.account + ':' + args.peer, {text: args.text, files: args.files || [],
+        formats: args.formats || [], custom: args.custom || [], reply: args.reply, photo_quality: args.photo_quality});
+      return true;
+    case 'send': case 'send_files': return {key: 'queue'};
+    case 'pick_files': return [{key: 'fixture-photo.png', name: 'photo.png', size: 100}];
     case 'open': {
       const chat = chats.find(item => item.id === args.peer);
       if (chat.forum) return {forum: true, chat};
@@ -69,6 +77,10 @@ async function api(name, args) {
       return {chat, messages: rows, outbox: {items: []}};
     }
     case 'shared_media':
+      if (pagedMedia && args.peer === leo.id && args.kind === 'photos_only')
+        return args.offset ? [photo(450), photo(449)] : Array.from({length: 50}, (_, i) => photo(500 - i));
+      if (args.kind === 'photos_only') return [photo(515)];
+      if (args.kind === 'videos') return [photo(80, {kind: 'video'})];
       if (args.peer === forum.id) return [photo(90, {topic_id: 1}), photo(70, {topic_id: 7})];
       if (args.peer === group.id) return [photo(85, {thread_root: 30, kind: 'video'})];
       return [photo(515), photo(80, {kind: 'video'})];
@@ -101,9 +113,15 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname.startsWith('/api/')) {
     let body = ''; for await (const part of req) body += part;
-    const result = await api(url.pathname.slice(5), JSON.parse(body || '{}'));
-    res.writeHead(200, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({ok: true, result})); return;
+    try {
+      const result = await api(url.pathname.slice(5), JSON.parse(body || '{}'));
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({ok: true, result}));
+    } catch (error) {
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({ok: false, error: error.message}));
+    }
+    return;
   }
   if (['/avatar', '/media', '/profile-photo', '/logo', '/sticker'].includes(url.pathname)) {
     res.writeHead(200, {'Content-Type': 'image/png'}); res.end(png); return;
@@ -238,6 +256,69 @@ const server = http.createServer(async (req, res) => {
     await dialog.getByRole('button', {name: 'Close', exact: true}).click();
     passed.push({case: 'Foto de perfil sin acción de mensaje'});
 
+    for (const offline of [true, false]) {
+      await shared(group, 0);
+      const before = await page.evaluate(() => ({peer: state.open.peer, root: state.open.thread?.root,
+        scroll: document.getElementById('scroll')?.scrollTop, view: state.view}));
+      const start = calls.length;
+      if (offline) await page.evaluate(() => {state.connection = 'offline';});
+      else failMethod = 'gallery_origin';
+      await jump.click();
+      await page.waitForTimeout(80);
+      assert.equal(await dialog.count(), 1, 'Resolver un origen sin conexión debe conservar el visor');
+      assert.equal(await jump.isEnabled(), true);
+      assert(await dialog.locator('.gallery-notice').isVisible());
+      assert.deepEqual(await page.evaluate(() => ({peer: state.open.peer, root: state.open.thread?.root,
+        scroll: document.getElementById('scroll')?.scrollTop, view: state.view})), before);
+      assert(!calls.slice(start).some(row => ['open', 'comments', 'context'].includes(row.name)));
+      if (offline) assert(!calls.slice(start).some(row => row.name === 'gallery_origin'));
+      await page.evaluate(() => {state.connection = 'online';});
+      await jump.click();
+      await check(group.id, 85);
+      passed.push({case: offline ? 'Sin conexión conserva vídeo y permite reintentar el hilo correcto' :
+        'Fallo de red antes de actualizar estado conserva visor y navegación'});
+    }
+    await page.evaluate(chat => openShared(chat, 'photos'), leo);
+    await page.locator('.shared-filters').waitFor();
+    assert.equal(await page.locator('.grid .cell').count(), 2);
+    await page.locator('.shared-filters').getByRole('button', {name: 'Photos', exact: true}).click();
+    await page.waitForFunction(() => state.shared?.kind === 'photos_only' && state.shared.items?.length === 1);
+    await page.locator('.grid .cell').click();
+    assert.equal(await dialog.locator('video').count(), 0);
+    assert.equal(await dialog.locator('.stage img').count(), 1);
+    assert.equal(await dialog.locator('.stage img').getAttribute('src').then(value => new URL(value, 'http://local').searchParams.get('quality')), 'display');
+    const originalImage = await dialog.locator('.stage img').elementHandle();
+    await page.evaluate(() => document.dispatchEvent(new Event('appearancechange')));
+    assert(await originalImage.evaluate(node => node.isConnected), 'Appearance updates must preserve the pinched image');
+    await dialog.getByRole('button', {name: 'Close', exact: true}).click();
+    await page.evaluate(() => {state.settings.advanced_features = {media_originals: true};});
+    await page.locator('.grid .cell').click();
+    assert.equal(await dialog.locator('.stage img').getAttribute('src').then(value => new URL(value, 'http://local').searchParams.get('quality')), null);
+    await dialog.getByRole('button', {name: 'Close', exact: true}).click();
+    await page.locator('.shared-filters').getByRole('button', {name: 'Videos', exact: true}).click();
+    await page.waitForFunction(() => state.shared?.kind === 'videos' && state.shared.items?.length === 1);
+    await page.locator('.grid .cell').click();
+    const videoElement = await dialog.locator('video').elementHandle();
+    assert(await videoElement.getAttribute('poster'));
+    assert(new URL(await videoElement.getAttribute('src'), 'http://local').searchParams.get('stream'));
+    await dialog.getByRole('button', {name: 'Close', exact: true}).click();
+    await page.waitForFunction(() => !document.querySelector('.media-viewer'));
+    assert.equal(await videoElement.getAttribute('src'), null, 'Closing the viewer must release the video download');
+    assert(await videoElement.evaluate(node => node.paused));
+    passed.push({case: 'Filtros fotos/vídeos, original opcional, miniaturas reducidas y liberación del reproductor'});
+    pagedMedia = true;
+    await page.locator('.shared-filters').getByRole('button', {name: 'Photos', exact: true}).click();
+    await page.waitForFunction(() => state.shared.items?.length === 50);
+    await page.locator('.grid .cell').last().click();
+    await page.waitForFunction(() => state.shared.items?.length === 52);
+    await dialog.getByRole('button', {name: 'Previous page', exact: true}).click();
+    await page.waitForFunction(() => document.querySelector('.media-viewer .caption')?.textContent === 'Vista 450');
+    assert(calls.some(row => row.name === 'shared_media' && row.kind === 'photos_only' && row.offset === 451));
+    assert.equal(await dialog.locator('video').count(), 0);
+    assert(await dialog.locator('.gallery-strip button').count() <= 31);
+    await dialog.getByRole('button', {name: 'Close', exact: true}).click();
+    pagedMedia = false;
+    passed.push({case: 'Filtro conservado al paginar y vecindario de miniaturas con límite'});
     await shared(group, 0);
     delayMethod = 'gallery_origin';
     await jump.click();
@@ -325,6 +406,51 @@ const server = http.createServer(async (req, res) => {
     assert.equal(await floating.count(), 0);
     assert.equal(await android.evaluate(peer => state.drafts[peer].text, group.id), 'Borrador de conversión en directo');
     passed.push({case: 'Actualización de Telegram convierte una ventana abierta en selector y guarda el borrador'});
+    await android.evaluate(chat => openChat(chat.id, true, chat), alba);
+    await android.evaluate(() => chooseFiles('camera'));
+    const quality = android.getByRole('combobox', {name: 'Photo quality', exact: true});
+    assert.equal(await quality.inputValue(), 'sd');
+    await quality.selectOption('hd');
+    await android.evaluate(() => saveDraft());
+    assert(calls.some(row => row.name === 'draft' && row.peer === alba.id && row.photo_quality === 'hd'));
+    await android.evaluate(() => render());
+    assert.equal(await quality.inputValue(), 'hd');
+    failMethod = 'send_files';
+    await android.evaluate(() => send());
+    assert.equal(await quality.inputValue(), 'hd');
+    assert.equal(await android.evaluate(() => state.attachments.length), 1);
+    await android.evaluate(() => send());
+    assert.equal(calls.filter(row => row.name === 'send_files' && row.peer === alba.id).at(-1).photo_quality, 'hd');
+    assert.equal(await android.locator('.photo-quality').count(), 0);
+    await android.evaluate(() => chooseFiles('any'));
+    assert.equal(await quality.inputValue(), 'original');
+    await android.evaluate(() => send());
+    assert.equal(calls.filter(row => row.name === 'send_files' && row.peer === alba.id).at(-1).photo_quality, 'original');
+    passed.push({case: 'Cámara SD, selector HD retenido en borrador y reintento, Archivo conserva original'});
+    await android.evaluate(async ({forum, topic}) => {
+      await openForumTopic(forum, topic); await chooseFiles('gallery');
+      addAttachments([{key: 'fixture-second.png', name: 'second.png', size: 120}]);
+    }, {forum, topic: topics[0]});
+    await quality.selectOption('hd');
+    await android.evaluate(() => send());
+    const forumFile = calls.filter(row => row.name === 'send_files' && row.peer === forum.id).at(-1);
+    assert.deepEqual([forumFile.photo_quality, forumFile.topic_id, forumFile.thread_root], ['hd', 1, 1]);
+    assert.equal(forumFile.keys.length, 2);
+    passed.push({case: 'Álbum de fotos usa la calidad seleccionada dentro del tema explícito'});
+    await android.evaluate(async chat => {await openChat(chat.id, true, chat); await chooseFiles('gallery');}, alba);
+    await quality.selectOption('hd');
+    await android.evaluate(() => saveDraft());
+    await android.evaluate(chat => openChatWindow(chat), alba);
+    const floatingPhoto = android.locator('.chatwin').filter({hasText: alba.name});
+    const floatingQuality = floatingPhoto.getByRole('combobox', {name: 'Photo quality', exact: true});
+    await floatingQuality.waitFor();
+    assert.equal(await floatingQuality.inputValue(), 'hd');
+    await floatingQuality.selectOption('original');
+    await android.evaluate(() => saveWindowDraft(state.windows.find(win => win.peer === 17)));
+    assert.equal(await android.locator('#attachments').getByRole('combobox', {name: 'Photo quality', exact: true}).inputValue(), 'original');
+    await android.evaluate(() => sendFromWindow(state.windows.find(win => win.peer === 17)));
+    assert.equal(calls.filter(row => row.name === 'window_send' && row.peer === alba.id).at(-1).photo_quality, 'original');
+    passed.push({case: 'Ventana flotante comparte la calidad del borrador y la envía sin perderla'});
     await android.close();
     assert.deepEqual(faults, []);
     console.log(JSON.stringify({browser: await browser.version(), viewport: [390, 844], passed, pageErrors: faults}, null, 2));

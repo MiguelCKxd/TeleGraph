@@ -180,6 +180,35 @@ class NotificationTests(unittest.TestCase):
         DesktopPlus.notify_message(app, 'one', 999, message)
         self.assertNotIn(( 'one', 999, 1), app.notify_seen)
 
+    def test_journal_respects_lock_preview_and_temporary_content(self):
+        cases = [(False, True, True, False, 0, True),
+                 (True, True, True, False, 0, False),
+                 (False, False, True, False, 0, False),
+                 (False, True, False, False, 0, False),
+                 (False, True, True, True, 0, False),
+                 (False, True, True, False, 60, False)]
+        for locked, local_preview, remote_preview, protected, ttl, retained in cases:
+            with self.subTest(locked=locked, local=local_preview, remote=remote_preview, protected=protected, ttl=ttl):
+                requests = []
+                backend = NS(notification_policy=AsyncMock())
+                values = dict(notifications=True, notify_preview=local_preview, notify_sound=False, notify_active=False)
+                app = NS(demo=False, preferences=NS(values=values), notify_seen=set(), ui_account='one', active=5,
+                         root=NS(state=lambda:'withdrawn', focus_displayof=lambda:None),
+                         service=NS(entries={'one':{}}, labels={'one':'Account'}, service=lambda _:NS(backend=backend)),
+                         worker=NS(submit=lambda coro, loaded, fail:requests.append((coro, loaded))),
+                         inline_notice=Mock(), notification_center=Mock(), notification_reply_callback=Mock(),
+                         notification_open_callback=Mock())
+                message = NS(outgoing=False, id=1, text='private fixture body', sender='Sender',
+                             protected=protected, ttl_period=ttl)
+                with patch('tg_ascii.desktop_plus.record_notice') as record, patch('tg_ascii.app_lock.is_locked', return_value=locked):
+                    DesktopPlus.notify_message(app, 'one', 42, message)
+                    self.assertTrue(all(not call.kwargs.get('content') for call in record.call_args_list))
+                    coro, loaded = requests.pop()
+                    coro.close()
+                    loaded(dict(enabled=True, preview=remote_preview, sound=False))
+                payloads = [call.kwargs.get('content', '') for call in record.call_args_list]
+                self.assertEqual(any('private fixture body' in content for content in payloads), retained)
+
     def test_reading_chat_suppresses_notification_when_linked_chat_window_open(self):
         values = dict(notifications=True, notify_preview=False, notify_sound=True, notify_active=False)
         root = NS(state=lambda: 'normal', focus_displayof=lambda: None)

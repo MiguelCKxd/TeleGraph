@@ -365,6 +365,9 @@ def image_editor(parent,path,output,accepted,wallpaper=False,native=None):
         if busy[0] or source is None:return
         if not wallpaper and mode.get()=='Crop' and selection.pixels(base[0].size):
             if apply_free_crop(on_done=save):return
+        if (not wallpaper and crop_backup[0] is None and crop.get()=='Original' and not layers
+                and not state['rotation'] and not state['mirror'] and all(v.get()==1 for v in values.values())):
+            close();accepted(Path(path));return
         if Path(output).resolve()==Path(path).resolve(): raise ValueError('Output must differ from original')
         if pending[0]:top.after_cancel(pending[0]);pending[0]=None
         captured=(source,dict(state),crop.get(),{k:v.get() for k,v in values.items()},deepcopy(layers),wallpaper)

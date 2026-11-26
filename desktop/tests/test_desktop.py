@@ -235,6 +235,35 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         done(await operation)
         self.assertEqual([m.id for m in ui.messages], [20, 21, 22])
 
+    async def test_old_failure_does_not_clear_new_chat_reconciliation(self):
+        ui = self.make_ui()
+        ui.choose_chat()
+        operation, done, failed = ui.pending[0]
+        operation.close()
+        ui.active = 3
+        ui._history_key = ('account', 3)
+        changes = ui._history_changes = [('delete', (3, [42]))]
+        ui._read_hold_until = 123
+        failed(ConnectionError('late old failure'))
+        self.assertEqual(ui._history_key, ('account', 3))
+        self.assertIs(ui._history_changes, changes)
+        self.assertEqual(ui._read_hold_until, 123)
+        ui.show_error.assert_not_called()
+
+    async def test_old_snapshot_of_same_chat_cannot_replace_new_request(self):
+        ui = self.make_ui()
+        ui.choose_chat()
+        operation, old_loaded, _ = ui.pending[0]
+        operation.close()
+        # Navigate away and back after the busy grace expired.
+        ui.busy, ui.active = False, 3
+        ui.choose_chat()
+        ui.pending[1][0].close()
+        fresh = SimpleNamespace(id=100, text='current snapshot')
+        ui.messages = [fresh]
+        old_loaded([SimpleNamespace(id=20, text='stale snapshot')])
+        self.assertEqual(ui.messages, [fresh])
+
 
 class WorkerTests(unittest.TestCase):
     def test_callbacks_are_queued_for_the_ui_thread(self):

@@ -59,6 +59,8 @@ final class Television: UITableViewController {
         try? JSONDecoder().decode(TelevisionLook.self, from: $0)
     } ?? TelevisionLook()
     private var connection: NWConnection?
+    private var pickerTask: Task<Void, Never>?
+    private var selectionGeneration = UUID()
     private var chats: [SharedChat] = []
     private var selected: String?
     private var chat: SharedChat? { chats.first { $0.key == selected } }
@@ -90,6 +92,8 @@ final class Television: UITableViewController {
             NSLayoutConstraint.activate([image.widthAnchor.constraint(equalToConstant: 64),
                                          image.heightAnchor.constraint(equalToConstant: 64)])
             navigationItem.leftBarButtonItem = UIBarButtonItem(customView: image)
+        } else {
+            navigationItem.leftBarButtonItem = nil
         }
     }
 
@@ -98,10 +102,15 @@ final class Television: UITableViewController {
     }
 
     private func close(_ label: String) {
+        selectionGeneration = UUID()
+        pickerTask?.cancel()
+        pickerTask = nil
         let previous = connection
         connection = nil
         previous?.cancel()
-        if presentedViewController is UIAlertController { dismiss(animated: false) }
+        if presentedViewController is UIAlertController || presentedViewController is DDDevicePickerViewController {
+            dismiss(animated: false)
+        }
         chats.removeAll()
         selected = nil
         applyAppearance()
@@ -153,6 +162,7 @@ final class Television: UITableViewController {
     }
 
     private func choosePhone() {
+        guard pickerTask == nil, UIApplication.shared.applicationState == .active else { return }
         let descriptor = NWBrowser.Descriptor.applicationService(name: "telegraph-companion")
         let parameters = NWParameters.applicationService
         guard DDDevicePickerViewController.isSupported(descriptor, using: parameters),
@@ -160,20 +170,25 @@ final class Television: UITableViewController {
             close("Selector de dispositivos no disponible. Volver a intentar")
             return
         }
-        Task { @MainActor in
-            present(picker, animated: true)
+        let generation = selectionGeneration
+        present(picker, animated: true)
+        pickerTask = Task { @MainActor [weak self] in
             do {
                 let endpoint = try await picker.endpoint
+                guard let self, !Task.isCancelled, self.selectionGeneration == generation,
+                      UIApplication.shared.applicationState == .active else { return }
+                self.pickerTask = nil
                 picker.dismiss(animated: true)
                 let link = NWConnection(to: endpoint, using: parameters)
-                connection = link
-                status = "Esperando al iPhone · Desconectar"
-                tableView.reloadData()
-                observe(link)
+                self.connection = link
+                self.status = "Esperando al iPhone · Desconectar"
+                self.tableView.reloadData()
+                self.observe(link)
                 link.start(queue: .main)
             } catch {
+                guard let self, !Task.isCancelled, self.selectionGeneration == generation else { return }
                 picker.dismiss(animated: true)
-                clearSession()
+                self.clearSession()
             }
         }
     }
@@ -199,6 +214,30 @@ final class Television: UITableViewController {
         }
     }
 
+    private func receiveSharedChat(_ chat: SharedChat) {
+        if let index = chats.firstIndex(where: { $0.key == chat.key }) {
+            chats[index] = chat
+        } else {
+            // Each packet is already limited to 256 KiB. Keep at most
+            // 24 conversations in memory, preserving the open one.
+            if chats.count >= 24,
+               let oldest = chats.firstIndex(where: { $0.key != selected }) {
+                chats.remove(at: oldest)
+            }
+            chats.append(chat)
+        }
+        if let appearance = chat.appearance, appearance.name.count <= 60,
+           appearance.logo.map({ $0.count <= 32768 }) ?? true {
+            look = appearance
+            if let data = try? JSONEncoder().encode(appearance) {
+                UserDefaults.standard.set(data, forKey: "tvLook")
+            }
+            applyAppearance()
+        }
+        status = "Desconectar el iPhone"
+        tableView.reloadData()
+    }
+
     private func readHeader(_ link: NWConnection) {
         link.receive(minimumIncompleteLength: 4, maximumLength: 4) { [weak self] data, _, _, _ in
             guard let self, self.connection === link else { return }
@@ -210,21 +249,7 @@ final class Television: UITableViewController {
                 guard error == nil, !ended, let body, body.count == bytes,
                       let chat = try? JSONDecoder().decode(SharedChat.self, from: body),
                       chat.messages.count <= 50 else { self.clearSession(); return }
-                if let index = self.chats.firstIndex(where: { $0.key == chat.key }) {
-                    self.chats[index] = chat
-                } else {
-                    self.chats.append(chat)
-                }
-                if let appearance = chat.appearance, appearance.name.count <= 60,
-                   appearance.logo.map({ $0.count <= 32768 }) ?? true {
-                    self.look = appearance
-                    if let data = try? JSONEncoder().encode(appearance) {
-                        UserDefaults.standard.set(data, forKey: "tvLook")
-                    }
-                    self.applyAppearance()
-                }
-                self.status = "Desconectar el iPhone"
-                self.tableView.reloadData()
+                self.receiveSharedChat(chat)
                 self.readHeader(link)
             }
         }

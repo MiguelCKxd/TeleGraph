@@ -12,11 +12,23 @@ from tkinter import ttk
 
 from .i18n import tr
 from .interface_layout import caption
+from .contact_profile import ProfileRequests
 
 GENERAL = 1
 SEARCH_DELAY_MS = 300
 # The core reports every new forum message; one reload covers a burst.
 CHANGE_DELAY_MS = 1500
+
+
+def cancel_topic_timers(view):
+    for name in ('_search_job', '_change_job'):
+        job = getattr(view, name, None)
+        if job is not None:
+            try:
+                view.window.after_cancel(job)
+            except tk.TclError:
+                pass
+        setattr(view, name, None)
 
 
 def topic_label(row):
@@ -63,6 +75,7 @@ class TopicBrowser:
         self._search_job = None
         self._change_job = None
         self.window, frame = app.dialog(caption('Topics', 'Temas') + ' · ' + title, '520x560')
+        self.requests = ProfileRequests(app, self.window, account, self.backend)
         self.window.protocol('WM_DELETE_WINDOW', self.close)
         self.window.bind('<Destroy>', lambda event: self.forget() if event.widget is self.window else None, add='+')
         from .back_gesture import install as install_back
@@ -104,6 +117,8 @@ class TopicBrowser:
         return alive and self.app.ui_account == self.account and self.app.service.backend is self.backend
 
     def forget(self):
+        cancel_topic_timers(self)
+        self.requests.close()
         browsers = getattr(self.app, '_topic_browsers', [])
         if self in browsers:
             browsers.remove(self)
@@ -140,7 +155,7 @@ class TopicBrowser:
     def load(self, more=False):
         if not self.valid() or (more and not self.cursor):
             return
-        self._search_job = None
+        cancel_topic_timers(self)
         self.serial += 1
         serial, query = self.serial, self.query.get().strip()
         cursor = self.cursor if more else None
@@ -161,7 +176,7 @@ class TopicBrowser:
                 return
             from .auth import error_message
             self.status.set(error_message(error))
-        self.app.worker.submit(self.backend.forum_topics(self.peer, query, cursor), loaded, failed)
+        self.requests.submit('topics', self.backend.forum_topics(self.peer, query, cursor), loaded, failed)
 
     def render(self):
         selected = self.tree.selection()
@@ -379,6 +394,8 @@ class TopicPicker:
         self.backend = app.service.backend
         self.rows, self.cursor, self.serial, self._search_job = [], None, 0, None
         self.window, frame = app.dialog(caption('Choose a topic', 'Elige un tema') + ' · ' + title, '440x500')
+        self.requests = ProfileRequests(app, self.window, account, self.backend)
+        self.window.bind('<Destroy>', lambda event: self.closed() if event.widget is self.window else None, add='+')
         self.query = tk.StringVar(master=self.window)
         entry = ttk.Entry(frame, textvariable=self.query)
         entry.pack(fill='x', pady=(0, 4))
@@ -402,6 +419,10 @@ class TopicPicker:
         except tk.TclError:
             return False
 
+    def closed(self):
+        cancel_topic_timers(self)
+        self.requests.close()
+
     def schedule_search(self):
         if self._search_job is not None:
             self.window.after_cancel(self._search_job)
@@ -410,7 +431,7 @@ class TopicPicker:
     def load(self, more=False):
         if not self.valid() or (more and not self.cursor):
             return
-        self._search_job = None
+        cancel_topic_timers(self)
         self.serial += 1
         serial, query = self.serial, self.query.get().strip()
         cursor = self.cursor if more else None
@@ -429,7 +450,7 @@ class TopicPicker:
             if serial == self.serial and self.valid():
                 from .auth import error_message
                 self.status.set(error_message(error))
-        self.app.worker.submit(self.backend.forum_topics(self.peer, query, cursor, 100), loaded, failed)
+        self.requests.submit('topics', self.backend.forum_topics(self.peer, query, cursor, 100), loaded, failed)
 
     def render(self):
         self.listing.delete(0, 'end')

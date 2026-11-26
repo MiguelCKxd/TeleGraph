@@ -135,11 +135,13 @@ class RowEmoji:
     def load(self, document, size, ready_callback=None):
         """Fetch one custom emoji picture; ready_callback(photo) when it exists."""
         app = self.app
+        if app.demo:
+            return
         account = app.ui_account
         cache_key = (account, document, size)
         if ready_callback is not None:
             self.__dict__.setdefault('waiters', {}).setdefault(cache_key, []).append(ready_callback)
-        if cache_key in self.pending or app.demo:
+        if cache_key in self.pending:
             return
         self.pending.add(cache_key)
         backend = app.service.backend
@@ -153,11 +155,13 @@ class RowEmoji:
         def ready(path):
             if not path or not valid():
                 self.pending.discard(cache_key)
+                self.__dict__.get('waiters', {}).pop(cache_key, None)
                 return
 
             def painted(picture):
                 self.pending.discard(cache_key)
                 if picture is None or not valid():
+                    self.__dict__.get('waiters', {}).pop(cache_key, None)
                     return
                 self.photos[cache_key] = picture
                 while len(self.photos) > 256:

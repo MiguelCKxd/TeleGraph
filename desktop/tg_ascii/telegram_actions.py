@@ -107,6 +107,7 @@ class TelegramActions:
         if kind == 'polls':
             return await self.poll_messages(peer, query, offset)
         filters = {'all': types.InputMessagesFilterEmpty, 'photos': types.InputMessagesFilterPhotos,
+                   'media': types.InputMessagesFilterPhotoVideo, 'videos': types.InputMessagesFilterVideo,
                    'files': types.InputMessagesFilterDocument, 'audio': types.InputMessagesFilterMusic,
                    'voice': types.InputMessagesFilterVoice, 'links': types.InputMessagesFilterUrl,
                    'gifs': types.InputMessagesFilterGif}

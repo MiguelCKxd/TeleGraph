@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "Telegram không trả về chủ đề mới. Hãy làm mới danh sách chủ đề.",
   "This group must be upgraded to enable topics.": "Chuyển nhóm này thành siêu nhóm để bật chủ đề.",
   "Reopen this group to check its topic settings.": "Mở lại nhóm để kiểm tra cài đặt chủ đề.",
-  "The call continues in the background.": "Cuộc gọi vẫn tiếp tục trong nền."
+  "The call continues in the background.": "Cuộc gọi vẫn tiếp tục trong nền.",
+  "Original media in the viewer": "Bản gốc trong trình xem",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "Hiển thị ảnh ở chất lượng cao nhất có trên Telegram, không nén lại. Bản xem trước vẫn nhỏ. Dùng nhiều dữ liệu và bộ nhớ hơn.",
+  "Photos and videos": "Ảnh và video",
+  "SD · Standard": "SD · Tiêu chuẩn",
+  "HD · High quality": "HD · Chất lượng cao",
+  "Original as file": "Bản gốc dưới dạng tệp",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "Chú thích được đính kèm vào tệp đầu tiên. Ảnh và video tạo thành một album; các loại tệp hỗn hợp khác được gửi dưới dạng tài liệu."
 }

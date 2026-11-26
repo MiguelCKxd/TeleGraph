@@ -51,6 +51,7 @@ class RecentStrip:
         self.frame = ttk.Frame(parent)
         self.before = before
         self.shown = False
+        self._closed = False
         self._hide_job = None
         self._suggested = []
         if self.entry is not None:
@@ -64,12 +65,18 @@ class RecentStrip:
     def destroyed(self, event=None):
         if event is not None and event.widget is not self.frame:
             return
+        self._closed = True
+        self.cancel_hide()
+        self.shown = False
+        self._suggested.clear()
         try:
             self.variable.trace_remove('write', self._trace)
         except (tk.TclError, ValueError):
             pass
 
     def suggested(self, items):
+        if self._closed:
+            return
         self._suggested = list(items or ())[:SHOWN]
         if self.shown:
             self.refresh(force=True)
@@ -90,13 +97,18 @@ class RecentStrip:
             return False
         return widget is not None and (widget is self.entry or str(widget).startswith(str(self.frame)))
 
-    def refresh(self, force=False):
+    def cancel_hide(self):
         if self._hide_job:
             try:
                 self.frame.after_cancel(self._hide_job)
             except tk.TclError:
                 pass
             self._hide_job = None
+
+    def refresh(self, force=False):
+        if self._closed:
+            return
+        self.cancel_hide()
         try:
             empty = not self.variable.get().strip()
         except tk.TclError:
@@ -136,8 +148,15 @@ class RecentStrip:
 
     def hide_later(self):
         # A click on a chip moves the focus first; let it land.
+        if self._closed:
+            return
+        self.cancel_hide()
+        def finish():
+            self._hide_job = None
+            if not self.focused():
+                self.hide()
         try:
-            self._hide_job = self.frame.after(250, lambda: None if self.focused() else self.hide())
+            self._hide_job = self.frame.after(250, finish)
         except tk.TclError:
             pass
 

@@ -146,6 +146,21 @@ class TransferLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(target.read_bytes(),b'other account')
         await other.close()
 
+    async def test_call_shutdown_failure_still_cancels_active_file_transfer(self):
+        started = asyncio.Event()
+        async def download(media, *, file, **kwargs):
+            started.set()
+            await asyncio.Event().wait()
+        self.client.download_media.side_effect = download
+        task = asyncio.create_task(self.backend.download_media(object(), self.root / 'pending.bin'))
+        await started.wait()
+        self.backend.call_manager = NS(close=AsyncMock(side_effect=RuntimeError('call failed')))
+        await self.backend.close()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.client.disconnect.assert_awaited_once()
+        self.assertFalse(self.backend._transfer_tasks)
+
 
 class RecoveryFanoutTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

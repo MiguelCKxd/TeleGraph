@@ -8,6 +8,49 @@ def paths_in(value):
     return tuple(value) if isinstance(value,(tuple,list)) else (Path(value),)
 
 
+def photo_quality_for(owner):
+    """One choice per composer context; captured by the outbox before clearing it."""
+    scope=(getattr(owner,'ui_account',None),getattr(owner,'active',None),
+           getattr(owner,'topic_id',None),getattr(owner,'thread_id',None))
+    value=getattr(owner,'_photo_qualities',{}).get(scope)
+    if value is not None:return value
+    store=getattr(owner,'draft_store',None) or getattr(getattr(owner,'draft_manager',None),'store',None)
+    if store is not None:
+        draft_account=getattr(owner,'draft_account',scope[0])
+        record=store.get(draft_account,scope[1])
+        if record is None and isinstance(draft_account,str) and draft_account.startswith('linked:'):
+            # A new linked composer initially copies the main chat draft.
+            record=store.get(scope[0],scope[1])
+        if isinstance(record,dict) and record.get('photo_quality') in ('sd','hd','original'):return record['photo_quality']
+    return 'sd'
+
+
+def update_quality_control(owner,paths):
+    bar=getattr(owner,'attachment_bar',None)
+    if bar is None:return
+    control=getattr(owner,'_photo_quality_control',None)
+    from .media_quality import is_media_path, is_photo_path
+    if not paths or not any(is_photo_path(path) for path in paths) or not all(is_media_path(path) for path in paths):
+        if control is not None:control.pack_forget()
+        return
+    from .app_dialogs import Choice
+    values=('sd','hd','original')
+    if control is None:
+        control=owner._photo_quality_control=Choice(bar,values=[tr('SD · Standard'),tr('HD · High quality'),tr('Original as file')],width=20)
+        def changed(_=None):
+            scope=(getattr(owner,'ui_account',None),getattr(owner,'active',None),
+                   getattr(owner,'topic_id',None),getattr(owner,'thread_id',None))
+            if not hasattr(owner,'_photo_qualities'):owner._photo_qualities={}
+            owner._photo_qualities[scope]=values[control.current()]
+            manager=getattr(owner,'draft_manager',None)
+            if manager is not None:manager.changed()
+            job=getattr(owner,'draft_job',None)
+            if job is not None:job.request()
+        control.bind('<<ComboboxSelected>>',changed)
+    control.current(values.index(photo_quality_for(owner)))
+    control.pack(side='left',padx=4)
+
+
 def attachment_action(path):
     extension=Path(path).suffix.lower()
     if extension in ('.jpg','.jpeg','.png','.webp'):return 'send_photos'
@@ -71,7 +114,7 @@ class AttachmentComposer:
                 if valid() and paths_in(self.attachment)==before:
                     items=list(before);items[index]=value;self.attachment=items[0] if len(items)==1 else tuple(items);self.update_attachment();refresh()
             getattr(self,'preview_attachment',self.preview_photo_attachment)(path,accepted)
-        ttk.Label(frame,text=tr('The caption is attached to the first file. Mixed files are sent as documents.'),wraplength=480).pack(fill='x',pady=8)
+        ttk.Label(frame,text=tr('The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.'),wraplength=480).pack(fill='x',pady=8)
         controls=FlowFrame(frame);controls.pack(fill='x')
         for label,callback in [('Remove',remove),('Preview / edit',edit),('Done',window.destroy)]:ttk.Button(controls,text=tr(label),command=callback).pack(side='left')
         refresh()

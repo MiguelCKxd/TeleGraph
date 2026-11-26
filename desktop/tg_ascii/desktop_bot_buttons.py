@@ -155,8 +155,8 @@ class DesktopBotButtons:
         def resized(event):
             for widget in self.bot_inline_widgets:
                 widget.configure(width=max(160, event.width - 28))
-        if not getattr(self, '_bot_resize_bound', False):
-            self.history.bind('<Configure>', resized, add='+'); self._bot_resize_bound = True
+        if not getattr(self.history, '_bot_resize_bound', False):
+            self.history.bind('<Configure>', resized, add='+'); self.history._bot_resize_bound = True
 
     def press_bot_button(self, message, row, column, button, scope):
         if self.busy or self.demo or scope != (self.ui_account, self.active) or getattr(self, 'selection_kind', None) or getattr(self, '_preview_only', False): return

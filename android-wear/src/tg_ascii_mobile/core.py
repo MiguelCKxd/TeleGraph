@@ -22,6 +22,7 @@ import threading
 import time
 import types
 from weakref import WeakValueDictionary
+from tg_ascii.media_cache import has_expiry
 
 from .siri_vocabulary import SiriVocabulary, suspend_vocabulary
 from .gallery import ProfileGallery
@@ -68,6 +69,7 @@ class _Worker:
     def __init__(self, core):
         self.core = core
         self.events = self
+        self.tasks = set()
 
     def put(self, event):
         callback, value = event
@@ -75,8 +77,10 @@ class _Worker:
 
     def submit(self, coroutine, done, failed):
         task = self.core.loop.create_task(coroutine)
+        self.tasks.add(task)
 
         def finished(task):
+            self.tasks.discard(task)
             if task.cancelled():
                 return
             error = task.exception()
@@ -86,6 +90,13 @@ class _Worker:
                 done(task.result())
         task.add_done_callback(finished)
         return task
+
+    async def close(self):
+        tasks = tuple(self.tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 
 class _Status:
@@ -102,13 +113,17 @@ class _OutboxHost:
 
     def __init__(self, core):
         self.core = core
-        self.service = core.accounts
         self.root = _Timers(core.loop)
         self.worker = _Worker(core)
         self.status = _Status(core)
 
+    @property
+    def service(self):
+        return self.core.accounts
+
     def refresh_open_history(self, account, peer):
-        self.core.loop.create_task(self.core.reload_history(peer))
+        if account == self.core.account:
+            self.core.loop.create_task(self.core.reload_history(peer))
 
 
 def _timestamp(value):
@@ -167,7 +182,12 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         self.discussion_messages = {}
         self.qr_task = None
         self._save_handle = None
-        self._refreshing = None
+        self._refreshing = {}
+        self._history_refreshing = {}
+        self._snapshot_write_lock = threading.Lock()
+        self._snapshot_sequence = 0
+        self._snapshot_written = {}
+        self._prune_handle = None
         self.port = None
         self.native_picker = None  # set by the Android shell
         self.native_open = None    # set by the mobile shell: open a file or URL outside
@@ -177,8 +197,17 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         self._startup_account_gate = asyncio.Lock()
         self._push_gate = asyncio.Lock()
         self._push_registered = {}
+        self._push_registered_at = {}
         self._push_privacy = {}
         self._push_logging_out = set()
+        self._push_check = None
+        self._push_retry_delay = 5
+        self._push_retry_native = False
+        self._push_stopped = False
+        self._push_generation = 0
+        self._push_status = {'state': 'waiting', 'provider': None, 'error': None}
+        self._push_permission = 'unknown'
+        self.native_push_retry = None
         self.native_incoming_call = None
         self.native_telecom = None
         self.native_telecom_outgoing = None
@@ -209,6 +238,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         self.native_notify_clear = None       # (account, peer)
         self.native_notify_disable = None
         self.native_notify_permission = None  # () - ask once to show notifications
+        self.native_notify_refresh = None    # () - recheck OS permission without asking
         self.native_keep_alive = None         # (on, title, text) - stay connected in the background
         self.native_battery_exemption = None  # () - Android: do not pause the network
         self.in_background = False
@@ -225,6 +255,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         from tg_ascii.drafts import DraftStore
         self.draft_store = DraftStore(self.root / 'mobile')
         self.draft_jobs = {}
+        self.draft_pull_jobs = {}
         self.draft_sync_locks = {}
         self.loaded_draft_accounts = set()
         self.folder_records = []
@@ -257,6 +288,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             self.siri_vocabulary.sync(self)
         if self.locked and kind not in ('stage', 'connection', 'lock'):
             return  # Nothing about chats reaches the page while it is locked.
+        if not self.subscribers:
+            return
         data = json.dumps({'type': kind, 'data': payload, 'account': None if self.locked else self.account},
                           ensure_ascii=False, default=str)
         inactive_event = None
@@ -273,7 +306,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                     public = self.state_snapshot(window_account=account) if kind == 'stage' else payload
                     inactive_event = json.dumps({'type': kind, 'data': public, 'account': None}, ensure_ascii=False)
                 event = inactive_event
-            overflow = queue.qsize() >= 500
+            budget = getattr(queue, 'would_overflow', None)
+            overflow = budget(event) if budget is not None else queue.qsize() >= 500
             if overflow or (kind == 'lock' and self.locked) or (inactive and kind == 'stage'):
                 while not queue.empty():
                     queue.get_nowait()
@@ -345,7 +379,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         self.outbox.subscribe(self.outbox_changed)
         # Sent attachments do not stay on the phone (an hour covers files
         # chosen but not sent yet).
-        self.outbox.subscribe(lambda account, peer: self.loop.call_later(5, self._prune_sent))
+        self.outbox.subscribe(self.schedule_prune_sent)
         self.load_snapshot()
         self.purge_secret_previews()
         try:
@@ -395,13 +429,17 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if self.stage != 'ready' or service is None or service.backend is None:
             await self.connect()
             return self.connection
+        account, backend = self.account, service.backend
         self.connection = 'reconnecting'
         self.emit('connection', 'reconnecting')
         try:
             await asyncio.wait_for(service.recovery.ensure(force=True), 60)
-            self.connection = getattr(service.recovery, 'state', 'online') or 'online'
+            connection = getattr(service.recovery, 'state', 'online') or 'online'
         except Exception:
-            self.connection = 'offline'
+            connection = 'offline'
+        if self.account != account or self.backend is not backend or self.stage != 'ready':
+            return self.connection
+        self.connection = connection
         self.emit('connection', self.connection)
         if self.connection == 'online':
             self.schedule_draft_sync(pull=True)
@@ -412,6 +450,36 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
     async def shutdown(self):
         """Save the local copy and close the Telegram sessions (never log out)."""
         self.stage = 'loading'
+        self._push_stopped = True
+        self._push_generation = getattr(self, '_push_generation', 0) + 1
+        if getattr(self, '_push_check', None) is not None:
+            self._push_check.cancel()
+            self._push_check = None
+        await self.close_media_requests()
+        if self.outbox is not None:
+            self.outbox.app.closed = True
+            if self.outbox.timer is not None:
+                self.outbox.timer.cancel()
+                self.outbox.timer = None
+            await self.outbox.app.worker.close()
+            for item in self.outbox.inflight.values():
+                item.state, item.progress, item.retry_at = 'waiting', -1, 0.0
+            self.outbox.inflight.clear()
+            self.outbox.save()
+        refreshing = (list(self._refreshing.values()) + list(self._history_refreshing.values())
+                      + list(self.draft_jobs.values()) + list(self.draft_pull_jobs.values()))
+        if self.qr_task is not None:
+            refreshing.append(self.qr_task)
+            self.qr_task = None
+        for task in refreshing:
+            task.cancel()
+        if refreshing:
+            await asyncio.gather(*refreshing, return_exceptions=True)
+        self.draft_jobs.clear()
+        self.draft_pull_jobs.clear()
+        if self._prune_handle is not None:
+            self._prune_handle.cancel()
+            self._prune_handle = None
         self.siri_vocabulary.sync(self)
         self._push_ready.clear()
         await self.cancel_current_voice()
@@ -466,6 +534,9 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     async def connect(self):
         from tg_ascii.auth import error_message
+        self._push_stopped = False
+        if self.outbox is not None:
+            self.outbox.app.closed = False
         self.set_stage('loading')
         try:
             state = await self.accounts.connect()
@@ -515,10 +586,32 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if snapshot is not None:
             self.chats, folders, self.histories = snapshot
             self.folder_records = folders or []
+        self.trim_histories()
         try:
             self.previews = {int(k): v for k, v in json.loads(self.previews_path().read_text('utf-8')).items()}
         except (OSError, ValueError, AttributeError):
             self.previews = {}
+
+    def trim_histories(self, peer=None):
+        """Keep recently used chats within the existing offline-copy budget.
+
+        Open views and active requests retain their full scrolling context.
+        Eviction affects only the in-memory copy, never server messages.
+        """
+        from tg_ascii import offline_store
+        if peer in self.histories:
+            self.histories[peer] = self.histories.pop(peer)
+        protected = self.floating_peers | self.window_peers | {self.open_peer, peer}
+        protected.update(p for account, p, _ in self.history_requests.values() if account == self.account)
+        protected.update(key[2] for key in self._history_refreshing if key[0] == self.account)
+        limit = offline_store.chat_limit()
+        for ident in tuple(self.histories):
+            if ident in protected:
+                continue
+            del self.histories[ident][:-400]
+            if len(self.histories) > limit:
+                self.histories.pop(ident, None)
+                self.__dict__.get('history_fresh', {}).pop(ident, None)
 
     def schedule_save(self):
         if not self.prefs or not self.prefs.values.get('offline_copy', True):
@@ -530,20 +623,32 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
     async def save_snapshot(self):
         from tg_ascii import offline_store
         from tg_ascii.secret_chats import is_secret_peer
-        self._save_handle = None
+        if self._save_handle is not None:
+            self._save_handle.cancel()
+            self._save_handle = None
+        self.trim_histories()
+        self._snapshot_sequence += 1
+        sequence = self._snapshot_sequence
         account, chats, folders = self.account, list(self.chats), list(self.folder_records)
         histories = {peer: list(messages) for peer, messages in self.histories.items()}
         previews = {peer: value for peer, value in self.previews.items() if not is_secret_peer(peer)}
         path = self.previews_path()
 
         def write():
-            offline_store.write(self.root, account, chats, folders, histories)
-            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-            temporary = path.with_suffix('.tmp')
-            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
-                json.dump(previews, stream, ensure_ascii=False)
-            os.replace(temporary, path)
+            # A cancelled coroutine does not stop its worker thread. Serialize
+            # the complete snapshot + previews transaction in the threads, and
+            # skip an older snapshot if the executor started it out of order.
+            with self._snapshot_write_lock:
+                if sequence <= self._snapshot_written.get(account, 0):
+                    return
+                offline_store.write(self.root, account, chats, folders, histories)
+                path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                temporary = path.with_suffix('.tmp')
+                descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+                    json.dump(previews, stream, ensure_ascii=False)
+                os.replace(temporary, path)
+                self._snapshot_written[account] = sequence
         try:
             await asyncio.to_thread(write)
         except Exception as exc:
@@ -616,7 +721,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 'thread_root': message.thread_id, 'topic_id': getattr(message, 'topic_id', None),
                 'read': message.read, 'sender_id': message.sender_id, 'color': message.sender_color,
                 'service': message.service, 'forwarded': message.forwarded,
-                'edited_at': _timestamp(message.edited_at), 'edited': message.edited_at is not None, 'protected': bool(message.protected or getattr(message.media, 'ttl_seconds', None)),
+                'edited_at': _timestamp(message.edited_at), 'edited': message.edited_at is not None, 'protected': bool(message.protected or has_expiry(message)),
                 'reactions': [[str(value), count, chosen] for value, count, chosen in message.reactions],
                 'poll': poll_json(message.media), 'keyboard': keyboard_json(message.reply_markup),
                 'custom_emojis': [[str(ident), alt] for ident, alt in (message.custom_emojis or ())][:200],
@@ -663,7 +768,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         items = self.outbox.pending(account, peer) if self.outbox else []
         return {'account': account, 'peer': peer,
                 'items': [{'key': item.key, 'text': self.text(item.preview(400)), 'state': item.state, 'files': bool(item.paths), 'full': item.text,
-                           'error': item.error, 'reply_to': item.reply_to, 'created': item.created, 'thread_root': item.thread_root, 'topic_id': getattr(item, 'topic_id', None)}
+                           'error': item.error, 'reply_to': item.reply_to, 'created': item.created, 'thread_root': item.thread_root, 'topic_id': getattr(item, 'topic_id', None),
+                           'photo_quality': getattr(item, 'photo_quality', None)}
                           for item in items]}
 
     def account_portrait(self, key):
@@ -962,6 +1068,17 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             from .chat_translations import ChatTranslations
             store = self.translations() if key == self.account else ChatTranslations(self.root / 'mobile', key)
             store.discard(*payload)
+            from .media_lifetime import purge_cached
+            deleted_peer, deleted_ids = payload
+            temporary = self.__dict__.get('_transient_media')
+            if temporary is not None:
+                temporary.revoke(key, deleted_peer, deleted_ids)
+            streams = getattr(getattr(self, 'server', None), 'video_ranges', None)
+            if streams is not None:
+                streams.revoke(key, deleted_peer, deleted_ids)
+            if deleted_peer is not None:
+                for ident in deleted_ids:
+                    purge_cached(self, key, deleted_peer, ident)
         if key != self.account:
             return
         if kind == 'forum_topics':
@@ -969,6 +1086,16 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             return
         if kind == 'edit':
             peer, message = payload
+            from .media_lifetime import transient, purge_cached
+            chat = next((chat for chat in self.chats if chat.id == peer), None)
+            if transient(message, chat):
+                purge_cached(self, key, peer, message.id)
+                temporary = self.__dict__.get('_transient_media')
+                if temporary is not None:
+                    temporary.revoke(key, peer, [message.id])
+                streams = getattr(getattr(self, 'server', None), 'video_ranges', None)
+                if streams is not None:
+                    streams.revoke(key, peer, [message.id])
             self.record_history_change(peer, 'edit', message)
             history = self.histories.get(peer) or []
             for index, item in enumerate(history):
@@ -992,6 +1119,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 candidates.update(context[1] for context, _ in self.active_discussions() if context)
                 targets = {p for p in candidates if p is not None and resolve_id(p)[1] is not PeerChannel}
             for target in targets:
+                for ident in removed:
+                    purge_cached(self, key, target, ident)
                 self.record_history_change(target, 'delete', removed)
                 history = self.histories.get(target)
                 if history is not None:
@@ -1050,13 +1179,24 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     # -- chats and history ------------------------------------------------------
     async def refresh_chats(self):
-        if self._refreshing is not None and not self._refreshing.done():
-            return await self._refreshing
-        self._refreshing = self.loop.create_task(self._refresh_chats())
-        return await self._refreshing
-
-    async def _refresh_chats(self):
         backend = self.backend
+        key = (self.account, id(backend))
+        task = self._refreshing.get(key)
+        if task is None or task.done():
+            task = asyncio.create_task(self._refresh_chats(backend))
+            self._refreshing[key] = task
+
+            def finished(result):
+                if self._refreshing.get(key) is result:
+                    self._refreshing.pop(key, None)
+                if not result.cancelled():
+                    result.exception()
+            task.add_done_callback(finished)
+        # HTTP cancellation must not abort the refresh shared by other views.
+        return await asyncio.shield(task)
+
+    async def _refresh_chats(self, backend=None):
+        backend = backend if backend is not None else self.backend
         if backend is None or getattr(backend, 'demo', False):
             return
         client = backend.client
@@ -1195,6 +1335,21 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if backend is None:
             return
         previous = self.histories.setdefault(peer, [])
+        key = (self.account, id(backend), peer, id(previous))
+        task = self._history_refreshing.get(key)
+        if task is None or task.done():
+            task = asyncio.create_task(self._reload_history(peer, backend, previous))
+            self._history_refreshing[key] = task
+
+            def finished(result):
+                if self._history_refreshing.get(key) is result:
+                    self._history_refreshing.pop(key, None)
+                if not result.cancelled():
+                    result.exception()
+            task.add_done_callback(finished)
+        return await asyncio.shield(task)
+
+    async def _reload_history(self, peer, backend, previous):
         try:
             messages = await self.history_page(peer, backend.history(peer), include_new=True)
         except Exception:
@@ -1203,6 +1358,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             return
         self.__dict__.setdefault('history_fresh', {})[peer] = time.monotonic()
         self.histories[peer] = messages
+        self.trim_histories(peer)
         self.emit('history', {'peer': peer, 'messages': [self.message_json(m) for m in messages],
                               **self.translation_state(peer, messages)})
         self.schedule_save()
@@ -1261,6 +1417,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if forum:
             return forum
         self.floating_peers.add(peer)
+        self.trim_histories(peer)
         cached = self.histories.get(peer) or []
         if self.backend is not None:
             self.loop.create_task(self.reload_and_read(peer) if read else self.refresh_history(peer))
@@ -1268,20 +1425,21 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         return {'messages': [self.message_json(m) for m in cached], 'chat': self.chat_json(chat) if chat else None,
                 'draft': self.draft_record(peer), **self.translation_state(peer, cached)}
 
-    async def api_window_send(self, peer, account, text='', keys=(), reply_to=None, spans=(), custom=()):
+    async def api_window_send(self, peer, account, text='', keys=(), reply_to=None, spans=(), custom=(), photo_quality=None):
         peer = int(peer)
         forum = await self.floating_forum(peer, account)
         if forum:
             return forum
         params = dict(reply_to=reply_to, spans=spans, custom=custom, account=account)
         if keys:
-            return await self.api_send_files(peer, keys, caption=text, **params)
+            return await self.api_send_files(peer, keys, caption=text, photo_quality=photo_quality, **params)
         return await self.api_send(peer, text, **params)
 
     async def api_window_close(self, peer, account):
         if account != self.account:
             raise ValueError('The active account changed.')
         self.floating_peers.discard(int(peer))
+        self.trim_histories()
         return True
 
     # -- Apple Watch companion (app.install_watch_bridge) --------------------------------
@@ -1425,6 +1583,16 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         return bool(getattr(entity, 'forum', False))
 
     async def watch_request(self, request):
+        """Bind a companion request and its response to the originating account."""
+        if request.get('op') in ('config', 'appearance') or self.locked or self.stage != 'ready':
+            return await self._watch_request(request)
+        self.check_active_account(request.get('account'))
+        owner, backend = self.account, self.backend
+        result = await self._watch_request(request)
+        self.check_backend_context(owner, backend)
+        return result
+
+    async def _watch_request(self, request):
         """One request from the watch: chats, a chat's latest messages, or a reply."""
         from tg_ascii.i18n import tr
         if request.get('op') == 'config':
@@ -1483,6 +1651,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if op == 'messages':
             if self.backend is not None:
                 await asyncio.wait_for(self.reload_and_read(peer), 25)
+            if self.locked or self.account != owner:
+                raise PermissionError(tr('Unlock your messages'))
             items = [self.message_json(m) for m in (self.histories.get(peer) or [])[-25:]]
             return [self.watch_message(item) for item in items if item and not item.get('service')]
         if op == 'translate':
@@ -1523,6 +1693,9 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
         shutil.rmtree(self.root / 'secret-previews', ignore_errors=True)
         shutil.rmtree(self.root / 'secret-exports', ignore_errors=True)
+        # A process killed while serving a temporary attachment has no reader
+        # left; never resurrect that response's private files on the next boot.
+        shutil.rmtree(self.root / 'temporary-media', ignore_errors=True)
         # Remove copies left by versions that cached secret media like cloud media.
         for path in (self.root / MEDIA_FOLDER).glob('*/*'):
             prefix, separator, _ = path.name[1:].partition('-')
@@ -1595,13 +1768,83 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
     def forget_media_index(self):
         self.__dict__.pop('media_indexes', None)
 
-    async def media_file(self, peer, ident, thumbnail=True):
+    async def close_media_requests(self):
+        streams = getattr(getattr(self, 'server', None), 'video_ranges', None)
+        if streams is not None:
+            streams.close()
+        temporary = self.__dict__.get('_transient_media')
+        if temporary is not None:
+            await temporary.close()
+        jobs = list(self.__dict__.get('media_jobs', {}).values())
+        for job in jobs:
+            job.cancel()
+        if jobs:
+            await asyncio.gather(*jobs, return_exceptions=True)
+
+    async def media_message(self, peer, ident, account, backend, *, fresh=False, article=False):
+        """Classify before reading any disk cache, including legacy entries."""
+        from .media_lifetime import transient, expiry_date, purge_cached, current_response
+        response = current_response(self)
+        cache_key = (account, id(backend), peer, ident)
+        cached = response.messages.get(cache_key) if response is not None else None
+        message = next((m for m in self.histories.get(peer) or [] if m.id == ident), None)
+        chat = next((c for c in self.chats if c.id == peer), None)
+        was_restricted = transient(message, chat)
+        fetched = backend is not None and (fresh or message is None or was_restricted
+                or getattr(message, 'media', None) is None
+                or isinstance(getattr(message, 'media', None), (dict, list, str)))
+        if cached is not None:
+            message, was_restricted = cached
+            fetched = False
+        elif fetched:
+            message = await self._fetch_message(backend, peer, ident)
+        if self.account != account or self.backend is not backend or self.locked:
+            raise PermissionError('The active account changed.')
+        # An unclassified old cache file is not proof that a deleted or
+        # self-destructed attachment is still available. Offline snapshots of
+        # ordinary messages remain valid and do not need a network request.
+        if message is None or (fetched and getattr(message, 'media', None) is None
+                and not (article and getattr(message, 'rich_message', None) is not None)):
+            if backend is not None:
+                purge_cached(self, account, peer, ident)
+                raise LookupError('no media')
+            raise ConnectionError('offline')
+        deadline = expiry_date(message)
+        restricted = was_restricted or transient(message, chat)
+        if restricted or (deadline is not None and time.time() >= deadline):
+            purge_cached(self, account, peer, ident)
+        if deadline is not None and time.time() >= deadline:
+            raise PermissionError('The media expired.')
+        if response is not None:
+            response.messages[cache_key] = (message, restricted)
+        return message, restricted
+
+    def transient_media(self):
+        from .media_lifetime import TransientMedia
+        manager = self.__dict__.get('_transient_media')
+        if manager is None:
+            manager = self._transient_media = TransientMedia(self)
+        return manager
+
+    async def media_file(self, peer, ident, thumbnail=True, *, quality='original'):
         """Local path of a message's media (preview or full), downloading it once.
         Requests for the same file while it downloads share that download."""
+        if quality not in ('original', 'display'):
+            raise ValueError('quality')
+        account, backend = self.account, self.backend
+        message, restricted = await self.media_message(peer, ident, account, backend)
+        if restricted:
+            if backend is None or getattr(message, 'media', None) is None:
+                raise PermissionError('The media is no longer available.')
+            return await self.transient_media().file(account, backend, peer, ident, message, thumbnail, quality)
         folder = self.media_folder()
-        stem = f'{int(peer)}-{int(ident)}' + ('-t' if thumbnail else '')
+        stem = f'{int(peer)}-{int(ident)}' + ('-t' if thumbnail else '-d' if quality == 'display' else '')
         index = await self._media_index(folder)
+        if self.account != account or self.backend is not backend or self.locked:
+            raise PermissionError('The active account changed.')
         name = index.get(stem)
+        if name is None and not thumbnail and quality == 'display':
+            name = index.get(f'{int(peer)}-{int(ident)}')
         if name is not None:
             path = folder / name
             try:
@@ -1613,30 +1856,41 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         jobs = self.__dict__.setdefault('media_jobs', {})
         job = jobs.get((folder, stem))
         if job is None:
-            job = jobs[(folder, stem)] = self.loop.create_task(self._download_media_file(folder, stem, peer, ident, thumbnail))
-            job.add_done_callback(lambda done: jobs.pop((folder, stem), None) if jobs.get((folder, stem)) is done else None)
+            job = jobs[(folder, stem)] = self.loop.create_task(
+                self._download_media_file(folder, stem, peer, ident, thumbnail, quality, account, backend, message))
+            def finished(done):
+                if jobs.get((folder, stem)) is done:
+                    jobs.pop((folder, stem), None)
+                if not done.cancelled():
+                    done.exception()  # the last HTTP reader may have gone away
+            job.add_done_callback(finished)
         # A page that stops waiting (scrolled away) must not cancel the shared download.
-        return await asyncio.shield(job)
+        result = await asyncio.shield(job)
+        if self.account != account or self.backend is not backend or self.locked:
+            raise PermissionError('The active account changed.')
+        return result
 
-    async def _download_media_file(self, folder, stem, peer, ident, thumbnail):
+    async def _download_media_file(self, folder, stem, peer, ident, thumbnail, quality, account, backend, message):
         original = folder / stem
         if original.is_file() and original.stat().st_size:
             return original
-        backend = self.backend
         if backend is None:
             raise ConnectionError('offline')
-        message = next((m for m in self.histories.get(peer) or [] if m.id == ident), None)
+        if self.account != account or self.backend is not backend or self.locked:
+            raise PermissionError('The active account changed.')
         media = getattr(message, 'media', None)
-        if media is None or isinstance(media, (dict, list, str)):
-            raw = await self._fetch_message(backend, peer, ident)
-            media = getattr(raw, 'media', None)
         if media is None:
             raise LookupError('no media')
+        if self.account != account or self.backend is not backend or self.locked:
+            raise PermissionError('The active account changed.')
         folder.mkdir(parents=True, exist_ok=True, mode=0o700)
-        path = await backend.download_media(media, folder / stem, thumbnail=thumbnail)
+        path = await backend.download_media(media, folder / stem, thumbnail=thumbnail, quality=quality)
         if not path:
             return None
         path = Path(path)
+        if self.account != account or self.backend is not backend or self.locked:
+            path.unlink(missing_ok=True)
+            raise PermissionError('The active account changed.')
         known = self.__dict__.get('media_indexes', {}).get(folder)
         if known is not None:
             known[stem] = path.name
@@ -1683,7 +1937,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         account, backend = self.account, self.backend
         if backend is None:
             raise ConnectionError('offline')
-        raw = await backend.client.get_messages(peer, ids=ident)
+        raw, restricted = await self.media_message(peer, ident, account, backend, fresh=True)
         poll = getattr(raw, 'media', None)
         if not isinstance(poll, types.MessageMediaPoll):
             raise LookupError('no poll')
@@ -1691,6 +1945,11 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if not isinstance(media, (types.MessageMediaPhoto, types.MessageMediaDocument)):
             raise LookupError('no poll attachment')
         asset = media.photo if isinstance(media, types.MessageMediaPhoto) else media.document
+        from .media_lifetime import transient, purge_cached
+        if restricted or transient(media):
+            purge_cached(self, account, peer, ident)
+            return await self.transient_media().file(account, backend, peer, ident, raw, thumbnail, 'original',
+                                                     media=media, variant=('poll', part, asset.id))
         folder = self.media_folder()
         if self.account != account or self.backend is not backend or self.locked:
             return None
@@ -1700,7 +1959,10 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             return existing
         folder.mkdir(parents=True, exist_ok=True, mode=0o700)
         path = await backend.download_media(media, folder / stem, thumbnail=thumbnail)
-        return Path(path) if path and self.account == account and self.backend is backend and not self.locked else None
+        if path and (self.account != account or self.backend is not backend or self.locked):
+            Path(path).unlink(missing_ok=True)
+            raise PermissionError('The active account changed.')
+        return Path(path) if path else None
 
     # -- stickers and custom emoji (desktop: sticker_picker, telegram_extras) ----
     def remember_documents(self, documents):
@@ -1852,7 +2114,17 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                         if path == lottie:
                             data = await backend.client.download_media(document, file=bytes)
                             if data:
-                                stream.write(await asyncio.to_thread(gzip.decompress, data))
+                                def unpack():
+                                    import io
+                                    limit = 4 * 1024 * 1024
+                                    if len(data) > limit:
+                                        raise ValueError('animation too large')
+                                    with gzip.GzipFile(fileobj=io.BytesIO(data)) as compressed:
+                                        expanded = compressed.read(limit + 1)
+                                    if len(expanded) > limit:
+                                        raise ValueError('animation too large')
+                                    return expanded
+                                stream.write(await asyncio.to_thread(unpack))
                         else:
                             thumb = -1 if path == still and mime != 'image/webp' else None
                             await backend.client.download_media(document, file=stream, thumb=thumb)
@@ -1899,15 +2171,22 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             except OSError:
                 pass
 
+    def schedule_prune_sent(self, *args):
+        if self._prune_handle is None:
+            self._prune_handle = self.loop.call_later(5, self._prune_sent)
+
     def _prune_sent(self):
+        self._prune_handle = None
         try:
             self.prune_staging(age=3600)
         except OSError:
             pass
 
     async def api_send_files(self, peer, keys, caption='', reply_to=None, silent=False, schedule=None,
-                             account=None, thread_root=None, spans=(), custom=(), topic_id=None):
+                             account=None, thread_root=None, spans=(), custom=(), topic_id=None, photo_quality=None):
         from tg_ascii.outbox import Pending
+        from tg_ascii.media_quality import validate_photo_quality
+        photo_quality = validate_photo_quality(photo_quality)
         reply_to = self.send_reply(peer, reply_to, thread_root, account)
         if topic_id is not None:
             if int(topic_id) != thread_root:
@@ -1920,7 +2199,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             raise ValueError('empty')
         item = Pending(account=self.account, peer=peer, text=caption, paths=paths,
                        reply_to=reply_to, silent=bool(silent), schedule=scheduled_at(schedule),
-                       thread_root=thread_root, topic_id=topic_id, format_spans=formats, custom_spans=custom)
+                       thread_root=thread_root, topic_id=topic_id, format_spans=formats, custom_spans=custom,
+                       photo_quality=photo_quality)
         self.outbox.add(item, require_persistence=True)
         self.set_draft(int(peer), '', thread_root)
         return {'key': item.key}
@@ -2219,6 +2499,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             return {'peer': peer, 'forum': True, 'chat': self.chat_json(chat)}
         if read:
             self.clear_notifications(peer)
+        self.trim_histories(peer)
         cached = self.histories.get(peer)
         chat = next((item for item in self.chats if item.id == peer), None)
         if read and chat is not None and (chat.unread or chat.unread_mark):
@@ -2251,6 +2532,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             self.window_peers.discard(peer)
             self.window_revisions.pop(peer, None)
             self.window_discussions.pop(peer, None)
+            self.trim_histories()
             return True
         if self.locked:
             raise PermissionError('locked')
@@ -2263,6 +2545,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if self.open_peer == peer or peer is None:
             self.open_peer = None
             self.preview = False
+        self.trim_histories()
         return True
 
     async def api_read(self, peer):
@@ -2297,6 +2580,10 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     def check_active_account(self, account):
         if account is not None and account != self.account:
+            raise ValueError('The active account changed.')
+
+    def check_backend_context(self, account, backend):
+        if self.locked or self.account != account or self.backend is not backend:
             raise ValueError('The active account changed.')
 
     def send_reply(self, peer, reply_to, thread_root, account):
@@ -2346,26 +2633,37 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     # -- conversation extras -------------------------------------------------------
     async def refresh_header(self, peer):
-        """Status under the chat name: last seen / online / members, like desktop."""
-        backend = self.backend
+        """Only the newest header query for this account and chat can publish."""
+        account, backend = self.account, self.backend
         if backend is None:
             return
+        requests = self.__dict__.setdefault('_header_requests', {})
+        key, token = (account, peer), object()
+        requests[key] = token
         try:
             header = await backend.chat_header(peer)
+            if (self.account != account or self.backend is not backend or self.locked
+                    or requests.get(key) is not token):
+                return
+            seconds = bool(self.prefs and self.prefs.values.get('show_seconds'))
+            status = header.get('status', '')
+            try:
+                from tg_ascii.telegram_actions import peer_activity
+                status = peer_activity(header.get('activity_entity'), seconds) or status
+            except Exception:
+                pass
+            self.emit('header', {'peer': peer, 'status': self.text(status or '')})
         except Exception:
             return
-        seconds = bool(self.prefs and self.prefs.values.get('show_seconds'))
-        status = header.get('status', '')
-        try:
-            from tg_ascii.telegram_actions import peer_activity
-            status = peer_activity(header.get('activity_entity'), seconds) or status
-        except Exception:
-            pass
-        self.emit('header', {'peer': peer, 'status': self.text(status or '')})
+        finally:
+            if requests.get(key) is token:
+                requests.pop(key, None)
 
     async def api_draft(self, peer, account, text, formats=(), custom=(), reply=None, files=(), thread_root=None,
-                        window_peer=None):
+                        window_peer=None, photo_quality=None):
         from tg_ascii.message_tools import formatted_entities
+        from tg_ascii.media_quality import validate_photo_quality
+        photo_quality = validate_photo_quality(photo_quality)
         if account != self.account or self.stage != 'ready':
             raise ValueError('The active account changed.')
         peer = int(peer)
@@ -2384,6 +2682,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         formatted_entities(text, formats, custom)
         paths = [str(self.staged(key)) for key in files[:10]]
         record = {'text': text, 'formats': formats, 'custom': custom, 'reply': reply, 'files': paths}
+        if photo_quality is not None:
+            record['photo_quality'] = photo_quality
         self.set_draft(peer, record, thread_root)
         return True
 
@@ -2435,7 +2735,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 continue
         return {'text': record.get('text', ''), 'formats': record.get('formats', []),
                 'custom': [[start, end, str(ident), alt] for start, end, ident, alt in record.get('custom', ())],
-                'reply': record.get('reply'), 'files': files}
+                'reply': record.get('reply'), 'files': files,
+                **({'photo_quality': record['photo_quality']} if record.get('photo_quality') else {})}
 
     def secret_draft(self, peer):
         from tg_ascii.secret_chats import secret_chat_id
@@ -2496,6 +2797,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if (current and current['pending']) or remote.get('unsupported'):
             return
         record = {**remote, 'files': current['files'] if current else []}
+        if current and current.get('photo_quality'):
+            record['photo_quality'] = current['photo_quality']
         self.draft_store.put(account, peer, record, pending=False)
         if self.draft_store.get(account, peer) != current:
             self.draft_store.flush()
@@ -2506,7 +2809,18 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if backend is None:
             return
         if pull:
-            self.loop.create_task(self.sync_drafts(account, backend, pull=True))
+            key = (account, id(backend))
+            task = self.draft_pull_jobs.get(key)
+            if task is None or task.done():
+                task = self.loop.create_task(self.sync_drafts(account, backend, pull=True))
+                self.draft_pull_jobs[key] = task
+
+                def finished(result):
+                    if self.draft_pull_jobs.get(key) is result:
+                        self.draft_pull_jobs.pop(key, None)
+                    if not result.cancelled():
+                        result.exception()
+                task.add_done_callback(finished)
         elif account not in self.draft_jobs:
             async def delayed():
                 await asyncio.sleep(0.6)
@@ -2641,7 +2955,10 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         cached = self.cached_detail('contacts')
         if cached is not None:
             return cached
-        return self.remember_detail('contacts', await self._contacts())
+        account, backend = self.account, self.backend
+        contacts = await self._contacts()
+        self.check_backend_context(account, backend)
+        return self.remember_detail('contacts', contacts)
 
     async def _contacts(self):
         from telethon import utils
@@ -2935,8 +3252,10 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         return result
 
     async def api_bot_button(self, peer, id, row, column, signature):
-        result = await asyncio.wait_for(self.backend.activate_bot_button(
+        account, backend = self.account, self.backend
+        result = await asyncio.wait_for(backend.activate_bot_button(
             peer, int(id), int(row), int(column), bytes.fromhex(signature)), 60)
+        self.check_backend_context(account, backend)
         answer = {}
         for key in ('notice', 'alert', 'url', 'copy', 'profile'):
             if result.get(key) not in (None, ''):
@@ -3055,26 +3374,39 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     # -- secret chats (E2E) -----------------------------------------------------------
     async def api_secret_start(self, peer):
-        chat = await asyncio.wait_for(self.backend.start_secret_chat(int(peer)), 30)
+        owner, backend = self.account, self.backend
+        chat = await asyncio.wait_for(backend.start_secret_chat(int(peer)), 30)
+        self.check_backend_context(owner, backend)
         await self.refresh_chats()
+        self.check_backend_context(owner, backend)
         return self.chat_json(chat)
 
     async def api_secret_info(self, peer):
         from tg_ascii.secret_chats import TTL_CHOICES
 
-        info = await self.backend.secret_chat_info(int(peer))
+        owner, backend = self.account, self.backend
+        info = await backend.secret_chat_info(int(peer))
+        self.check_backend_context(owner, backend)
         if not info:
             from tg_ascii.i18n import tr
             raise ValueError(tr('No hay sesión de chat secreto activa.'))
         return {**info, 'ttl_choices': [seconds for seconds, _ in TTL_CHOICES]}
 
     async def api_secret_ttl(self, peer, seconds):
-        await asyncio.wait_for(self.backend.set_secret_ttl(int(peer), int(seconds or 0)), 30)
-        return await self.backend.secret_chat_info(int(peer))
+        owner, backend = self.account, self.backend
+        await asyncio.wait_for(backend.set_secret_ttl(int(peer), int(seconds or 0)), 30)
+        self.check_backend_context(owner, backend)
+        info = await backend.secret_chat_info(int(peer))
+        self.check_backend_context(owner, backend)
+        return info
 
     async def api_secret_rekey(self, peer):
-        await asyncio.wait_for(self.backend.rekey_secret_chat(int(peer)), 30)
-        return await self.backend.secret_chat_info(int(peer))
+        owner, backend = self.account, self.backend
+        await asyncio.wait_for(backend.rekey_secret_chat(int(peer)), 30)
+        self.check_backend_context(owner, backend)
+        info = await backend.secret_chat_info(int(peer))
+        self.check_backend_context(owner, backend)
+        return info
 
     async def api_secret_screenshot(self, peer):
         await asyncio.wait_for(self.backend.notify_secret_screenshot(int(peer)), 30)
@@ -3082,8 +3414,11 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     async def api_secret_discard(self, peer, delete_history=True):
         peer = int(peer)
-        await asyncio.wait_for(self.backend.discard_secret_chat(peer, delete_history=bool(delete_history)), 30)
-        self.__dict__.get('_secret_drafts', {}).pop((self.account, peer), None)
+        account, backend = self.account, self.backend
+        await asyncio.wait_for(backend.discard_secret_chat(peer, delete_history=bool(delete_history)), 30)
+        self.__dict__.get('_secret_drafts', {}).pop((account, peer), None)
+        if self.account != account or self.backend is not backend:
+            return True
         if delete_history:
             self.chats = [chat for chat in self.chats if chat.id != peer]
             self.histories.pop(peer, None)
@@ -3100,13 +3435,19 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 'phone': data.get('phone', '') or ''}
 
     async def api_save_my_profile(self, first, last, about, username):
+        account, backend = self.account, self.backend
         current = await self.api_my_profile()
+        self.check_backend_context(account, backend)
         if (first, last, about) != (current['first'], current['last'], current['about']):
-            await self._action(self.backend.update_profile(str(first), str(last), str(about)))
+            await self._action(backend.update_profile(str(first), str(last), str(about)))
+            self.check_backend_context(account, backend)
         if username.strip().lstrip('@') != current['username']:
-            await self._action(self.backend.update_username(username.strip().lstrip('@')))
+            await self._action(backend.update_username(username.strip().lstrip('@')))
+            self.check_backend_context(account, backend)
         self.loop.create_task(self.accounts.refresh_account())
-        return await self.api_my_profile()
+        result = await self.api_my_profile()
+        self.check_backend_context(account, backend)
+        return result
 
     # -- app lock (PIN) ------------------------------------------------------------
     def lock_path(self):
@@ -3204,6 +3545,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if self.lock_record() is not None and not self.locked:
             self.disconnect_tv()
             self.locked = True
+            self.loop.create_task(self.close_media_requests())
             if getattr(self, 'call_pip', None):
                 self.call_pip.close()
             if self.voice_recording is not None:
@@ -3244,12 +3586,16 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         service = self.accounts.services.get(self.account) if self.accounts else None
         recovery = getattr(service, 'recovery', None)
         if self.stage == 'ready' and recovery is not None:
+            account, backend = self.account, self.backend
             async def reconnect():
                 try:
                     await asyncio.wait_for(recovery.ensure(force=True), 60)
-                    self.connection = getattr(recovery, 'state', 'online') or 'online'
+                    connection = getattr(recovery, 'state', 'online') or 'online'
                 except Exception:
-                    self.connection = 'offline'
+                    connection = 'offline'
+                if self.account != account or self.backend is not backend or self.stage != 'ready':
+                    return
+                self.connection = connection
                 self.emit('connection', self.connection)
                 if self.connection == 'online':
                     self.outbox.kick()
@@ -3260,6 +3606,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
     async def api_app_visible(self):
         hidden_at, self.hidden_at = getattr(self, 'hidden_at', None), None
         self.in_background = False
+        if self.native_notify_refresh is not None:
+            self.native_notify_refresh()
         if self.system == 'iOS':
             self.keep_connected()
         self.publish_wear_appearance()
@@ -3392,6 +3740,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         # Written next to its place and renamed: a request arriving meanwhile
         # never reads half a picture.
         temporary = path.with_name(f'.{path.name}.{secrets.token_hex(4)}.part')
+        photo_id = None if big else getattr(getattr(target, 'photo', None), 'photo_id', None)
         async with self._avatar_slots:
             try:
                 result = await asyncio.wait_for(backend.client.download_profile_photo(
@@ -3408,7 +3757,6 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             none.touch()
             return None
         none.unlink(missing_ok=True)
-        photo_id = None if big else self.photo_id(int(path.stem))
         marker = path.with_suffix('.id')
         if photo_id:
             marker.write_text(str(photo_id))
@@ -3479,8 +3827,10 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         return await self._action(self.backend.send_contact_card(peer, str(first), str(last), _plus(phone), reply_to=reply_to))
 
     async def api_save_to_saved(self, peer, id):
-        me = await asyncio.wait_for(self.backend.client.get_me(), 20)
-        return await self._action(self.backend.forward_message(peer, int(id), me.id))
+        account, backend = self.account, self.backend
+        me = await asyncio.wait_for(backend.client.get_me(), 20)
+        self.check_backend_context(account, backend)
+        return await self._action(backend.forward_message(peer, int(id), me.id))
 
     # -- contact menu ------------------------------------------------------------------------
     async def api_common_chats(self, peer):
@@ -3488,19 +3838,13 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         return [{'id': chat.id, 'name': self.text(chat.name), 'kind': chat.kind} for chat in chats]
 
     async def api_shared_media(self, peer, kind='photos', offset=0, account=None):
-        if kind not in ('photos', 'files', 'links', 'voice', 'audio', 'gifs', 'polls'):
+        kinds = {'photos': 'media', 'photos_only': 'photos', 'videos': 'videos',
+                 'files': 'files', 'links': 'links', 'voice': 'voice', 'audio': 'audio', 'gifs': 'gifs', 'polls': 'polls'}
+        if kind not in kinds:
             raise ValueError('kind')
         self.check_active_account(account)
         owner, backend = self.account, self.backend
-        from tg_ascii.secret_chats import is_secret_peer
-        if kind == 'photos' and not is_secret_peer(int(peer)):
-            from telethon import types
-            raw = await asyncio.wait_for(backend.client.get_messages(int(peer), search='',
-                filter=types.InputMessagesFilterPhotoVideo(), limit=50, offset_id=int(offset)), 30)
-            await backend.resolve_missing_senders(raw)
-            found = [backend.message(message) for message in raw if isinstance(message, types.Message)]
-        else:
-            found = await asyncio.wait_for(backend.search_messages(peer, '', kind, int(offset)), 30)
+        found = await asyncio.wait_for(backend.search_messages(int(peer), '', kinds[kind], int(offset)), 30)
         if self.account != owner or self.backend is not backend or self.locked:
             raise PermissionError('The active account changed.')
         messages = found[0] if isinstance(found, tuple) else found
@@ -3527,7 +3871,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                   'layout': 'auto', 'side_width': 0, 'windows': [], 'watch_own': False,
                   'swipe_right': 'read', 'swipe_left': 'menu',
                   'keep_connected': False, 'background_sync': False, 'chat_sync': {}, 'effects': {},
-                  'brand_logo': {}, 'brand_photo': '', 'official_logo': ''}
+                  'brand_logo': {}, 'brand_photo': '', 'official_logo': '', 'presentation': {}}
     LAYOUTS = ('auto', 'single', 'double')
     ICONS = tuple(NATIVE_LOGOS)
     FONTS = ('', 'courier', 'sans', 'serif', 'system', 'rounded', 'humanist', 'classic', 'book', 'mono', 'sf',
@@ -3575,6 +3919,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                              if isinstance(item, dict) and item.get('account') == self.account][:8]
         values['chat_sync'] = {str(peer): mode for peer, mode in values['chat_sync'].items() if mode in ('devices', 'both')}
         values['effects'] = effects_json(values['effects'])
+        from .presentation import validated as validated_presentation
+        values['presentation'] = validated_presentation(values['presentation'])
         return values
 
     def save_appearance(self, values):
@@ -3656,14 +4002,23 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         path = self.root / 'mobile-logos' / name
         return path if path.is_file() else None
 
-    async def api_set_logo_photo(self, key):
-        source = self.staged(key)
-        name = await asyncio.to_thread(self.background_image, source, self.root / 'mobile-logos')
-        current = self.appearance()
-        current.update(brand_photo=name, official_logo='')
-        self.save_appearance(current)
-        source.unlink(missing_ok=True)
-        return current
+    async def api_set_logo_photo(self, key, account=None):
+        self.check_active_account(account)
+        owner, backend = self.account, self.backend
+        source, name, saved = self.staged(key), None, False
+        folder = self.root / 'mobile-logos'
+        try:
+            name = await asyncio.to_thread(self.background_image, source, folder)
+            self.check_backend_context(owner, backend)
+            current = self.appearance()
+            current.update(brand_photo=name, official_logo='')
+            self.save_appearance(current)
+            saved = True
+            return current
+        finally:
+            source.unlink(missing_ok=True)
+            if name is not None and not saved:
+                (folder / name).unlink(missing_ok=True)
 
     async def api_appearance(self, values=None, account=None):
         current = self.appearance()
@@ -3697,6 +4052,9 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 current['layout'] = values['layout']
             if isinstance(values.get('effects'), dict):
                 current['effects'] = effects_json({**current['effects'], **values['effects']})
+            if isinstance(values.get('presentation'), dict):
+                from .presentation import validated as validated_presentation
+                current['presentation'] = validated_presentation(values['presentation'])
             if 'background_sync' in values:
                 current['background_sync'] = bool(values['background_sync'])
             if 'side_width' in values:
@@ -3748,31 +4106,38 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             picture.save(target, quality=90)
         return target.name
 
-    async def api_set_background(self, key, target='interface', sync=''):
-        """target: 'interface' or a chat id. key: a staged picture (picker/upload).
-        sync: '' only this device; 'devices' through Telegram on all your devices
-        (the general one: your TG-ASCII devices); 'both' a chat's also for the other person."""
-        path = self.staged(key)
+    async def api_set_background(self, key, target='interface', sync='', account=None):
+        """Apply the picked background only to the account that began the edit."""
+        self.check_active_account(account)
+        owner, backend = self.account, self.backend
+        path, name, applied = self.staged(key), None, False
         try:
             name = await asyncio.to_thread(self.background_image, path)
+            self.check_backend_context(owner, backend)
+            saved = self.root / 'mobile-backgrounds' / name
+            current = self.appearance()
+            if target == 'interface':
+                if sync:
+                    await asyncio.wait_for(self.upload_account_wallpaper(saved), 120)
+                    self.check_backend_context(owner, backend)
+                current['background'] = name
+                current['background_sync'] = bool(sync)
+            else:
+                peer = str(int(target))
+                if sync in ('devices', 'both'):
+                    await asyncio.wait_for(backend.apply_wallpaper(int(target), saved, for_both=sync == 'both'), 120)
+                    self.check_backend_context(owner, backend)
+                    current['chat_sync'][peer] = sync
+                else:
+                    current['chat_sync'].pop(peer, None)
+                current['chats'][peer] = name
+            result = self.save_appearance(current)
+            applied = True
+            return result
         finally:
             path.unlink(missing_ok=True)
-        saved = self.root / 'mobile-backgrounds' / name
-        current = self.appearance()
-        if target == 'interface':
-            if sync:
-                await asyncio.wait_for(self.upload_account_wallpaper(saved), 120)
-            current['background'] = name
-            current['background_sync'] = bool(sync)
-        else:
-            peer = str(int(target))
-            if sync in ('devices', 'both'):
-                await asyncio.wait_for(self.backend.apply_wallpaper(int(target), saved, for_both=sync == 'both'), 120)
-                current['chat_sync'][peer] = sync
-            else:
-                current['chat_sync'].pop(peer, None)
-            current['chats'][peer] = name
-        return self.save_appearance(current)
+            if name is not None and not applied:
+                (self.root / 'mobile-backgrounds' / name).unlink(missing_ok=True)
 
     async def upload_account_wallpaper(self, path):
         """Keep the general background in the account's Telegram wallpapers, where
@@ -3784,7 +4149,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         wallpaper = await client(functions.account.UploadWallPaperRequest(uploaded, 'image/jpeg', settings))
         await client(functions.account.SaveWallPaperRequest(types.InputWallPaper(wallpaper.id, wallpaper.access_hash), False, settings))
 
-    async def wallpaper_image(self, wallpaper):
+    async def wallpaper_image(self, wallpaper, backend=None):
         """Local copy (mobile-backgrounds) of a Telegram picture wallpaper; None for
         colours, gradients and patterns."""
         import hashlib
@@ -3795,7 +4160,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         target = self.root / 'mobile-backgrounds' / name
         if not target.is_file():
             target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-            data = await self.backend.client.download_media(document, file=bytes)
+            backend = backend if backend is not None else self.backend
+            data = await backend.client.download_media(document, file=bytes)
             temporary = target.with_suffix('.tmp')
             temporary.write_bytes(data)
             temporary.replace(target)
@@ -3813,12 +4179,15 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         current = self.appearance()
         if not current.get('background_sync'):
             return current
-        result = await asyncio.wait_for(self.backend.client(functions.account.GetWallPapersRequest(hash=0)), 30)
+        account, backend = self.account, self.backend
+        result = await asyncio.wait_for(backend.client(functions.account.GetWallPapersRequest(hash=0)), 30)
+        self.check_backend_context(account, backend)
         mine = [item for item in getattr(result, 'wallpapers', None) or ()
                 if getattr(item, 'creator', False) and getattr(item, 'document', None) is not None and not getattr(item, 'pattern', False)]
         if not mine:
             return current
-        name = await self.wallpaper_image(max(mine, key=lambda item: item.id))
+        name = await self.wallpaper_image(max(mine, key=lambda item: item.id), backend)
+        self.check_backend_context(account, backend)
         if name and name != current['background']:
             current['background'] = name
             current = self.save_appearance(current)
@@ -3850,7 +4219,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             return await self.open_secret_attachment(int(peer), int(id), action)
         message = next((m for m in self.histories.get(int(peer)) or [] if m.id == int(id)), None)
         chat = next((c for c in self.chats if c.id == int(peer)), None)
-        if (getattr(message, 'protected', False) or getattr(getattr(message, 'media', None), 'ttl_seconds', None)
+        if (getattr(message, 'protected', False) or has_expiry(message)
                 or getattr(getattr(chat, 'entity', None), 'noforwards', False)):
             raise PermissionError('Protected content')
         if action in ('save', 'share'):
@@ -4068,17 +4437,20 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     async def api_mark_read_chat(self, peer):
         """Read everything in a chat without opening it (Desktop: Mark as read)."""
-        client = self.backend.client
-        latest = await asyncio.wait_for(client.get_messages(peer, limit=1), 20)
+        account, backend = self.account, self.backend
+        latest = await asyncio.wait_for(backend.client.get_messages(peer, limit=1), 20)
+        self.check_backend_context(account, backend)
         chat = next((item for item in self.chats if item.id == peer), None)
+        marked = bool(getattr(chat, 'unread_mark', False))
         if chat is not None:
             chat.unread, chat.unread_mark = 0, False
             self.emit('chats', [self.chat_json(item) for item in self.visible_chats()])
             self.schedule_save()
         if latest:
-            await asyncio.wait_for(self.backend.mark_read(peer, latest[0].id), 20)
-        if getattr(chat, 'unread_mark', False):
-            await self.backend.set_chat_unread(peer, False)
+            await asyncio.wait_for(backend.mark_read(peer, latest[0].id), 20)
+            self.check_backend_context(account, backend)
+        if marked:
+            await backend.set_chat_unread(peer, False)
         return {'read': True}
 
     async def api_chats_batch(self, peers, action, value=True, account=None):
@@ -4844,23 +5216,36 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
     async def api_article(self, peer, id):
         """A whole article: its text and how many photos it has (carousel)."""
         from tg_ascii.rich_articles import rich_article_text
-        rich, own = await asyncio.wait_for(self.backend.article_state(int(peer), int(id)), 60)
-        self.__dict__.setdefault('articles', {})[(int(peer), int(id))] = rich
+        account, backend = self.account, self.backend
+        rich, own = await asyncio.wait_for(backend.article_state(int(peer), int(id)), 60)
+        if self.account != account or self.backend is not backend or self.locked:
+            raise PermissionError('The active account changed.')
         return {'text': self.text(rich_article_text(rich) or ''), 'photos': len(getattr(rich, 'photos', None) or ()), 'own': own}
 
     async def article_photo(self, peer, ident, index):
         from telethon import types
-        rich = self.__dict__.setdefault('articles', {}).get((int(peer), int(ident)))
-        if rich is None:
-            rich, _own = await self.backend.article_state(int(peer), int(ident))
+        account, backend = self.account, self.backend
+        raw, restricted = await self.media_message(peer, ident, account, backend, fresh=True, article=True)
+        rich = getattr(raw, 'rich_message', None)
+        if rich is None or getattr(rich, 'part', False):
+            rich, _own = await backend.article_state(int(peer), int(ident))
+        if self.account != account or self.backend is not backend or self.locked:
+            raise PermissionError('The active account changed.')
         photos = list(getattr(rich, 'photos', None) or ())
         if not 0 <= index < len(photos):
             raise LookupError('photo')
+        media = types.MessageMediaPhoto(photo=photos[index])
+        if restricted:
+            return await self.transient_media().file(account, backend, peer, ident, raw, False, 'original',
+                                                     media=media, variant=('article', index))
         folder = self.media_folder()
         folder.mkdir(parents=True, exist_ok=True, mode=0o700)
         target = folder / f'{int(peer)}-{int(ident)}-a{index}.jpg'
         if not target.is_file():
-            await self.backend.client.download_media(types.MessageMediaPhoto(photos[index]), file=str(target))
+            await backend.download_media(media, target)
+        if self.account != account or self.backend is not backend or self.locked:
+            target.unlink(missing_ok=True)
+            raise PermissionError('The active account changed.')
         return target
 
     # -- group and channel management (desktop: community management) ---------------------
@@ -5171,42 +5556,50 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         return self.siri_vocabulary.configure(self, account, peers)
 
     async def api_settings(self, values=None):
-        from tg_ascii.i18n import set_language
         if values:
             changes = {key: value for key, value in values.items() if key in self.settings_snapshot()
                        and key not in ('advanced_features', 'font_min', 'font_max', 'radius_max')}
             if isinstance(values.get('advanced_features'), dict):
                 # The desktop's Complex features, on unless turned off here (mobile_features).
                 stored = dict(self.prefs.values.get('mobile_features') or {})
-                stored.update({key: bool(value) for key, value in values['advanced_features'].items()
-                               if key in MOBILE_FEATURES or key in MOBILE_FEATURES_OFF})
+                stored.update({key: value for key, value in values['advanced_features'].items()
+                               if (key in MOBILE_FEATURES or key in MOBILE_FEATURES_OFF) and type(value) is bool})
                 changes['mobile_features'] = stored
             self.prefs.save(changes)
-            if 'app_display_name' in changes and getattr(self, 'native_display_name', None):
-                self.native_display_name(self.prefs.values.get('app_display_name'))
-                if getattr(self, 'native_home_name', None):
-                    self.native_home_name(self.prefs.values.get('app_display_name'))
-            if 'local_pins' in changes:
-                if changes['local_pins'] and self.chats and self.account not in self.local_pins.values:
-                    self.local_pins.save_order(self.account, [c.id for c in self.chats if c.pinned])
-                self.emit('chats', [self.chat_json(c) for c in self.visible_chats()])
-            if changes.get('mobile_features', {}).get('preload_startup'):
-                self.loop.create_task(self.preload())
-            set_language(self.prefs.values['language'])
-            if values.get('notifications') and self.native_notify_permission is not None:
-                self.native_notify_permission()
-            if 'notifications' in values:
-                self.keep_connected()
-                if not self.prefs.values.get('notifications', True) and self.native_notify_disable:
-                    self.native_notify_disable()
-            if changes.get('notify_preview') is False or changes.get('notifications') is False:
-                self.forget_notification_chats()
-            if 'notify_preview' in changes or 'notifications' in changes:
-                await self.sync_push_registration()
-            self.apply_keep_loaded()
-            self.emit('settings', self.settings_snapshot())
-            self.publish_wear_appearance()
+            await self.apply_settings_changes(changes)
         return self.settings_snapshot()
+
+    async def apply_settings_changes(self, changes, request_permission=True):
+        from tg_ascii.i18n import set_language
+        if 'app_display_name' in changes and getattr(self, 'native_display_name', None):
+            self.native_display_name(self.prefs.values.get('app_display_name'))
+            if getattr(self, 'native_home_name', None):
+                self.native_home_name(self.prefs.values.get('app_display_name'))
+        if 'local_pins' in changes:
+            if changes['local_pins'] and self.chats and self.account not in self.local_pins.values:
+                self.local_pins.save_order(self.account, [c.id for c in self.chats if c.pinned])
+            self.emit('chats', [self.chat_json(c) for c in self.visible_chats()])
+        if changes.get('mobile_features', {}).get('preload_startup'):
+            self.loop.create_task(self.preload())
+        set_language(self.prefs.values['language'])
+        if request_permission and changes.get('notifications') and self.native_notify_permission is not None:
+            self.native_notify_permission()
+        if 'notifications' in changes:
+            self.keep_connected()
+            if not self.prefs.values.get('notifications', True) and self.native_notify_disable:
+                self.native_notify_disable()
+        if changes.get('notify_preview') is False or changes.get('notifications') is False:
+            self.forget_notification_chats()
+        if 'notify_preview' in changes or 'notifications' in changes:
+            await self.sync_push_registration()
+        self.apply_keep_loaded()
+        self.emit('settings', self.settings_snapshot())
+        self.publish_wear_appearance()
+
+    async def api_reset_settings(self, scope, account):
+        from .settings_reset import reset_settings
+        return await reset_settings(self, scope, account)
+
 
     # -- Complex features › Keep more loaded / Prepare content at startup (3.0.0.2) --
     def feature(self, key):
@@ -5404,6 +5797,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     # accounts
     async def switch_finished(self, state):
+        self.open_peer, self.preview = None, False
         self.open_revision += 1
         self.open_discussion = None
         self.discussion_messages.clear()
@@ -5417,6 +5811,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     @suspend_vocabulary
     async def api_account_select(self, key):
+        await self.close_media_requests()
         await self.cancel_current_voice()
         await self.save_snapshot()
         await self.close_call_manager()
@@ -5427,6 +5822,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     @suspend_vocabulary
     async def api_account_add(self):
+        await self.close_media_requests()
         self.disconnect_tv()
         await self.cancel_current_voice()
         await self.save_snapshot()
@@ -5476,6 +5872,10 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         return state
 
     def purge_account_drafts(self, account):
+        for key, task in tuple(self.draft_pull_jobs.items()):
+            if key[0] == account:
+                task.cancel()
+                self.draft_pull_jobs.pop(key, None)
         job = self.draft_jobs.pop(account, None)
         if job is not None:
             job.cancel()
@@ -5513,7 +5913,52 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if not token:
             return
         self._push_token = (int(token_type), token, bool(sandbox))
-        self.loop.call_soon_threadsafe(lambda: self.loop.create_task(self.sync_push_registration()))
+        def accepted():
+            if self._push_stopped:
+                return
+            self._push_retry_native = False
+            self._push_status = {'state': 'registering', 'provider': 'APNs' if token_type == 1 else 'FCM', 'error': None}
+            self.schedule_push_check(0)
+        self.loop.call_soon_threadsafe(accepted)
+
+    def schedule_push_check(self, delay):
+        if self._push_stopped:
+            return
+        if self._push_check is not None:
+            self._push_check.cancel()
+        def run():
+            self._push_check = None
+            if self.prefs and not self.prefs.values.get('notifications', True):
+                return
+            if self._push_retry_native and self.native_push_retry is not None:
+                self.native_push_retry()
+            elif getattr(self, '_push_token', None):
+                self.loop.create_task(self.sync_push_registration())
+            elif self.native_push_retry is not None:
+                self.native_push_retry()
+        self._push_check = self.loop.call_later(max(0, delay), run)
+
+    def native_push_failed(self, provider, code, retry=True, native=False):
+        """Only fixed/numeric error codes, never provider payloads or tokens."""
+        if self._push_stopped:
+            return
+        if code in ('permission_denied', 'permission_not_requested'):
+            self._push_permission = 'denied' if code == 'permission_denied' else 'not_requested'
+        self._push_status = {'state': 'retrying' if retry else 'unavailable', 'provider': provider,
+                             'error': str(code)[:80]}
+        self._push_retry_native = native
+        if retry:
+            self.schedule_push_check(self._push_retry_delay)
+            self._push_retry_delay = min(300, self._push_retry_delay * 2)
+        elif self._push_check is not None:
+            self._push_check.cancel()
+            self._push_check = None
+
+    async def api_notification_status(self):
+        return {**self._push_status, 'permission': self._push_permission,
+                'token_received': bool(getattr(self, '_push_token', None)),
+                'registered_accounts': len(self._push_registered), 'connected_accounts': len(self.push_clients()),
+                'sandbox': bool(getattr(self, '_push_token', (None, None, False))[2])}
 
     async def connect_saved_push_account(self, key):
         """Attach a known saved session while keeping the start-up chooser open."""
@@ -5637,15 +6082,26 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
     async def sync_push_registration(self):
         from telethon import functions
 
+        generation, accounts = self._push_generation, self.accounts
+        def current():
+            return not self._push_stopped and self._push_generation == generation and self.accounts is accounts
+        if not current():
+            return
         cache = getattr(self, 'ios_notice_cache', None)
         if cache:
             cache.sync(self)
         async with self._push_gate:
+            if not current():
+                return
             info = getattr(self, '_push_token', None)
             if not info or self.accounts is None:
                 return
             token_type, token, sandbox = info
             live = self.push_clients()
+            failure = None
+            now = time.monotonic()
+            for key in set(self._push_registered_at) - live.keys():
+                self._push_registered_at.pop(key, None)
             for key, client in live.items():
                 if self._push_token != info or self.push_clients().get(key) is not client:
                     continue
@@ -5654,6 +6110,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 previous = self._push_registered.get(key)
                 if self.prefs and not self.prefs.values.get('notifications', True):
                     if await self.remove_push_registration(previous or registration, ()):
+                        if not current():
+                            return
                         self._push_registered.pop(key, None)
                     continue
                 if token_type == 1 and self.prefs:
@@ -5663,17 +6121,23 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                             updated = await asyncio.wait_for(client(functions.account.UpdateDeviceLockedRequest(period)), 8)
                         except Exception:
                             updated = False
+                        if not current():
+                            return
                         if updated:
                             self._push_privacy[key] = (client, period)
-                        elif period == 0:
+                        else:
+                            failure = 'privacy_registration'
+                        if not updated and period == 0:
                             # Retry on reconnect before enabling previews on a protected device.
                             if await self.remove_push_registration(previous or registration, ()):
                                 self._push_registered.pop(key, None)
                             continue
-                if previous == registration:
+                if previous == registration and now - self._push_registered_at.get(key, 0) < 23 * 3600:
                     continue
                 if previous and previous[1] != info:
                     await self.remove_push_registration(previous, ())
+                    if not current():
+                        return
                     self._push_registered.pop(key, None)
                 if self._push_token != info or self.push_clients().get(key) is not client:
                     continue
@@ -5681,10 +6145,28 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                     result = await asyncio.wait_for(client(functions.account.RegisterDeviceRequest(
                         token_type=token_type, token=token, app_sandbox=sandbox,
                         secret=b'', other_uids=list(others))), 20)
+                    if not current():
+                        return
                     if result:
                         self._push_registered[key] = registration
-                except Exception:
-                    pass
+                        self._push_registered_at[key] = time.monotonic()
+                    else:
+                        failure = 'registration_rejected'
+                except Exception as error:
+                    failure = type(error).__name__
+            if not current():
+                return
+            if self.prefs and not self.prefs.values.get('notifications', True):
+                if self._push_check is not None:
+                    self._push_check.cancel()
+                    self._push_check = None
+                self._push_status = {'state': 'disabled', 'provider': 'APNs' if token_type == 1 else 'FCM', 'error': None}
+            elif failure:
+                self.native_push_failed('APNs' if token_type == 1 else 'FCM', failure)
+            elif live:
+                self._push_retry_delay = 5
+                self._push_status = {'state': 'registered', 'provider': 'APNs' if token_type == 1 else 'FCM', 'error': None}
+                self.schedule_push_check(min(max(1, 23 * 3600 - (time.monotonic() - self._push_registered_at.get(key, 0))) for key in live))
 
     @staticmethod
     async def remove_push_registration(registration, others):
@@ -5792,7 +6274,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 await asyncio.wait_for(self.accounts.logout(key), 30)
             except Exception:
                 pass
-        await self.accounts.close()
+        await self.shutdown()
         if safe_to_wipe(self.root):
             await asyncio.to_thread(wipe, self.root)
         self.siri_vocabulary.accounts.clear()
@@ -5837,7 +6319,7 @@ MOBILE_FEATURES = ('polls', 'checklists', 'locations', 'contacts', 'articles', '
                    'chat_translation', 'call_history', 'calls', 'chat_list_activity', 'contact_list_details')
 # 3.0.0.2: off unless turned on (Complex features): Keep more loaded and
 # Prepare content at startup.
-MOBILE_FEATURES_OFF = ('keep_loaded', 'preload_startup')
+MOBILE_FEATURES_OFF = ('keep_loaded', 'preload_startup', 'media_originals', 'native_liquid_glass')
 KEEP_FRESH = 600      # seconds a reloaded chat is trusted while the connection stays up
 KEEP_DETAILS = 300    # seconds profiles and the contact list are reused
 # Calls that change a profile or the contacts: the kept copies are dropped.
