@@ -69,8 +69,11 @@ class NativeGlassProjectTests(unittest.TestCase):
                 self.assertIn('111111111111111111111111 /* main.m */', sources)
                 self.assertEqual(sources.count('34A61A550000000000000002'), 1)
                 self.assertNotIn('34A61A550000000000000003', first)
-                self.assertEqual((xcode / 'TGASCII/TGNativeGlass.swift').read_bytes(),
-                                 (TOOLS / 'ios/TGNativeGlass.swift').read_bytes())
+                for name, build in [('TGNativeGlass.swift', 2), ('TGNativeGeometry.swift', 5),
+                                    ('TGNativeViewport.swift', 7), ('TGNativeDialogs.swift', 9)]:
+                    self.assertEqual((xcode / 'TGASCII' / name).read_bytes(), (TOOLS / 'ios' / name).read_bytes())
+                    self.assertEqual(sources.count(f'34A61A55{build:016X}'), 1)
+                    self.assertEqual(first.count('path = TGASCII/' + name), 1)
 
     def test_missing_sources_fails_before_writing_project(self):
         with TemporaryDirectory() as folder:

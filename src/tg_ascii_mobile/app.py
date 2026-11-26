@@ -229,11 +229,21 @@ class TgAsciiMobile(toga.App):
             return False
 
     def install_safe_area_timer(self, system):
-        """The window is laid out after start-up and changes when an iPad
-        rotates or enters split view: measure every second and tell the page.
-        A native timer, because tasks on the app's asyncio loop do not run
-        here (the core uses its own loop)."""
+        """Track window layout immediately; retain polling for old source builds."""
         from rubicon.objc import Block, ObjCClass, objc_id
+        previous = getattr(self, '_native_viewport', None)
+        if previous:
+            previous.detach()
+        timer = getattr(self, '_safe_area_timer', None)
+        if timer:
+            timer.invalidate()
+            self._safe_area_timer = None
+        try:
+            self._native_viewport = ObjCClass('TGNativeViewport').attachToWebView_(self.webview._impl.native)
+            if self._native_viewport:
+                return
+        except Exception:
+            pass  # Older builds without this native class keep the safe fallback.
         last = {}
 
         def tick(timer):
@@ -306,6 +316,11 @@ class TgAsciiMobile(toga.App):
                 web.backgroundColor = color
                 from . import ios_liquid_glass
                 ios_liquid_glass.install(self)
+                try:
+                    from . import native_dialogs
+                    native_dialogs.install_ios(self)
+                except Exception as exc:
+                    print('native dialogs:', type(exc).__name__)
                 self.install_ios_opener()
                 self.install_ios_icon_switcher()
                 self.install_ios_biometric()
@@ -340,6 +355,11 @@ class TgAsciiMobile(toga.App):
                 self.install_icon_switcher(activity)
                 self.install_quit(activity)
                 self.install_android_biometric(activity)
+                try:
+                    from . import native_dialogs
+                    native_dialogs.install_android(self, activity)
+                except Exception as exc:
+                    print('native dialogs:', type(exc).__name__)
                 from . import qr_native
                 qr_native.install_android(self, activity)
                 from . import notify_native
@@ -583,12 +603,15 @@ class TgAsciiMobile(toga.App):
         def save(target, active):
             """MediaStore publishes only a complete copy; failures remove its row."""
             from android.provider import MediaStore
+            from java.lang import Integer
             name, mime = Path(target).name, mimetypes.guess_type(target)[0] or 'application/octet-stream'
             values = ContentValues()
             values.put(MediaStore.MediaColumns.DISPLAY_NAME, name)
             values.put(MediaStore.MediaColumns.MIME_TYPE, mime)
             values.put(MediaStore.MediaColumns.RELATIVE_PATH, 'Download/TG-ASCII')
-            values.put(MediaStore.MediaColumns.IS_PENDING, 1)
+            # Chaquopy cannot select between ContentValues' numeric overloads
+            # for a Python int. MediaStore expects the java.lang.Integer one.
+            values.put(MediaStore.MediaColumns.IS_PENDING, Integer(1))
             resolver = activity.getContentResolver()
             uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
             if uri is None:
@@ -611,7 +634,7 @@ class TgAsciiMobile(toga.App):
                 if not active():
                     raise PermissionError('The active account changed.')
                 values = ContentValues()
-                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                values.put(MediaStore.MediaColumns.IS_PENDING, Integer(0))
                 resolver.update(uri, values, None, None)
             except Exception:
                 resolver.delete(uri, None, None)

@@ -70,7 +70,9 @@ class ResetSettingsTests(IsolatedAsyncioTestCase):
         self.assert_accounts_preserved()
 
     async def test_customization_resets_backgrounds_effects_and_corners_only(self):
+        await self.core.api_appearance({'native_dialogs': True}, account='one')
         result = await self.core.api_reset_settings('customization', 'one')
+        self.assertFalse(result['appearance']['native_dialogs'])
         self.assertEqual(result['settings']['button_radius'], 0)
         self.assertFalse(result['settings']['reduce_animations'])
         self.assertFalse(any(result['appearance']['effects'].values()))

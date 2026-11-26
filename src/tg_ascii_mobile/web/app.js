@@ -111,7 +111,7 @@ const state = {
 
 // -- plumbing -----------------------------------------------------------------
 // Calls that create something are not repeated (a lost answer could mean done).
-const NO_RETRY = new Set(['react', 'window_send', 'send_article', 'send_checklist', 'save_to_saved', 'share_contacts', 'bot_button', 'forum_create', 'forum_manage', 'contact_photo', 'suggest_birthday', 'forum_send', 'forum_forward', 'move_pin', 'scheduled_action', 'account.add', 'login.qr', 'restart', 'reset_settings', 'report_message', 'apply_chat_wallpaper', 'publish_story', 'voice_start', 'voice_stop', 'notify_reset', 'group_call_action', 'group_call_manage', 'send', 'send_files', 'send_voice', 'send_sticker', 'send_poll', 'poll_answer', 'poll_close', 'send_contact', 'forward', 'forward_many', 'create_group', 'create_community', 'member_admin', 'member_restrict', 'members_add', 'set_discussion', 'group_change', 'call_action', 'secret_start', 'secret_ttl', 'secret_rekey', 'secret_screenshot', 'secret_discard']);
+const NO_RETRY = new Set(['native_dialog', 'download_open', 'download_cancel', 'download_retry', 'react', 'window_send', 'send_article', 'send_checklist', 'save_to_saved', 'share_contacts', 'bot_button', 'forum_create', 'forum_manage', 'contact_photo', 'suggest_birthday', 'forum_send', 'forum_forward', 'move_pin', 'scheduled_action', 'account.add', 'login.qr', 'restart', 'reset_settings', 'report_message', 'apply_chat_wallpaper', 'publish_story', 'voice_start', 'voice_stop', 'notify_reset', 'group_call_action', 'group_call_manage', 'send', 'send_files', 'send_voice', 'send_sticker', 'send_poll', 'poll_answer', 'poll_close', 'send_contact', 'forward', 'forward_many', 'create_group', 'create_community', 'member_admin', 'member_restrict', 'members_add', 'set_discussion', 'group_change', 'call_action', 'secret_start', 'secret_ttl', 'secret_rekey', 'secret_screenshot', 'secret_discard']);
 async function api(method, params = {}) {
   const revision = state.accountRevision;
   let response;
@@ -417,6 +417,7 @@ function applySettings() {
   document.dispatchEvent(new Event('appearancechange'));
   window.tgPresentation?.apply();
   window.tgNativeGlass?.refresh();
+  window.tgNativeDialogs?.sync();
 }
 
 async function loadStrings() {
@@ -481,7 +482,10 @@ async function openAndroidNotification() {
   } finally { checkingNotificationRoute = false; }
 }
 
+const downloads = createDownloadController();
+
 const EVENTS = {
+  downloads(payload) { downloads.update(payload); },
   notification_route() { openAndroidNotification().catch(() => {}); },
   // A draft changed on another device (or was sent from there).
   draft({ account, peer, thread_root, record }) {
@@ -723,6 +727,7 @@ const EVENTS = {
     if (value) notificationRoute = null;
     if (value) document.querySelector('.media-viewer[open]')?.close();
     state.locked = value;
+    if (value) downloads.reset();
     drawNativeCall();
     drawGroupCall();
     if (value) { flushOpenDrafts(); state.bioTried = false; render(); } else resync();
@@ -751,6 +756,7 @@ const EVENTS = {
 };
 
 function adopt(snapshot) {
+  const downloadContextChanged = state.account !== snapshot.account || snapshot.locked;
   if (snapshot.locked || state.account !== snapshot.account) document.getElementById('message-notice')?.remove();
   if (snapshot.locked || state.account !== snapshot.account || snapshot.stage !== 'ready')
     document.querySelector('.media-viewer[open]')?.close();
@@ -785,6 +791,7 @@ function adopt(snapshot) {
     language: snapshot.language, rtl: snapshot.rtl, locked: snapshot.locked, lock_enabled: snapshot.lock_enabled,
     appearance: snapshot.appearance || {}, lock: snapshot.lock || {},
   });
+  if (downloadContextChanged) downloads.reset();
   applySettings();
 }
 
@@ -854,6 +861,7 @@ window.addEventListener('popstate', () => {
 });
 // Native back button (Android): true when the interface went back a step.
 window.tgBack = () => {
+  if (window.tgNativeDialogs?.cancel()) return true;
   const sheetOpen = !document.getElementById('sheet-layer').hidden;
   const shown = document.querySelector('.media-viewer[open]');
   if (shown) { shown.close(); return true; }
@@ -863,6 +871,7 @@ window.tgBack = () => {
   return true;
 };
 async function back(pop = true) {
+  if (window.tgNativeDialogs?.cancel()) return;
   if (pop && synchronizingHistory) return;
   if (!document.getElementById('sheet-layer').hidden) { closeSheet(); return; }
   if (WINDOW_CHAT !== null && state.view === 'chat' && !state.open?.thread) return;  // the system closes this window
@@ -925,38 +934,88 @@ function render(direction = 'forward') {
   state.lastSection = section;
   const listTop = document.getElementById('chatlist')?.scrollTop || 0;
   const settingsTop = document.getElementById('settings-scroll')?.scrollTop || 0;
-  renderContent();
-  mountChatView();
+  const previousScroll = document.getElementById('scroll');
+  const sameChat = !changed && state.view === 'chat' && !open?.forumList && root.mountedConversation === open;
+  const position = sameChat && previousScroll ? {top:previousScroll.scrollTop,
+    bottom:previousScroll.scrollHeight - previousScroll.clientHeight - previousScroll.scrollTop} : null;
+  // A preference refresh must not detach an active mobile composer: WebKit would dismiss its keyboard.
+  const kept = sameChat && !root.classList.contains('wide') && (!WIDE() || listCoversAll())
+    ? {scroll:previousScroll, composer:root.querySelector(':scope > .composer'),
+       pinned:root.querySelector(':scope > #pinned')} : null;
+  renderContent(kept);
+  mountChatView(kept);
+  root.mountedConversation = state.locked || state.stage !== 'ready' ? null : open;
+  if (position) {
+    const box = document.getElementById('scroll');
+    if (box) box.scrollTop = position.bottom <= 4 ? box.scrollHeight : position.top;
+    if (position.bottom > 4) open.stickUntil = 0;
+  }
   window.tgPresentation?.mount();
   const list = document.getElementById('chatlist'), settings = document.getElementById('settings-scroll');
   if (list && listTop) list.scrollTop = listTop;
   if (settings && settingsTop) settings.scrollTop = settingsTop;
   updateConnectionIndicator();
+  window.tgNativeDialogs?.sync();
   if (!previous || state.locked || unavailableWindow() || (!changed && !sectionChanged)) return;
   let surface = root;
   if (!changed) surface = document.getElementById(state.view === 'settings' ? 'settings-scroll' : 'profile-scroll');
   else if (root.classList.contains('wide')) surface = root.querySelector(LISTS.includes(state.view) || ['devices', 'forward'].includes(state.view) ? '.pane.side' : '.pane.main');
   animateSurface(surface, direction === 'back' ? 'back' : 'forward');
 }
-function renderContent() {
-  root.replaceChildren();
+function renderContent(kept = null) {
+  const paint = (...nodes) => {
+    const next = nodes.map(node => {
+      if (kept?.pinned && node.id === 'pinned') return kept.pinned;
+      if (kept?.scroll && node.id === 'scroll') {
+        kept.scroll.className = node.className;
+        kept.scroll.style.cssText = node.style.cssText;
+        return kept.scroll;
+      }
+      if (kept?.composer && node.classList.contains('composer')) {
+        const existing = kept.composer.querySelector('#field'), updated = node.querySelector('#field');
+        if (existing && updated) {
+          existing.readOnly = updated.readOnly;
+          existing.placeholder = updated.placeholder;
+          existing.setAttribute('aria-label', updated.getAttribute('aria-label'));
+        }
+        const prompt = kept.composer.querySelector('.composer-prompt');
+        if (prompt) prompt.textContent = node.querySelector('.composer-prompt').textContent;
+        const controls = '.line > button, .format-bar > button';
+        const updatedButtons = [...node.querySelectorAll(controls)];
+        kept.composer.querySelectorAll(controls).forEach((button, index) => {
+          const replacement = updatedButtons[index];
+          for (const name of ['title', 'aria-label']) {
+            if (replacement?.hasAttribute(name)) button.setAttribute(name, replacement.getAttribute(name));
+            else button.removeAttribute(name);
+          }
+        });
+        return kept.composer;
+      }
+      return node;
+    });
+    const retained = new Set(next);
+    // Remove obsolete siblings first. Moving the retained composer before an old
+    // sibling via insertBefore would still blur its field, even within one parent.
+    for (const child of [...root.children]) if (!retained.has(child)) child.remove();
+    reconcile(root, next);
+  };
   root.className = '';
   windowLayer.hidden = state.locked || state.stage !== 'ready';
   if (windowLayer.hidden || unavailableWindow()) windowLayer.querySelectorAll('.closing-window').forEach(node => node.remove());
-  if (state.locked) return root.append(...lockView().filter(Boolean));
-  if (unavailableWindow()) return root.append(h('div', {class: 'center'}, t('The active account changed.')));
-  if (state.stage === 'choose_account') return root.append(...chooserView().filter(Boolean));
-  if (state.stage !== 'ready') return root.append(...loginView().filter(Boolean));
+  if (state.locked) return paint(...lockView().filter(Boolean));
+  if (unavailableWindow()) return paint(h('div', {class: 'center'}, t('The active account changed.')));
+  if (state.stage === 'choose_account') return paint(...chooserView().filter(Boolean));
+  if (state.stage !== 'ready') return paint(...loginView().filter(Boolean));
   if (WINDOW_CHAT !== null && state.view === 'chats' && !state.open)
-    return root.append(h('div', {class: 'center'}, t('Cargando...')));
+    return paint(h('div', {class: 'center'}, t('Cargando...')));
   if (LISTS.includes(state.view)) state.list = state.view;
   const detail = (state.view === 'chat' && state.open) || state.view === 'profile' || state.view === 'shared';
   if (!WIDE() || (listCoversAll() && detail)) {
     syncWindows(false);
-    if (state.view === 'chat' && state.open) return root.append(...chatView().filter(Boolean));
-    if (state.view === 'profile') return root.append(...profileView().filter(Boolean));
-    if (state.view === 'shared' && state.shared) return root.append(...sharedView().filter(Boolean));
-    return root.append(...listView(state.view).filter(Boolean));
+    if (state.view === 'chat' && state.open) return paint(...chatView(kept).filter(Boolean));
+    if (state.view === 'profile') return paint(...profileView().filter(Boolean));
+    if (state.view === 'shared' && state.shared) return paint(...sharedView().filter(Boolean));
+    return paint(...listView(state.view).filter(Boolean));
   }
   // Wide (iPad, Mac, landscape tablets): list on the side, chat or profile beside it.
   root.className = 'wide';
@@ -970,7 +1029,7 @@ function renderContent() {
   else if (state.view === 'shared' && state.shared) main = sharedView();
   else if (state.open) main = chatView();
   else main = [h('div', { class: 'placeholder' }, logo(), h('div', { class: 'muted' }, t('Chats')))];
-  root.append(side, divider, h('div', { class: 'pane main' }, ...main), ...syncWindows(true));
+  paint(side, divider, h('div', { class: 'pane main' }, ...main), ...syncWindows(true));
 }
 let wasWide = WIDE();
 window.addEventListener('resize', () => {
@@ -982,9 +1041,10 @@ window.addEventListener('resize', () => {
 
 function statusNode() {
   const offline = state.connection === 'offline' || state.connection === 'reconnecting';
-  if (offline) return h('span', {id: 'status', hidden: true});
   const online = state.connection === 'online';
-  const label = t(online ? 'En linea' : 'Conectando...');
+  const label = t(online || offline ? 'En linea' : 'Conectando...');
+  if (offline) return h('span', {id:'status', class:'status connection-placeholder', 'aria-hidden':'true'},
+    h('span', {}, '●'), h('span', {class:'status-word'}, label));
   return h(online ? 'span' : 'button', {id: 'status', class: 'status', title: label,
     'aria-label': online ? label : label + ' · ' + t('Reconnect'), onclick: online ? null : reconnect},
     h('span', {'aria-hidden': 'true'}, online ? '●' : '◌'), h('span', {class: 'status-word'}, label));
@@ -992,13 +1052,12 @@ function statusNode() {
 function updateConnectionIndicator() {
   const badge = connectionAlert;
   badge.hidden = state.locked || unavailableWindow() || state.stage !== 'ready' || !['offline', 'reconnecting'].includes(state.connection);
-  if (badge.hidden) {
-    if (!badge.isConnected) document.body.append(badge);
-    return;
-  }
-  const pane = root.classList.contains('wide') ? root.lastElementChild : root;
+  const pane = root.classList.contains('wide') ? root.querySelector(':scope > .pane.main') : root;
   const bar = pane?.querySelector(':scope > .bar, :scope > .winbar');
-  const host = bar || document.body;
+  // Keep one stable corner slot: connectivity changes must not squeeze the title or move controls.
+  let slot = bar?.querySelector(':scope > .connection-slot');
+  if (bar && !slot) { slot = h('span', {class:'connection-slot'}); bar.append(slot); }
+  const host = slot || document.body;
   if (badge.parentElement !== host) host.append(badge);
   const label = t(state.connection === 'reconnecting' ? 'Conectando...' : 'Sin conexion') + ' · ' + t('Reconnect');
   badge.title = label;
@@ -1012,12 +1071,10 @@ function updateStatus() {
 const brandUrl = (options) => '/logo?' + new URLSearchParams(
   options.t ? (WINDOW_ACCOUNT !== null ? {...options, window_account: WINDOW_ACCOUNT} : options)
     : {...options, face: 3}).toString();
-const officialLogoUrl = (key) => brandUrl({official: key, t: TOKEN});
 
 function logo() {
   const look = state.appearance;
   const src = look?.brand_photo && !state.locked ? brandUrl({photo: look.brand_photo, t: TOKEN})
-    : look?.official_logo ? officialLogoUrl(look.official_logo)
       : brandUrl(look?.brand_logo || {variant: 'title-short', color: 'default',
         theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'});
   return h('img', {class: 'logo', src, alt: state.settings?.app_display_name || 'TeleGraph'});
@@ -1334,6 +1391,7 @@ function drawGlobal(list, query) {
 
 function chatsMenu() {
   sheet(t('Chats'), [
+    [t('Descargas'), () => downloads.show()],
     [t('Contactos'), () => go('contacts', { contacts: null, search: '' })],
     ...(feature('stories') ? [[t('Stories'), openStories]] : []),
     ...(feature('call_history') ? [[t('Calls'), () => callsView(false)]] : []),
@@ -1791,7 +1849,7 @@ function newChat() {
   });
 }
 
-function chatView() {
+function chatView(kept = null) {
   const open = state.open;
   if (open.forumList) return forumListView(open);
   const {chat, thread} = open;
@@ -1828,14 +1886,14 @@ function chatView() {
 
 // Complete the mounted conversation in the same task as the new DOM. Restoring
 // a multiline draft or scroll on a later timer exposed an intermediate layout.
-function mountChatView() {
+function mountChatView(kept = null) {
   const open = state.open, box = document.getElementById('scroll');
   if (!open || open.forumList || !box || !document.getElementById('messages')) return;
   const field = document.getElementById('field');
-  if (field && !state.editing && !open.sending) restoreComposer(field, state.drafts[composerPeer(open)]);
-  if (field) { drawContext(); drawAttachments(); drawFormatPreview(); composerMode(); }
+  if (field && !kept?.composer && !state.editing && !open.sending) restoreComposer(field, state.drafts[composerPeer(open)]);
+  if (field) { drawContext(); drawAttachments(); drawFormatPreview(); resizeComposer(field); composerMode(); }
   if (!open.thread) drawHeaderStatus();
-  drawMessages(true); drawOutbox();
+  drawMessages(!kept?.scroll); drawOutbox();
   // Once per opening, not when a preference or an event redraws the same chat.
   const key = state.account + ':' + open.peer;
   const place = keepLoaded() && !open.thread && !open.placed ? chatPlaces.get(key) : undefined;
@@ -1869,16 +1927,37 @@ function updateDownButton() {
 async function loadPinned() {
   const open = state.open;
   if (!open || open.chat?.kind === 'secret') return;
-  try {
-    const list = await api('pinned', {peer: open.peer, thread_root: open.thread?.root});
-    const bar = document.getElementById('pinned');
-    if (!bar || state.open !== open || !list.length) return;
-    const latest = list[0];
-    bar.replaceChildren(h('span', { class: 'muted' }, '📌 ' + t('Pinned messages') + (list.length > 1 ? ' (' + list.length + ')' : '') + ': '),
-      h('span', {}, ((latest.visual ? latest.caption : latest.text) || '').replace(/\s+/g, ' ').slice(0, 120)));
-    bar.onclick = () => jumpTo(latest.id);
-    bar.hidden = false;
-  } catch (error) { /* no pinned messages or offline */ }
+  const account = state.account, revision = state.accountRevision;
+  const pending = open.pinnedRequest;
+  if (pending?.account === account && pending.revision === revision) return pending.promise;
+  const request = {account, revision};
+  open.pinnedRequest = request;
+  request.promise = (async () => {
+    try {
+      const list = await api('pinned', {peer: open.peer, thread_root: open.thread?.root});
+      const bar = document.getElementById('pinned');
+      if (!bar || state.open !== open || state.account !== account || state.accountRevision !== revision || state.locked) return;
+      if (!list.length) {
+        if (!bar.hidden) bar.hidden = true;
+        if (bar.childNodes.length) bar.replaceChildren();
+        bar.onclick = null;
+        delete bar.dataset.pinnedSignature;
+        return;
+      }
+      const latest = list[0];
+      const label = '📌 ' + t('Pinned messages') + (list.length > 1 ? ' (' + list.length + ')' : '') + ': ';
+      const text = ((latest.visual ? latest.caption : latest.text) || '').replace(/\s+/g, ' ').slice(0, 120);
+      const signature = JSON.stringify([latest.id, label, text]);
+      if (bar.dataset.pinnedSignature !== signature) {
+        bar.replaceChildren(h('span', {class: 'muted'}, label), h('span', {}, text));
+        bar.onclick = () => jumpTo(latest.id);
+        bar.dataset.pinnedSignature = signature;
+      }
+      if (bar.hidden) bar.hidden = false;
+    } catch (error) { /* Keep the last known pinned message while offline. */ }
+    finally { if (open.pinnedRequest === request) delete open.pinnedRequest; }
+  })();
+  return request.promise;
 }
 
 async function jumpTo(id) {
@@ -3166,8 +3245,7 @@ function fileNode(message) {
 
 // Downloads the file once (the core keeps it), then opens, saves or shares it.
 function openFile(message, peer = state.open.peer, action = 'file', report = toast) {
-  const account = state.account;
-  return openNativeMedia(() => api('open_file', {peer, id: message.id, action, account}), action, report);
+  return downloads.start(message, peer, action);
 }
 async function openNativeMedia(request, action, report) {
   keepUnlocked(action === 'save' ? 30 : 120);
@@ -4261,10 +4339,12 @@ function appearanceSection(save) {
 }
 
 // Confirm / ask for text inside the app: WebViews do not show prompt() / confirm().
-function confirmThen(text, action, kind = 'danger') {
-  sheet(text, [[t('Confirm'), action, kind]]);
+function confirmThen(text, action, kind = 'danger', native = true) {
+  if (native && window.tgNativeDialogs?.confirm(text, action, kind, () => confirmThen(text, action, kind, false))) return;
+  sheet(text, [[t('Confirm'), action, kind]], null, false);
 }
-function promptThen(title, options, action) {
+function promptThen(title, options, action, native = true) {
+  if (native && window.tgNativeDialogs?.prompt(title, options, action, () => promptThen(title, options, action, false))) return;
   const input = h('input', { type: options.type || 'text', value: options.value || '', maxlength: options.maxlength || null, placeholder: options.placeholder || '',
     autocomplete: 'off', inputmode: options.inputmode || null });
   formSheet(title, [input, options.note ? h('div', { class: 'muted small' }, options.note) : null].filter(Boolean),
@@ -4878,7 +4958,8 @@ function activateSheet(layer) {
   };
 }
 
-function sheet(title, items, quick = null) {
+function sheet(title, items, quick = null, native = true) {
+  if (native && window.tgNativeDialogs?.menu(title, items, quick, () => sheet(title, items, quick, false))) return;
   const layer = document.getElementById('sheet-layer');
   const panel = h('div', { class: 'sheet', onclick: (event) => event.stopPropagation() }, h('h3', {}, title));
   if (quick) panel.append(h('div', { class: 'quick' }, quick.map(([label, action]) =>
@@ -4891,6 +4972,7 @@ function sheet(title, items, quick = null) {
   layer.onclick = closeSheet;
 }
 function closeSheet(immediate = false) {
+  window.tgNativeDialogs?.cancel();
   const layer = document.getElementById('sheet-layer');
   if (layer.hidden) {
     if (immediate === true && layer.classList.contains('closing-sheet')) {
@@ -6046,19 +6128,12 @@ function logoSettings() {
     holder.replaceChildren(h('h4', {}, 'TeleGraph'), variant, color, theme, preview,
       button(t('Apply'), () => saveLook({brand_logo: settings(), apply_native_logo: TOUCH})),
       h('span', {class: 'muted'}, t('Selected') + ': ' +
-        (look.brand_photo ? t('Image') : look.official_logo ? 'Telegram' :
+        (look.brand_photo ? t('Image') :
           (catalogue.variants.find(([key]) => key === current.variant)?.[1] || 'Tg-Gr') + ' · ' +
           (paletteLabels[current.color] || t('Default')) + ' · ' + t(current.theme === 'light' ? 'Claro' : 'Oscuro'))));
     draw();
   };
   setTimeout(load, 0);
-  const official = () => sheet('Telegram', ['Telegram', 'Android', 'iOS'].map(source => [source, async () => {
-    const choices = await attempt(() => api('official_logos', {source}));
-    if (!choices) return;
-    sheet(source, choices.map(({key, label}) => [[
-      h('img', {class: 'logo-menu-preview', src: officialLogoUrl(key), alt: ''}), label,
-    ], () => saveLook({official_logo: key})]));
-  }]));
   const photo = async () => {
     if (!isCurrent()) return;
     let key;
@@ -6070,8 +6145,8 @@ function logoSettings() {
       if (isCurrent()) { state.appearance = result; render(); }
     } catch (error) { if (isCurrent()) toast(error.message, 'error'); }
   };
-  return [holder, h('div', {class: 'setting'}, button('Telegram', official), button(t('Image'), photo),
-    look.brand_photo || look.official_logo ? button(t('Remove'), () => saveLook({brand_photo: '', official_logo: ''})) : null)];
+  return [holder, h('div', {class: 'setting'}, button(t('Image'), photo),
+    look.brand_photo ? button(t('Remove'), () => saveLook({brand_photo: ''})) : null)];
 }
 
 async function notificationOptions(params = {}) {
@@ -6087,6 +6162,67 @@ async function chatNotifications(chat) {
   const account = state.account;
   const options = await notificationOptions({peer: chat.id});
   if (options) notificationForm(chat.name, chat.id, options.current, account, options.ringtones);
+}
+
+function notificationFailureDetails(status, kind = 'error') {
+  // Never render an exception message or an arbitrary value from the bridge.
+  const causes = {
+    permission_denied: 'El sistema no ha autorizado los avisos.',
+    permission_not_requested: 'Falta solicitar el permiso de notificaciones.',
+    permission_query_failed: 'No se pudo consultar el permiso de notificaciones del sistema.',
+    privacy_registration: 'Telegram no confirmó los ajustes de privacidad de los avisos.',
+    registration_rejected: 'Telegram no confirmó el registro de este dispositivo.',
+    registration_error: 'La activación falló por un error no identificado.',
+    TimeoutError: 'No se recibió a tiempo una respuesta a la solicitud.',
+    ConnectionError: 'La conexión falló durante la solicitud.',
+    ConnectionResetError: 'La conexión falló durante la solicitud.',
+    ConnectionAbortedError: 'La conexión falló durante la solicitud.',
+    BrokenPipeError: 'La conexión falló durante la solicitud.',
+    OSError: 'La conexión falló durante la solicitud.',
+    TypeError: 'La app no pudo preparar o procesar la solicitud.',
+    ValueError: 'La app no pudo preparar o procesar la solicitud.',
+    RuntimeError: 'La app no pudo preparar o procesar la solicitud.',
+    RPCError: 'Telegram devolvió un error al procesar la solicitud.',
+    BadRequestError: 'Telegram devolvió un error al procesar la solicitud.',
+    ServerError: 'Telegram devolvió un error al procesar la solicitud.',
+    RpcCallFailError: 'Telegram devolvió un error al procesar la solicitud.',
+    TokenInvalidError: 'Telegram rechazó el identificador de notificaciones del dispositivo.',
+    TokenEmptyError: 'Telegram rechazó el identificador de notificaciones del dispositivo.',
+    TokenTypeInvalidError: 'Telegram rechazó el identificador de notificaciones del dispositivo.',
+    TokenWasInvalidatedError: 'Telegram rechazó el identificador de notificaciones del dispositivo.',
+    TOKEN_EMPTY: 'Telegram rechazó el identificador de notificaciones del dispositivo.',
+    TOKEN_INVALID: 'Telegram rechazó el identificador de notificaciones del dispositivo.',
+    TOKEN_TYPE_INVALID: 'Telegram rechazó el identificador de notificaciones del dispositivo.',
+    TOKEN_WAS_INVALIDATED: 'Telegram rechazó el identificador de notificaciones del dispositivo.',
+    AppPushApiKeyMissingError: 'Falta la configuración del proveedor de notificaciones de esta app en Telegram.',
+    APP_PUSH_APIKEY_MISSING: 'Falta la configuración del proveedor de notificaciones de esta app en Telegram.',
+    AuthKeyUnregisteredError: 'Telegram no pudo validar la sesión de esta cuenta.',
+    AuthKeyInvalidError: 'Telegram no pudo validar la sesión de esta cuenta.',
+    AuthKeyDuplicatedError: 'Telegram no pudo validar la sesión de esta cuenta.',
+    SessionRevokedError: 'Telegram no pudo validar la sesión de esta cuenta.',
+    SessionExpiredError: 'Telegram no pudo validar la sesión de esta cuenta.',
+    FloodWaitError: 'Telegram ha limitado temporalmente estas solicitudes.',
+    FloodPremiumWaitError: 'Telegram ha limitado temporalmente estas solicitudes.',
+  };
+  const raw = typeof status.error === 'string' ? status.error : '';
+  const appleCode = /^APNs_-?\d{1,10}$/.test(raw);
+  const code = appleCode || Object.prototype.hasOwnProperty.call(causes, raw) ? raw : null;
+  const phases = {
+    permission: 'Paso: permiso de notificaciones del sistema.',
+    native: status.provider === 'APNs' ? 'Paso: registro del dispositivo con Apple.'
+      : 'Paso: registro del dispositivo con el sistema.',
+    privacy: 'Paso: privacidad de los avisos en Telegram.',
+    telegram: 'Paso: registro con Telegram.',
+  };
+  const fallback = code?.startsWith('permission_') ? 'permission'
+    : code === 'privacy_registration' ? 'privacy' : appleCode ? 'native' : code ? 'telegram' : null;
+  const phase = Object.prototype.hasOwnProperty.call(phases, status.phase) ? status.phase : fallback;
+  return [
+    h('p', {}, t(phases[phase] || 'Paso: activación de las notificaciones.')),
+    h('p', {class: kind}, t(appleCode ? 'Apple no pudo registrar el dispositivo para recibir avisos.'
+      : code ? causes[code] : 'No hay un código de error disponible para esta comprobación.')),
+    code ? h('p', {class: 'muted small'}, t('Código: {code}.', {code})) : null,
+  ].filter(Boolean);
 }
 
 function checkNotificationStatus() {
@@ -6111,13 +6247,24 @@ function checkNotificationStatus() {
       const connected = Number.isInteger(status.connected_accounts) ? status.connected_accounts : 0;
       const disabled = state.settings.notifications === false || status.state === 'disabled';
       const accepted = status.state === 'registered' && registered > 0 && connected > 0 && registered >= connected;
+      const failed = !disabled && ['retrying', 'unavailable'].includes(status.state);
       const text = disabled ? t('Las notificaciones están desactivadas en esta app.')
         : accepted ? t('Telegram ha aceptado el registro de {count} cuenta(s).', {count: registered})
-        : status.state === 'retrying' ? t('El registro no se ha completado. La app volverá a intentarlo automáticamente.')
+        : status.state === 'retrying' ? t('La activación de las notificaciones no se ha completado. La app volverá a intentarlo automáticamente.')
         : connected === 0 ? t('Conecta una cuenta para comprobar el registro de notificaciones.')
-        : status.state === 'unavailable' ? t('El sistema no ha podido activar las notificaciones.')
+        : status.state === 'unavailable' ? t('No se pudo completar la activación de las notificaciones.')
         : t('Esperando a que se complete el registro de notificaciones.');
       result.replaceChildren(h('p', {}, text));
+      if (failed) {
+        result.append(h('p', {class: 'muted'}, t('Cuentas registradas en Telegram: {registered}. Cuentas conectadas: {connected}.',
+          {registered, connected})), ...notificationFailureDetails(status));
+      }
+      const privacyWarning = !disabled && typeof status.privacy_warning === 'string' && status.privacy_warning;
+      if (privacyWarning) {
+        result.append(h('div', {class: 'notification-warning'},
+          h('p', {}, t('Pendiente de confirmar la privacidad de los avisos. La app volverá a intentarlo; esto no anula los registros que Telegram ya ha aceptado.')),
+          ...notificationFailureDetails({phase: 'privacy', error: privacyWarning}, 'muted')));
+      }
       const permission = status.permission || (status.error === 'permission_denied' ? 'denied'
         : status.error === 'permission_not_requested' ? 'not_requested' : 'unknown');
       result.append(h('p', {class: permission === 'denied' ? 'error' : 'muted'},
@@ -6129,7 +6276,7 @@ function checkNotificationStatus() {
         result.append(h('p', {class: 'muted'}, status.sandbox
           ? t('Entorno de Apple: desarrollo.') : t('Entorno de Apple: distribución.')));
       }
-      if (!disabled && permission !== 'denied' && permission !== 'not_requested') {
+      if (accepted && !disabled && !privacyWarning && permission !== 'denied' && permission !== 'not_requested') {
         result.append(h('p', {class: 'muted'}, t('Si no aparecen avisos, revisa el permiso de notificaciones y los modos de concentración en Ajustes del sistema.')));
       }
     } catch (_) {
@@ -6373,6 +6520,7 @@ function settingsView() {
     customization: () => {
       const look = appearanceSection(save);
       return [section(null, button(t('App logos'), () => { state.settingsTab = 'logos'; render(); }),
+          ['Android', 'iOS'].includes(PLATFORM) ? lookToggle('native_dialogs', t('Usar más diálogos del sistema')) : null,
           toggle('reduce_animations', t('Disable all animations')),
           note(t('Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.'))),
         section(t('Corners'), ...look.corners), section(t('Backgrounds'), ...look.backgrounds), effectsSection(),
@@ -6461,7 +6609,14 @@ function settingsView() {
   }
   search.addEventListener('input', filter);
   filter();
-  setTimeout(() => tabs.querySelector('.on')?.scrollIntoView({inline: 'center', block: 'nearest'}), 0);
+  requestAnimationFrame(() => {
+    if (!tabs.isConnected || tabs.hidden) return;
+    const selected = tabs.querySelector('.on');
+    if (!selected) return;
+    const item = selected.getBoundingClientRect(), strip = tabs.getBoundingClientRect();
+    // Only the tab strip should move; scrollIntoView can also pan the iOS page/keyboard.
+    tabs.scrollLeft += item.left - strip.left - (strip.width - item.width) / 2;
+  });
   return [h('div', {class: 'bar'}, backButton(), h('div', {class: 'title'}, t('Ajustes')), statusNode()),
     h('div', {class: 'search'}, search), tabs, scroll];
 }

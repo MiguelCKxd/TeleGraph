@@ -53,6 +53,7 @@ fi
 working=$(mktemp -d "$release_dir/.telegraph-apk.XXXXXX")
 trap 'rm -r "$working"' EXIT
 python3 tools/check_android_pages.py "$unsigned"
+python3 tools/android/check_build_paths.py "$unsigned"
 "$sdk_tools/zipalign" -P 16 -f 4 "$unsigned" "$working/aligned.apk"
 set -a
 source "${TELEGRAPH_ANDROID_SIGNING_CONFIG:?Set the path to your private Android signing configuration}"
@@ -64,16 +65,20 @@ set +a
 "$sdk_tools/apksigner" verify --print-certs "$working/signed.apk" | grep -E "Signer #1 certificate (DN|SHA-256)"
 if [[ "$app" == tg_ascii_mobile ]]; then
   # Retain the matching crash symbols privately even after the next Gradle build.
-  symbols="$here/build/$app/android/gradle/app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip"
+  symbols=${TELEGRAPH_ANDROID_SYMBOLS:-"$here/build/$app/android/gradle/app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip"}
+  python3 tools/android/check_native_symbols.py "$working/signed.apk" "$symbols"
   checksum=$(shasum -a 256 "$working/signed.apk" | cut -d ' ' -f 1)
   symbol_dir="$release_dir/symbols"
   mkdir -p "$symbol_dir"
+  chmod 700 "$symbol_dir"
   install -m 600 "$symbols" "$working/symbols.zip"
 fi
 if [[ $make_bundle == --aab ]]; then
   ../beeware-venv/bin/briefcase package android -a "$app" -p aab --no-input
   unsigned_bundle="$here/dist/$formal_name-$version.aab"
   python3 tools/check_android_pages.py "$unsigned_bundle"
+  python3 tools/android/check_build_paths.py "$unsigned_bundle"
+  python3 tools/android/check_native_symbols.py "$unsigned_bundle" "$symbols"
   jarsigner -keystore "$TGAS_KEYSTORE" -storepass:env TGAS_STORE_PASSWORD \
     -keypass:env TGAS_KEY_PASSWORD -signedjar "$working/signed.aab" "$unsigned_bundle" "$TGAS_KEY_ALIAS"
   jarsigner -verify "$working/signed.aab"

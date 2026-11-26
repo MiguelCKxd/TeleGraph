@@ -16,6 +16,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
   font-family: var(--font); font-size: var(--size); line-height: 1.35; overscroll-behavior: none; }
 body { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; -webkit-user-select: none; user-select: none; }
 #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+/* A keyboard changes only the available content area. No document scroll or transform. */
+html[data-keyboard] { --bottom: 0px !important; }
 button, input, textarea, select { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
@@ -656,7 +658,9 @@ html[style*="--fx-menu-border:"] .sheet, html[style*="--fx-menu-border:"] .compo
   margin: 0; padding: 0; border: 0; border-radius: 50%; color: var(--danger); background: transparent; }
 #connection-alert:active { background: var(--selected); }
 #connection-alert svg { width: 23px; height: 23px; }
-body > #connection-alert { position: fixed; z-index: 8; top: calc(var(--top) + .45em); right: calc(var(--safe-right) + var(--inset) - .35em); }
+.connection-slot { display: grid; place-items: center; flex: none; width: var(--control); height: var(--control); }
+.status.connection-placeholder { visibility: hidden; }
+body > #connection-alert { position: fixed; z-index: 8; top: calc(var(--viewport-top, 0px) + var(--top) + .45em); right: calc(var(--safe-right) + var(--inset) - .35em); }
 :root[dir=rtl] body > #connection-alert { right: auto; left: calc(var(--safe-left) + var(--inset) - .35em); }
 #connection-alert[hidden], .msg .who[hidden], .settings-tabs[hidden], #settings-scroll [hidden] { display: none; }
 .chat-avatar-button { display: grid; place-items: center; z-index: 1; border: 0; padding: 0; background: transparent; }
@@ -704,3 +708,18 @@ html.large-type .bar .status-word { display: none; }
 .composer .context:empty, .wincompose .context:empty { display: none; }
 .photo-quality { display: flex; align-items: center; gap: .5em; flex-wrap: wrap; max-width: 100%; }
 .photo-quality select { width: auto; max-width: 100%; }
+
+/* Explicit downloads: progress updates preserve row and button identity. */
+.download-list { display: flex; flex-direction: column; gap: .8em; }
+.download-row { display: flex; flex-direction: column; gap: .35em; padding: .7em 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.download-name { overflow-wrap: anywhere; }
+.download-row progress { width: 100%; height: .5em; accent-color: var(--accent); }
+.download-row .actions { flex-wrap: wrap; justify-content: flex-start; }
+.download-row .actions button { min-height: 44px; }
+.download-bytes { font-variant-numeric: tabular-nums; }
+
+#app, #sheet-layer, #call-layer, #group-call-layer, .media-viewer[open] {
+  top: var(--viewport-top, 0px); bottom: auto; height: var(--viewport-height, 100%);
+}
+#sheet-layer .sheet { max-height: min(82%, calc(var(--viewport-height, 100dvh) - var(--top) - 12px)); }
+.call-sheet { max-height: calc(var(--viewport-height, 100dvh) - 2rem); }
