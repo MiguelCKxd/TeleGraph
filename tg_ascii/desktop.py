@@ -342,7 +342,7 @@ class Desktop(DesktopFeatures):
         style.configure('TFrame', background=BG)
         style.configure('TLabel', background=BG, foreground=GREEN)
         style.configure('Muted.TLabel', foreground=MUTED)
-        style.configure('Title.TLabel', font=(FONT[0], 22, 'bold'))
+        style.configure('Title.TLabel', font=(FONT[0], 22, 'bold'), foreground=self.preferences.values.get('title_color') or GREEN)
         style.configure('TButton', background=PANEL, foreground=GREEN,
                         bordercolor=LINE, focuscolor=GREEN, padding=(7, 4))
         style.map('TButton', background=[('active', colors['selected']), ('disabled', BG)],
@@ -975,7 +975,7 @@ class Desktop(DesktopFeatures):
         # width. Wrapping at 1 px changed the list's requested width and moved
         # the divider (compact list looked resized in 1.5.0).
         self._chat_list_wrap_width=width if laid_out else None
-        fit_row_height(self.chat_list,[label for _,label in rows],26 if compact else 38,'Chats.Treeview')
+        fit_row_height(self.chat_list,[label for _,label in rows],self.preferences.values.get('chat_row_height') or (26 if compact else 38),'Chats.Treeview')
         sync_tree_rows(self.chat_list,rows)
         if laid_out:fit_column(self.chat_list,(label for _,label in rows))
         if getattr(self, 'row_emoji', None) is not None:
@@ -1250,6 +1250,7 @@ class Desktop(DesktopFeatures):
         self.history.insert('end',f'— {label} —\n','day_divider')
 
     def render_messages(self, follow=True):
+        self.history.configure(spacing2=self.preferences.values.get('message_line_spacing',0))
         if hasattr(self, 'preview_cache') and getattr(self, 'active', None) is not None and not getattr(self, 'closing', False):
             # Every draw (classic, incremental or canvas) re-checks what is on
             # screen once it has settled (1.5.0.1).
@@ -1615,6 +1616,8 @@ class Desktop(DesktopFeatures):
             from .offline_store import save_now
             save_now(self, wait=True)
         self.closing = True
+        from .desktop_downloads import stop
+        stop(self, recursive=True)
         from .preload import stop as stop_preload
         stop_preload(self)
         self._close_started = time.monotonic()

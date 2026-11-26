@@ -114,6 +114,8 @@ class DesktopFeatures(DesktopCalls, DesktopPeerTools, DesktopCustomization, Atta
         from .preload import stop as stop_preload
         stop_preload(self)
         old = self.ui_account
+        from .desktop_downloads import stop
+        stop(self)
         for popup in self.popups:
             if popup.winfo_exists():
                 popup.destroy()
@@ -211,6 +213,7 @@ class DesktopFeatures(DesktopCalls, DesktopPeerTools, DesktopCustomization, Atta
             # 1.5.5: archived chats have their own list (Telegram's Archive).
             (tr('Todos los chats'),self.show_main_chats) if getattr(self,'archive_view',False) else (tr('Archived chats'),self.show_archived_chats),
             (tr('Contactos'),self.open_contacts),
+            (tr('Downloads'),lambda:__import__('tg_ascii.desktop_downloads',fromlist=['center']).center(self).show()),
             (tr('Nuevo chat'),self.new_chat),(tr('Nuevo chat secreto'),self.new_secret_chat),(tr('New channel'),self.new_channel),(tr('Nuevo grupo'),self.new_supergroup),(tr('Carpetas'),self.folder_dialog),
             (tr('Saved Messages'),self.saved_messages)],anchor=more))
         more.pack(fill='x',pady=3)
@@ -628,7 +631,9 @@ class DesktopFeatures(DesktopCalls, DesktopPeerTools, DesktopCustomization, Atta
             base = download_name(media,filename)
             destination = filedialog.asksaveasfilename(parent=window, initialfile=base)
             if destination and valid():
-                requests.submit('save',backend.download_media(getattr(media,'media',None) or media,Path(destination)),lambda _:self.status.set(tr('Archivo guardado.')),self.show_error,timeout=None)
+                from .desktop_downloads import enqueue
+                enqueue(self,message,peer,Path(destination),media=media,filename=base,
+                        done=lambda _:self.status.set(tr('Archivo guardado.')))
         if preview_available(media,kind,filename):
             ttk.Button(frame, text=tr('Ver imagen / vista previa'), command=preview).pack(fill='x', pady=12)
         ttk.Button(frame, text=tr('Guardar archivo como...'), command=save,state='disabled' if blocked else 'normal').pack(fill='x', pady=6)

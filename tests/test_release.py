@@ -120,7 +120,9 @@ class DistributionTests(unittest.TestCase):
             (source / 'run.py').write_text('# launcher\n', encoding='utf-8')
             (source / 'tg_ascii' / 'assets').mkdir()
             for asset in release.ASSETS:
-                (source / 'tg_ascii' / 'assets' / asset).write_bytes(b'image fixture')
+                target = source / 'tg_ascii' / 'assets' / asset
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b'image fixture')
             (source / 'tg_ascii' / 'locales').mkdir()
             for name in release.LOCALE_FILES:
                 (source / 'tg_ascii' / 'locales' / name).write_text('locale fixture', encoding='utf-8')
@@ -129,8 +131,12 @@ class DistributionTests(unittest.TestCase):
                 (source / 'tg_ascii' / name).write_text('must not be copied', encoding='utf-8')
             with patch.object(release, 'ROOT', source):
                 release.stage_source(staged, (12345, 'b' * 32))
-            files = {p.name for p in staged.rglob('*') if p.is_file()}
-            self.assertEqual(files, set(release.SOURCE_MODULES) | {'run.py', '_app_credentials.py'} | set(release.ASSETS) | set(release.LOCALE_FILES))
+            files = {str(p.relative_to(staged)) for p in staged.rglob('*') if p.is_file()}
+            expected = {'tg_ascii/' + name for name in release.SOURCE_MODULES}
+            expected |= {'run.py', 'tg_ascii/_app_credentials.py'}
+            expected |= {'tg_ascii/assets/' + name for name in release.ASSETS}
+            expected |= {'tg_ascii/locales/' + name for name in release.LOCALE_FILES}
+            self.assertEqual(files, expected)
 
     def test_windows_emulated_x64_is_labelled_x64(self):
         with patch.object(release.sysconfig, 'get_platform', return_value='win-amd64'), patch.object(release.platform, 'machine', return_value='ARM64'):

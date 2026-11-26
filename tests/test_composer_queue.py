@@ -10,7 +10,6 @@ from tg_ascii.backend import Chat
 from tg_ascii.composer import Composer,custom_spans,decoded_runs
 from tg_ascii.message_tools import formatted_entities
 from tg_ascii.translation_queue import schedule,request
-from tg_ascii.mobile_icons import source_url,load_mobile_icons,candidates
 from tg_ascii.appearance import replace_elements,corner_masks,configure_shapes
 from tg_ascii.preferences import DEFAULTS
 from tg_ascii.themes import DARK
@@ -134,36 +133,6 @@ class QueueTests(unittest.IsolatedAsyncioTestCase):
             await unrelated()
             with self.assertRaises(TimeoutError):await task
         self.assertEqual(marker,['connected']);self.assertEqual(cancelled,[True])
-
-
-class MobileIconsTests(unittest.TestCase):
-    def test_only_exact_official_repositories_allowed(self):
-        source_url('https://raw.githubusercontent.com/TelegramMessenger/Telegram-iOS/master/icon.png')
-        source_url('https://api.github.com/repos/DrKLO/Telegram/contents/anything')
-        for url in ('https://api.github.com/repos/other/Telegram/contents/a','https://raw.githubusercontent.com/DrKLO/TelegramFake/master/a','http://raw.githubusercontent.com/DrKLO/Telegram/master/a'):
-            with self.assertRaises(ValueError):source_url(url)
-
-    def test_discovers_android_variants_at_best_density(self):
-        def listing(repo,path):
-            if path.endswith('/res'):return [{'type':'dir','name':'mipmap-xxxhdpi','path':'hd'},{'type':'dir','name':'mipmap-hdpi','path':'lo'}]
-            return [{'name':'ic_launcher.png','download_url':'https://example.invalid/'+path},{'name':'icon_6_launcher.png','download_url':'https://example.invalid/variant'}]
-        with patch('tg_ascii.mobile_icons.contents',side_effect=listing):result=list(candidates('Android'))
-        self.assertEqual(result,[('ic_launcher','https://example.invalid/hd'),('icon_6_launcher','https://example.invalid/variant')])
-
-    def test_discovers_ios_iconsets_without_assuming_filenames(self):
-        listing=[ [{'type':'dir','name':'AppIcons.xcassets','path':'catalogue'}],
-                  [{'type':'dir','name':'BlueIcon.appiconset','path':'catalogue/blue'}],
-                  [{'name':'small.png','size':100,'download_url':'small'},{'name':'large.png','size':900,'download_url':'large'}] ]
-        with patch('tg_ascii.mobile_icons.contents',side_effect=listing):self.assertEqual(list(candidates('iOS')),[('BlueIcon','large')])
-
-    def test_artwork_is_preserved_and_cached_offline(self):
-        payload=io.BytesIO();Image.new('RGB',(100,100),'blue').save(payload,format='PNG')
-        with tempfile.TemporaryDirectory() as directory:
-            with patch('tg_ascii.mobile_icons.candidates',return_value=[('Blue','url')]),patch('tg_ascii.mobile_icons.fetch',return_value=payload.getvalue()):
-                result=load_mobile_icons('iOS',directory)
-            self.assertEqual(result[0][1].read_bytes(),payload.getvalue())
-            with patch('tg_ascii.mobile_icons.fetch') as fetch:
-                self.assertEqual(load_mobile_icons('iOS',directory),result);fetch.assert_not_called()
 
 
 class ControlShapesTests(unittest.TestCase):

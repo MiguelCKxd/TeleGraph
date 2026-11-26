@@ -225,6 +225,8 @@ class DesktopTools:
         if not hasattr(self, '_logging_out_accounts'):
             self._logging_out_accounts = set()
         self._logging_out_accounts.add(key)
+        from .desktop_downloads import stop_account
+        stop_account(self, key)
         for popup in self.popups:
             if popup.winfo_exists(): popup.destroy()
         logout_stage = None
