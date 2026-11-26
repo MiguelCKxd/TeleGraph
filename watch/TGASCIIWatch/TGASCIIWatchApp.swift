@@ -5,6 +5,7 @@ import SwiftUI
 
 @main
 struct TGASCIIWatchApp: App {
+    @State private var path: [ChatItem] = []
     @AppStorage("watchAccent") private var accent = ""
     @StateObject private var phone = Phone.shared
     @StateObject private var engine = Engine.shared
@@ -12,9 +13,11 @@ struct TGASCIIWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
-                ChatListView()
+            NavigationStack(path: $path) {
+                ChatListView(openChat: { path.append($0) })
             }
+            .onChange(of: engine.own) { _, _ in path.removeAll() }
+            .onChange(of: engine.linked) { _, _ in path.removeAll() }
             .environmentObject(phone)
             .environmentObject(engine)
             .environmentObject(appearance)

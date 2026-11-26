@@ -5,7 +5,7 @@
 set -euo pipefail
 here=${0:A:h:h}
 desktop=${TG_ASCII_DESKTOP:-$here/../escritorio}
-ref=${TG_ASCII_CORE_REF:-32a1d27580b49cc50107e11c355c4af9d6afb82e}
+ref=${TG_ASCII_CORE_REF:-fcefec4b5789724f57f1afc6fe05e5d434173268}
 rm -rf "$here/src/tg_ascii"
 git -C "$desktop" archive "$ref" tg_ascii | tar -x -C "$here/src"
 git -C "$desktop" rev-parse --short "$ref" > "$here/src/tg_ascii/CORE_REVISION"

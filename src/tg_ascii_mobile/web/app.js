@@ -382,7 +382,10 @@ function applySettings() {
   const still = !!settings.reduce_animations;
   if (rootClasses.contains('no-motion') !== still) {
     rootClasses.toggle('no-motion', still);
-    if (still) for (const node of document.querySelectorAll('.animated')) PLAYING.get(node)?.pause();
+    if (still) {
+      stopInterfaceAnimations();
+      for (const node of document.querySelectorAll('.animated')) PLAYING.get(node)?.pause();
+    }
   }
   const effect = (name, value) => { if (value) style.setProperty(name, value); else style.removeProperty(name); };
   effect('--fx-underline', fx.text_underline ? fx.text_underline + 'px' : '');
@@ -511,6 +514,10 @@ const EVENTS = {
   group_call(snapshot) { receiveGroupCall(snapshot); },
   chats(list) {
     state.chats = list;
+    for (const win of state.windows) {
+      const forum = list.find(chat => chat.id === win.peer && chat.forum);
+      if (forum) showFloatingForum(win, forum);
+    }
     if (state.open && !state.open.thread) {
       const current = list.find(item => item.id === state.open.peer);
       if (current) Object.assign(state.open.chat, current);
@@ -525,6 +532,7 @@ const EVENTS = {
   },
   // A chat changed without moving (read receipts, pending messages).
   chat_patch(chat) {
+    if (chat.forum) showFloatingForum(state.windows.find(win => win.peer === chat.id), chat);
     const index = state.chats.findIndex((item) => item.id === chat.id);
     if (index < 0) return;
     state.chats[index] = chat;
@@ -532,6 +540,7 @@ const EVENTS = {
     queueChatList();
   },
   chat(chat) {
+    if (chat.forum) showFloatingForum(state.windows.find(win => win.peer === chat.id), chat);
     const index = state.chats.findIndex((item) => item.id === chat.id);
     if (index >= 0) state.chats.splice(index, 1);
     const pinned = state.chats.filter((item) => item.pinned).length;
@@ -539,6 +548,7 @@ const EVENTS = {
     if (state.open && !state.open.thread && state.open.peer === chat.id) Object.assign(state.open.chat, chat);
     queueChatList();
   },
+  forum_topics({peer, topic_id}) { return refreshOpenForum(peer, topic_id); },
   emoji_status({peer, status}) {
     for (const list of [state.chats, state.archived, state.contacts, state.global?.chats]) {
       if (!Array.isArray(list)) continue;
@@ -566,11 +576,11 @@ const EVENTS = {
     else queueChatList();
   },
   message({ peer, message }) {
-    for (const win of state.windows) if (win.peer === peer && message && !win.messages.some((item) => item.id === message.id)) {
+    for (const win of state.windows) if (win.peer === peer && !win.forumChat && message && !win.messages.some((item) => item.id === message.id)) {
       win.messages.push(message); drawWindowMessages(win, true);
     }
     const open = state.open;
-    if (open && open.peer === peer && message && (!open.thread || message.thread_root === open.thread.root) && !open.messages.some((item) => item.id === message.id)) {
+    if (open && open.peer === peer && message && (!open.thread || (open.topic ? message.topic_id === open.topic.id : message.thread_root === open.thread.root)) && !open.messages.some((item) => item.id === message.id)) {
       open.messages.push(message);
       appendMessage(message);
     }
@@ -635,7 +645,7 @@ const EVENTS = {
       open.historyLoaded = true;
       drawMessages(atEnd);
     }
-    for (const win of state.windows) if (win.peer === peer) {
+    for (const win of state.windows) if (win.peer === peer && !win.forumChat) {
       if (win.translate) {
         const previous = new Map(win.messages.map(message => [message.id, translationText(message)]));
         for (const message of messages) {
@@ -747,7 +757,8 @@ function adopt(snapshot) {
     for (const win of state.windows) win.node?.remove();
     state.windows = [];
     state.windowsRestored = false;
-    closeSheet();
+    windowLayer.querySelectorAll('.closing-window').forEach(node => node.remove());
+    closeSheet(true);
     state.open = state.reply = state.editing = null;
     state.profile = null;
     state.profileTabs = {};
@@ -790,7 +801,9 @@ async function resync() {
     refreshCallState();
     if (state.open && !state.editing && !state.open.sending) {
       const open = state.open;
-      if (open.thread) await loadComments(open.thread.source, open.thread.post, open.thread.channel, false);
+      if (open.topic) await openForumTopic(open.chat, open.topic, false);
+      else if (open.forumList) await openForumList(open.chat, false, open.forumList.query);
+      else if (open.thread) await loadComments(open.thread.source, open.thread.post, open.thread.channel, false);
       else await openChat(open.peer, false, null, open.preview);
     } else if (WINDOW_CHAT !== null && !state.open) {
       await openChat(WINDOW_CHAT, true);
@@ -815,7 +828,7 @@ window.tgBack = () => {
   const sheetOpen = !document.getElementById('sheet-layer').hidden;
   const shown = document.querySelector('.media-viewer[open]');
   if (shown) { shown.close(); return true; }
-  if (state.stage === 'qr') { api('login.qr_cancel'); state.stage = 'phone'; render(); return true; }
+  if (state.stage === 'qr') { api('login.qr_cancel'); state.stage = 'phone'; render('back'); return true; }
   if (!sheetOpen && (state.stage !== 'ready' || state.view === 'chats')) return false;
   back();
   return true;
@@ -829,7 +842,8 @@ async function back(pop = true) {
     const open = state.open;
     saveDraft().then(saved => {
       if (!saved || state.open !== open) return;
-      openChat(open.thread.source, false, open.thread.channel);
+      if (open.topic) openForumList(open.chat, false);
+      else openChat(open.thread.source, false, open.thread.channel);
     });
     return;
   }
@@ -856,7 +870,7 @@ async function back(pop = true) {
     synchronizingHistory = true;
     history.back();
   }
-  render();
+  render('back');
 }
 
 // -- rendering -------------------------------------------------------------------
@@ -870,23 +884,32 @@ function listView(view) {
   if (view === 'devices') return devicesView();
   return chatListView();
 }
-function render() {
+function render(direction = 'forward') {
+  const open = state.open;
+  const screen = [state.accountRevision, state.locked, state.stage, state.view, open?.peer, open?.thread?.root,
+    open?.topic?.id, !!open?.forumList, state.view === 'profile' ? state.profile?.id : '', state.view === 'shared' ? state.shared?.kind : ''].join('|');
+  const section = state.view === 'settings' ? state.settingsTab || 'appearance' : state.view === 'profile' ? state.profileSection || 'info' : '';
+  const changed = screen !== state.lastScreen, sectionChanged = section !== state.lastSection;
+  const previous = state.lastScreen;
+  if (changed) closeSheet(true);
+  state.lastScreen = screen;
+  state.lastSection = section;
+  renderContent();
+  updateConnectionIndicator();
+  if (!previous || state.locked || unavailableWindow() || (!changed && !sectionChanged)) return;
+  let surface = root;
+  if (!changed) surface = document.getElementById(state.view === 'settings' ? 'settings-scroll' : 'profile-scroll');
+  else if (root.classList.contains('wide')) surface = root.querySelector(LISTS.includes(state.view) || ['devices', 'forward'].includes(state.view) ? '.pane.side' : '.pane.main');
+  animateSurface(surface, direction === 'back' ? 'back' : 'forward');
+}
+function renderContent() {
   const listTop = document.getElementById('chatlist')?.scrollTop || 0;
   const settingsTop = document.getElementById('settings-scroll')?.scrollTop || 0;
   if (settingsTop) setTimeout(() => { const box = document.getElementById('settings-scroll'); if (box) box.scrollTop = settingsTop; }, 0);
   root.replaceChildren();
   root.className = '';
-  // A sheet (menu, picker) stays open while the same screen is redrawn by updates.
-  const screen = [state.view, state.open && state.open.peer, state.locked, state.stage].join('|');
-  if (screen !== state.lastScreen) {
-    closeSheet();
-    const moving = state.lastScreen && !state.locked && !state.settings?.reduce_animations &&
-      !matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (moving && root.animate) root.animate([{opacity: .82, transform: 'translateY(4px)'}, {opacity: 1, transform: 'none'}],
-      {duration: 145, easing: 'ease-out'});
-  }
-  state.lastScreen = screen;
   windowLayer.hidden = state.locked || state.stage !== 'ready';
+  if (windowLayer.hidden || unavailableWindow()) windowLayer.querySelectorAll('.closing-window').forEach(node => node.remove());
   if (state.locked) return root.append(...lockView().filter(Boolean));
   if (unavailableWindow()) return root.append(h('div', {class: 'center'}, t('The active account changed.')));
   if (state.stage === 'choose_account') return root.append(...chooserView().filter(Boolean));
@@ -935,10 +958,19 @@ function statusNode() {
     h('span', {'aria-hidden': 'true'}, online ? '●' : '◌'), h('span', {class: 'status-word'}, label));
 }
 function updateConnectionIndicator() {
-  const badge = document.getElementById('connection-alert');
-  if (badge) badge.title = badge.ariaLabel = t('Sin conexion') + ' · ' + t('Reconnect');
-  if (badge) badge.hidden = state.locked || state.stage !== 'ready' ||
-    !['offline', 'reconnecting'].includes(state.connection);
+  const badge = connectionAlert;
+  badge.hidden = state.locked || unavailableWindow() || state.stage !== 'ready' || !['offline', 'reconnecting'].includes(state.connection);
+  if (badge.hidden) {
+    if (!badge.isConnected) document.body.append(badge);
+    return;
+  }
+  const pane = root.classList.contains('wide') ? root.lastElementChild : root;
+  const bar = pane?.querySelector(':scope > .bar, :scope > .winbar');
+  const host = bar || document.body;
+  if (badge.parentElement !== host) host.append(badge);
+  const label = t(state.connection === 'reconnecting' ? 'Conectando...' : 'Sin conexion') + ' · ' + t('Reconnect');
+  badge.title = label;
+  badge.setAttribute('aria-label', label);
 }
 function updateStatus() {
   document.getElementById('status')?.replaceWith(statusNode());
@@ -1549,6 +1581,7 @@ async function switchAccount(key) {
 
 // conversation --------------------------------------------------------------------
 async function openChat(peer, navigate = true, known = null, preview = false) {
+  if (known?.forum) return openForumList(known, navigate);
   const account = state.account;
   const request = state.openRequest = (state.openRequest || 0) + 1;
   const current = () => account === state.account && request === state.openRequest && !state.locked && !unavailableWindow();
@@ -1562,6 +1595,7 @@ async function openChat(peer, navigate = true, known = null, preview = false) {
   catch (error) { if (current()) toast(error.message, 'error'); return; }
   finally { if (state.openingChat === pending) state.openingChat = null; }
   if (!data || !current()) return;
+  if (data.forum) return openForumList(data.chat, navigate);
   if (pending.history) Object.assign(data, pending.history);
   state.open = { peer, chat: data.chat || state.chats.find((item) => item.id === peer) || known || { id: peer, name: String(peer) },
     messages: data.messages, historyLoaded: !!pending.history || data.messages.length > 0, outbox: data.outbox.items.filter(item => item.thread_root == null), loadingOlder: false, done: false, status: '', typing: '', preview,
@@ -1582,7 +1616,7 @@ const failedDraftWrites = new Set();
 const draftSends = new Set();
 const composerPeer = (open = state.open) => open.thread ? open.peer + '/' + open.thread.root : open.peer;
 const sendDestination = (open = state.open) => ({
-  peer: open.peer, account: state.account, thread_root: open.thread?.root, reply_to: state.reply?.id ?? null,
+  peer: open.peer, account: state.account, thread_root: open.thread?.root, topic_id: open.topic?.id, reply_to: state.reply?.id ?? null,
 });
 function consumeReply(open, id) {
   if (id !== null && state.open === open && state.reply?.id === id) {
@@ -1701,12 +1735,13 @@ function newChat() {
 
 function chatView() {
   const open = state.open;
+  if (open.forumList) return forumListView(open);
   const {chat, thread} = open;
   const wide = WIDE() && !listCoversAll();
   const bar = h('div', { class: 'bar' }, WINDOW_CHAT !== null && !thread ? null
       : wide ? symbolButton('x', t('Close chat'), back) : backButton(),
     peerControl({ class: 'title with-avatar peer-control', onclick: () => openProfile(chat) }, avatar(chat.id, chat.name, 'small'),
-      h('div', { class: 'names' }, nameWithStatus(thread ? t('Comments') : chat.name, thread ? null : chat.emoji_status, true), h('span', { class: 'sub', id: 'chat-status' }, thread?.channel.name || ''))),
+      h('div', { class: 'names' }, nameWithStatus(open.topic?.title || (thread ? t('Comments') : chat.name), thread ? null : chat.emoji_status, true), h('span', { class: 'sub', id: 'chat-status' }, thread?.channel.name || ''))),
     wide && !thread && WINDOW_CHAT === null ? h('button', { class: 'btn', title: t('Open chat in new window'), onclick: () => openChatWindow(chat) }, '⧉') : null,
     chat.kind === 'secret' && !thread ? h('button', { class: 'btn', title: t('Clave de cifrado y autodestrucción'), onclick: () => secretChatSheet(chat) }, '🔒') : null,
     symbolButton('⋯', t('More options'), () => conversationMenu(chat)));
@@ -1733,7 +1768,7 @@ function chatView() {
   const down = h('button', { class: 'btn down', id: 'down', hidden: true, onclick: () => {
     const box = document.getElementById('scroll'); box.scrollTop = box.scrollHeight; } }, 'v');
   loadPinned();
-  const readonly = chat.kind === 'channel' && false;
+  const readonly = !!open.topic && !open.topic.can_send;
   setTimeout(() => {
     drawMessages(true); drawOutbox();
     // Once, when the chat is opened (not on later redraws of the same screen).
@@ -1786,27 +1821,47 @@ async function loadPinned() {
 }
 
 async function jumpTo(id) {
-  if (!state.open) return;
-  let node = document.getElementById('m' + id);
   const open = state.open;
-  if (!node && open.thread) {
-    while (state.open === open && !open.done && !open.loadingOlder && state.connection !== 'offline') {
-      if (!await loadOlder()) break;
-      node = document.getElementById('m' + id);
-      if (node) break;
+  if (!open || open.forumList) return;
+  const account = state.account, revision = state.accountRevision;
+  const request = open.jumpRequest = (open.jumpRequest || 0) + 1;
+  const active = () => state.open === open && state.account === account && revision === state.accountRevision &&
+    open.jumpRequest === request && state.view === 'chat' && !state.locked;
+  const target = () => document.getElementById('m' + id);
+  // chatView schedules its initial drawing and bottom scroll when opening a chat.
+  await new Promise(resolve => setTimeout(resolve, 0));
+  if (!active()) return;
+  if (!target() && open.olderRequest) await open.olderRequest;
+  if (!active()) return;
+  if (!target()) {
+    const params = {account, peer: open.peer, id, window_peer: WINDOW_CHAT};
+    if (open.topic) params.topic_id = open.topic.id;
+    else if (open.thread) params.thread_root = open.thread.root;
+    let page;
+    try { page = await api('context', params); }
+    catch (error) { if (active()) toast(error.message, 'error'); return; }
+    if (!active()) return;
+    const messages = open.thread ? page.messages : page;
+    if (!messages.some(item => item.id === id)) {
+      toast(t('This message is no longer available in this chat.'), 'error');
+      return;
     }
-  } else if (!node) {
-    const around = await attempt(() => api('context', { peer: state.open.peer, id }));
-    if (!around) return;
-    if (state.open !== open) return;
-    open.messages = around; open.done = false;
+    if (open.thread) {
+      const root = !open.topic && open.messages.find(item => item.id === open.thread.root);
+      open.messages = root ? [root, ...messages.filter(item => item.id !== root.id)] : messages;
+      open.thread.cursor = page.next;
+      open.done = !page.more;
+      if (open.translate === page.translate && open.translated) Object.assign(open.translated, page.translated);
+    } else {
+      open.messages = messages;
+      open.done = false;
+    }
+    open.historyLoaded = true;
     drawMessages(false);
-    node = document.getElementById('m' + id);
   }
-  if (node) {
-    node.scrollIntoView({ block: 'center' });
-    node.classList.add('flash'); setTimeout(() => node.classList.remove('flash'), 1600);
-  }
+  open.stickUntil = 0;
+  const node = target();
+  if (node) focusMessageNode(node);
 }
 
 // selecting several messages ------------------------------------------------------
@@ -1870,6 +1925,7 @@ function drawHeaderStatus() {
 function conversationMenu(chat) {
   if (state.open?.thread) {
     const open = state.open;
+    if (open.topic) { forumTopicMenu(open.chat, open.topic); return; }
     const group = {id: open.peer, name: t('Comments')};
     sheet(t('Comments'), [
       [t('Buscar en el chat'), searchInChat],
@@ -1883,6 +1939,8 @@ function conversationMenu(chat) {
   const person = chat.kind === 'user' && !(state.open && state.open.isSelf) && !chat.self;
   sheet(chat.name, [
     ...chatTools(chat, true),
+    chat.has_link ? [t('Debate vinculado'), () => openLinkedDiscussion(chat)] : null,
+    chat.forum ? [t('Todos los temas'), () => openForumList(chat, false)] : null,
     WINDOW_CHAT !== null ? [t('Nombre visible de la app'), editDisplayName] : null,
     person ? [t('Share contact'), () => shareContacts([chat.id])] : null,
     [chat.muted ? t('Activar sonido') : t('Silenciar'), () => muteSheet(chat)],
@@ -2552,25 +2610,25 @@ async function callsView(missed = false) {
 
 // articles (Telegram rich messages: Markdown or HTML) and checklists ---------------------
 function articleSheet() {
-  const peer = state.open.peer, reply = state.reply?.id ?? state.open?.thread?.root ?? null;
+  const destination = sendDestination();
   const source = h('textarea', { rows: 10, placeholder: '# ' + t('Title') + '\n\n' + t('Text') + ' **' + t('Bold') + '** _' + t('Italic') + '_\n\n![](https://…)' });
   const format = h('select', {}, h('option', { value: 'markdown' }, 'Markdown'), h('option', { value: 'html' }, 'HTML'));
   const [rtlRow, rtl] = check(t('Right to left'));
   const [linksRow, noLinks] = check(t('Do not turn addresses into links'));
   formSheet(t('Article'), [source, labelled(t('Format'), format), rtlRow, linksRow], t('Enviar'), async () => {
     if (!source.value.trim()) return false;
-    const ok = await attempt(() => api('send_article', { peer, source: source.value, format: format.value, rtl: rtl.checked, noautolink: noLinks.checked, reply_to: reply }));
+    const ok = await attempt(() => api('send_article', { ...destination, source: source.value, format: format.value, rtl: rtl.checked, noautolink: noLinks.checked }));
     return ok ? undefined : false;
   });
 }
 function checklistSheet() {
-  const peer = state.open.peer, reply = state.reply?.id ?? state.open?.thread?.root ?? null;
+  const destination = sendDestination();
   const title = h('input', { type: 'text', maxlength: 255 });
   const items = h('textarea', { rows: 6, placeholder: t('One task per line') });
   formSheet(t('Checklist'), [labelled(t('Title'), title), labelled(t('Tasks'), items)], t('Enviar'), async () => {
     const list = items.value.split('\n').map((line) => line.trim()).filter(Boolean);
     if (!title.value.trim() || !list.length) return false;
-    const ok = await attempt(() => api('send_checklist', { peer, title: title.value, items: list, reply_to: reply }));
+    const ok = await attempt(() => api('send_checklist', { ...destination, title: title.value, items: list }));
     return ok ? undefined : false;
   });
 }
@@ -3183,13 +3241,18 @@ function viewer(message, peer = state.open.peer, shared = null, floating = null)
   const revision = state.accountRevision, account = state.account;
   const layer = mediaDialog(t('Shared media'));
   const initialOpen = floating || (state.open?.peer === peer ? state.open : null);
+  const chat = (initialOpen?.chat?.id === peer && initialOpen.chat) || state.chats.find(row => row.id === peer) ||
+    {id: peer, name: shared?.name || floating?.name || String(peer), kind: floating?.kind};
+  const origin = {account, peer, chat, thread: shared ? null : initialOpen?.thread, floating};
   const currentOpen = () => {
     if (floating) return state.windows.includes(floating) ? floating : null;
     const open = state.open;
-    return open?.peer === peer && open.thread?.root === initialOpen?.thread?.root ? open : null;
+    return open?.peer === peer && open.thread?.root === initialOpen?.thread?.root &&
+      open.thread?.source === initialOpen?.thread?.source && open.thread?.post === initialOpen?.thread?.post &&
+      open.topic?.id === initialOpen?.topic?.id ? open : null;
   };
-  const active = () => revision === state.accountRevision && !state.locked &&
-    (shared ? state.shared === shared : !!currentOpen());
+  const active = () => account === state.account && revision === state.accountRevision && !state.locked &&
+    (shared ? state.shared === shared && state.view === 'shared' : !!currentOpen());
   const visual = item => item.visual && ['image', 'video', 'gif'].includes(item.kind);
   const images = new Map([[message.id, message]]);
   let entries;
@@ -3226,6 +3289,7 @@ function viewer(message, peer = state.open.peer, shared = null, floating = null)
   }
   presentGallery({layer, title: t('Shared media'), items: () => entries, selected: message,
     source: (item, thumb) => mediaUrl(peer, item.id, thumb), olderStep: -1, hasMore: more, loadPage: load,
+    goToMessage: (item, close) => revealGalleryMessage(item, origin, close),
     exportItem: (initialOpen?.chat || state.chats.find(chat => chat.id === peer))?.protected ? null :
       (item, action, report) => openFile(item, peer, action, report), active, onSelected: syncChat});
 }
@@ -3440,8 +3504,9 @@ function loadOlder(retry = false, open = state.open) {
   open.olderRequest = (async () => {
     try {
       const thread = open.thread;
-      const page = thread
-        ? await api('comments_older', {peer: open.peer, root_id: thread.root, offset: thread.cursor, window_peer: WINDOW_CHAT})
+      const page = open.topic
+        ? await api('forum_older', {peer: open.peer, topic_id: open.topic.id, before: thread.cursor, account, window_peer: WINDOW_CHAT})
+        : thread ? await api('comments_older', {peer: open.peer, root_id: thread.root, offset: thread.cursor, window_peer: WINDOW_CHAT})
         : await api('older', {peer: open.peer, before: open.messages[0].id, account});
       if (!active()) return false;
       const known = new Set(open.messages.map(item => item.id));
@@ -3449,7 +3514,7 @@ function loadOlder(retry = false, open = state.open) {
       if (thread) {
         open.done = !page.more || thread.cursor === page.next;
         thread.cursor = page.next;
-        open.messages.splice(1, 0, ...fresh);
+        open.messages.splice(open.topic ? 0 : 1, 0, ...fresh);
       } else {
         if (!fresh.length) open.done = true;
         open.messages = [...fresh, ...open.messages];
@@ -3702,41 +3767,79 @@ async function openChatWindow(chat) {
     const result = await api('system_window', { peer: chat.id, account });
     if (result.opened) return;
   } catch (error) {}
-  if (state.account === account && !state.locked) openWindow(chat);
+  if (state.account === account && !state.locked) return openWindow(chat);
 }
 
 async function openWindow(chat, docked = false, restore = null) {
   const account = state.account;
   let win = state.windows.find((item) => item.peer === chat.id);
+  const current = state.chats.find(item => item.id === chat.id);
+  const forum = current?.forum ? current : chat.forum ? chat : win?.forumChat;
+  if (forum && !restore) {
+    if (win) showFloatingForum(win, forum);
+    return openFloatingForum(forum, win);
+  }
+  const entering = !win || win.minimized;
   if (!win) {
     win = { peer: chat.id, name: chat.name || String(chat.id), docked, messages: [], reply: null,
-      ...defaultGeometry(state.windows.length), ...(restore || {}), account };
+      ...defaultGeometry(state.windows.length), ...(restore || {}), account, forumChat: forum };
     state.windows.push(win);
     restoreWindowDraft(win, state.drafts[win.peer]);
     if (!restore) saveWindows();
   }
   win.minimized = false;
   if (win.docked && WIDE()) render(); else drawWindow(win);
-  await refreshFloatingWindow(win);
+  if (entering && !restore) animateSurface(win.node, 'window');
+  if (!forum) await refreshFloatingWindow(win, true, !restore);
 }
-async function refreshFloatingWindow(win, read = true) {
+async function openFloatingForum(chat, win) {
+  if (await openForumList(chat) && win) await closeWindow(win);
+}
+function showFloatingForum(win, chat) {
+  if (!win || !chat.forum || win.account !== state.account) return;
+  const changed = !win.forumChat || win.forumChat.name !== chat.name;
+  if (win.opened && !win.sending) saveWindowDraft(win);
+  win.forumChat = chat;
+  win.name = chat.name;
+  win.opened = false;
+  win.messages = [];
+  win.nodeCache = null;
+  if (changed) { if (win.docked && WIDE()) render(); else drawWindow(win); }
+}
+async function refreshFloatingWindow(win, read = true, navigateForum = false) {
+  if (win.forumChat) return;
   const account = win.account;
   const request = win.request = (win.request || 0) + 1;
   const initialDraft = state.drafts[win.peer];
   const initialMessages = win.messages, initialCount = win.messages.length;
   const initialTranslation = win.translating;
-  const data = await api('window_open', { peer: win.peer, account, read }).catch(() => null);
+  let data;
+  try { data = await api('window_open', { peer: win.peer, account, read }); }
+  catch (error) {
+    if (!win.opened && !win.forumChat && state.account === account && !state.locked && state.windows.includes(win) && win.request === request) {
+      win.loadFailed = true;
+      if (win.docked && WIDE()) render(); else drawWindow(win);
+    }
+    return;
+  }
   if (data && state.account === account && !state.locked && state.windows.includes(win) && win.request === request) {
+    if (data.forum || win.forumChat) {
+      if (data.forum) showFloatingForum(win, data.chat);
+      if (navigateForum) await openFloatingForum(win.forumChat, win);
+      return;
+    }
+    let redraw = !win.opened;
+    win.opened = true;
+    win.loadFailed = false;
     if (win.messages === initialMessages && win.messages.length === initialCount && (data.messages.length || !initialCount)) {
       win.messages = data.messages;
       if (data.messages.length) win.historyLoaded = true;
     }
     if (data.chat) {
-      const changedHeader = win.kind !== data.chat.kind || win.name !== data.chat.name || win.emojiStatus !== data.chat.emoji_status;
+      redraw ||= win.kind !== data.chat.kind || win.name !== data.chat.name || win.emojiStatus !== data.chat.emoji_status;
       win.name = data.chat.name; win.kind = data.chat.kind; win.emojiStatus = data.chat.emoji_status;
-      if (changedHeader) { if (win.docked && WIDE()) render(); else drawWindow(win); }
     }
-    win.opened = true;
+    if (redraw) { if (win.docked && WIDE()) render(); else drawWindow(win); }
     const key = draftKey(win.peer);
     if (state.drafts[win.peer] === initialDraft && !draftWrites.has(key) && !failedDraftWrites.has(key) && !draftSends.has(key)) {
       state.drafts[win.peer] = data.draft;
@@ -3748,7 +3851,12 @@ async function refreshFloatingWindow(win, read = true) {
 }
 async function closeWindow(win) {
   if (win.sending || (win.opened && win.draftReady && !(await saveWindowDraft(win))) || !state.windows.includes(win)) return;
-  win.node?.remove();
+  const node = win.node;
+  if (node && !win.docked) {
+    node.inert = true;
+    node.classList.add('closing-window');
+    animateSurface(node, 'window', true, () => node.remove());
+  } else node?.remove();
   state.windows = state.windows.filter((item) => item !== win);
   api('window_close', {peer: win.peer, account: win.account}).catch(() => {});
   saveWindows();
@@ -3778,13 +3886,15 @@ function drawWindow(win, asColumn = false) {
     docked ? null : tool(win.minimized ? '▢' : '_', t('Minimize'), () => { win.minimized = !win.minimized; drawWindow(win); }),
     WIDE() ? tool(win.docked ? '⧉' : '⇥', win.docked ? t('Float') : t('Dock to the side'), () => {
       win.docked = !win.docked; win.node?.remove(); win.node = null; saveWindows(); render(); }) : null,
-    win.kind && win.kind !== 'secret' && feature('chat_translation')
+    win.opened && win.kind && win.kind !== 'secret' && feature('chat_translation')
       ? tool('⇄', t('Automatic translation (Premium)'), () => translateChat(win), {'data-translation-toggle': ''}) : null,
-    tool('↗', t('Open chat'), () => openChat(win.peer, true, { id: win.peer, name: win.name })),
+    tool('↗', t('Open chat'), () => win.forumChat ? openFloatingForum(win.forumChat, win) : openChat(win.peer, true, { id: win.peer, name: win.name })),
     tool('x', t('Close chat'), () => closeWindow(win)));
   const node = h('div', { class: 'chatwin ' + (docked ? 'docked pane' : 'floating') + (win.minimized && !docked ? ' min' : '') },
-    bar, h('div', { class: 'winbody' }), h('div', { class: 'wincompose' }, h('div', { class: 'context' }),
-      h('div', { class: 'line' }, field, h('button', { class: 'btn primary', onclick: () => sendFromWindow(win) }, '>'))),
+    bar, h('div', { class: 'winbody' }, win.forumChat ? button(t('Todos los temas'), () => openFloatingForum(win.forumChat, win))
+      : win.opened ? null : win.loadFailed ? button(t('Reintentar'), () => refreshFloatingWindow(win, true, true)) : t('Cargando...')),
+    win.opened ? h('div', { class: 'wincompose' }, h('div', { class: 'context' }),
+      h('div', { class: 'line' }, field, h('button', { class: 'btn primary', onclick: () => sendFromWindow(win) }, '>'))) : null,
     docked ? null : h('div', { class: 'grip', onpointerdown: (event) => resizeWindow(event, win) }));
   if (!docked) {
     win.x = Math.max(0, Math.min(win.x, innerWidth - 120)); win.y = Math.max(0, Math.min(win.y, innerHeight - 50));
@@ -3800,7 +3910,7 @@ function drawWindow(win, asColumn = false) {
 }
 function drawWindowMessages(win, toBottom) {
   const body = win.node?.querySelector('.winbody');
-  if (!body) return;
+  if (!body || !win.opened || win.forumChat) return;
   const stick = toBottom || body.scrollHeight - body.scrollTop - body.clientHeight < 80;
   // Same reuse as the main chat: unchanged messages keep their node and picture.
   const context = [state.language, state.settings?.ascii_text, state.settings?.photo_previews, win.translate || ''].join('|');
@@ -3907,10 +4017,9 @@ async function sendFromWindow(win) {
   const params = {peer: win.peer, account: win.account, reply_to: reply, spans: formats, custom};
   try {
     if (!(await write) || state.account !== win.account || !state.windows.includes(win)) return;
-    const result = files.length
-      ? await api('send_files', {...params, keys: files.map(file => file.key || file), caption: text})
-      : await api('send', {...params, text});
+    const result = await api('window_send', {...params, keys: files.map(file => file.key || file), text});
     if (result && state.account === win.account && state.windows.includes(win)) {
+      if (result.forum) { showFloatingForum(win, result.chat); return; }
       state.drafts[win.peer] = emptyDraft();
       restoreWindowDraft(win, state.drafts[win.peer]);
       drawChatList();
@@ -4300,7 +4409,7 @@ async function send(options = {}) {
   draftSends.add(key);
   syncDraftReadOnly(peer);
   const {formats, custom, reply, files} = draftContents(composerPeer(open), text);
-  const params = {peer: open.peer, account: state.account, reply_to: reply, thread_root: open.thread?.root, ...options};
+  const params = {peer: open.peer, account: state.account, reply_to: reply, thread_root: open.thread?.root, topic_id: open.topic?.id, ...options};
   try {
     if (!(await write) || state.open !== open) return;
     const result = files.length
@@ -4571,15 +4680,20 @@ function chooseForwardTarget(payload) {
   go('forward', {search: ''});
 }
 
-async function forwardTo(chat) {
+async function forwardTo(chat, topic_id = null) {
   const request = state.forwarding;
   if (state.view !== 'forward' || !request || request.account !== state.account || state.locked) return;
+  if (chat.forum && topic_id === null) {
+    return chooseForumTarget(chat, topic => {
+      if (state.forwarding === request && state.account === request.account) forwardTo(chat, topic.id);
+    });
+  }
   state.forwarding = null;
   back();
   if (request.people) {
-    return attempt(() => api('share_contacts', {...request, target: chat.id}), () => toast(t('Contact shared.')));
+    return attempt(() => api('share_contacts', {...request, target: chat.id, topic_id}), () => toast(t('Contact shared.')));
   }
-  return attempt(() => api(request.ids ? 'forward_many' : 'forward', {...request, destination: chat.id}), (result) => {
+  return attempt(() => api(request.ids ? 'forward_many' : 'forward', {...request, destination: chat.id, topic_id}), (result) => {
     if (result && result.queued) queuedNote(result); else toast(t('Enviado.'));
   });
 }
@@ -4587,11 +4701,15 @@ async function forwardTo(chat) {
 // sheets ---------------------------------------------------------------------------
 let sheetReturnFocus = null, currentSheetPanel = null;
 function activateSheet(layer) {
-  if (currentSheetPanel && currentSheetPanel !== layer.firstElementChild) currentSheetPanel.onDismiss?.();
+  const previous = currentSheetPanel;
+  const replacing = !!previous || layer.classList.contains('closing-sheet');
+  layer.classList.remove('closing-sheet');
+  layer.inert = false;
+  if (previous && previous !== layer.firstElementChild) previous.onDismiss?.();
   currentSheetPanel = layer.firstElementChild;
   if (state.locked || unavailableWindow()) {
     layer.replaceChildren();
-    closeSheet();
+    closeSheet(true);
     return;
   }
   if (layer.hidden) sheetReturnFocus = document.activeElement;
@@ -4606,6 +4724,7 @@ function activateSheet(layer) {
   panel.tabIndex = -1;
   layer.hidden = false;
   panel.focus({ preventScroll: true });
+  if (!previous || previous.querySelector('h3')?.textContent !== title?.textContent) animateSurface(panel, replacing ? 'forward' : 'sheet');
   document.getElementById('app').inert = true;
   layer.onkeydown = (event) => {
     if (event.key === 'Escape') {
@@ -4636,16 +4755,31 @@ function sheet(title, items, quick = null) {
   activateSheet(layer);
   layer.onclick = closeSheet;
 }
-function closeSheet() {
+function closeSheet(immediate = false) {
   const layer = document.getElementById('sheet-layer');
-  if (layer.hidden) return;
+  if (layer.hidden) {
+    if (immediate === true && layer.classList.contains('closing-sheet')) {
+      layer.classList.remove('closing-sheet');
+      layer.replaceChildren();
+    }
+    return;
+  }
   const dismissed = currentSheetPanel;
   currentSheetPanel = null;
-  layer.hidden = true; layer.replaceChildren();
+  layer.hidden = true;
+  layer.inert = true;
   dismissed?.onDismiss?.();
   document.getElementById('app').inert = false;
   if (sheetReturnFocus?.isConnected) sheetReturnFocus.focus({ preventScroll: true });
   sheetReturnFocus = null;
+  if (immediate === true || !dismissed) { layer.replaceChildren(); return; }
+  layer.classList.add('closing-sheet');
+  animateSurface(dismissed, 'sheet', true, () => {
+    if (layer.hidden && layer.firstElementChild === dismissed) {
+      layer.classList.remove('closing-sheet');
+      layer.replaceChildren();
+    }
+  });
 }
 
 // contacts ---------------------------------------------------------------------------
@@ -4742,12 +4876,13 @@ function createCommunity(channel) {
   const account = state.account;
   let creating = false;
   const titleLabel = channel ? t('Title') : t('Nombre del grupo:');
+  const [forumRow, forumOption] = check(t('Organizar el grupo por temas'));
   formSheet(channel ? t('New channel') : t('Nuevo grupo'),
-    [labelled(titleLabel, title), labelled(t('Description'), about)], t('Create'), async () => {
+    [labelled(titleLabel, title), labelled(t('Description'), about), ...(channel ? [] : [forumRow])], t('Create'), async () => {
       if (!title.reportValidity() || !title.value.trim() || creating || account !== state.account) return false;
       creating = true;
       try {
-        const chat = await api('create_community', {title: title.value.trim(), about: about.value, channel, account});
+        const chat = await api('create_community', {title: title.value.trim(), about: about.value, channel, account, forum: !channel && forumOption.checked});
         if (account === state.account) {
           closeSheet();
           await openChat(chat.id, true, chat);
@@ -5190,6 +5325,11 @@ function manageCommunity(chat) {
     });
   };
   sheet(chat.name, [
+    chat.creator && chat.kind === 'group' ? [chat.forum ? t('Desactivar temas') : t('Activar temas'), () =>
+      confirmThen(chat.forum ? t('Volver a mostrar todos los mensajes juntos') : t('Organizar este grupo por temas. Un grupo básico se convertirá en supergrupo.'), async () => {
+        const changed = await update('forum_toggle', {enabled: !chat.forum, migrate: !chat.is_channel});
+        if (changed) {closeSheet(); openChat(changed.id, true, changed);}
+      }, 'primary')] : null,
     rights.can_edit_info ? [t('Edit title'), () => textForm('title', t('Edit title'), chat.name, 128)] : null,
     rights.can_edit_info ? [t('Description'), () => textForm('about', t('Description'), chat.about, 255)] : null,
     rights.can_edit_info ? [t('Change photo'), async () => {

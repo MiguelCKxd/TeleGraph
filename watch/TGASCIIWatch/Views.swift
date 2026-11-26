@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ChatListView: View {
+    let openChat: (ChatItem) -> Void
     @EnvironmentObject var phone: Phone
     @EnvironmentObject var engine: Engine
     @EnvironmentObject var appearance: Appearance
@@ -48,7 +49,9 @@ struct ChatListView: View {
             }
         }
         .navigationTitle(appearance.look.name ?? "TeleGraph")
-        .navigationDestination(for: ChatItem.self) { ChatView(chat: $0) }
+        .navigationDestination(for: ChatItem.self) { chat in
+            if chat.forum == true { WatchTopicsView(chat: chat, openChat: openChat) } else { ChatView(chat: chat, openChat: openChat) }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink { SettingsView() } label: { Image(systemName: "gearshape") }
@@ -92,11 +95,90 @@ struct ChatListView: View {
     }
 }
 
+struct WatchDiscussionLink: View {
+    @EnvironmentObject private var engine: Engine
+    let chat: ChatItem
+    let openChat: (ChatItem) -> Void
+    @State private var loading = false
+    @State private var problem: String?
+
+    var body: some View {
+        Button(L("Grupo de debate vinculado", "Linked discussion group")) { loading = true }
+            .disabled(loading)
+            .task(id: loading) {
+                guard loading else { return }
+                defer { loading = false }
+                do {
+                    let result = try await engine.request(chat.request("linked_discussion"), as: WatchLinkedChat.self)
+                    guard !Task.isCancelled else { return }
+                    if let destination = result.chat {
+                        problem = nil
+                        openChat(destination)
+                    } else { problem = L("Sin resultados.", "No results.") }
+                } catch { if !Task.isCancelled { problem = error.localizedDescription } }
+            }
+        if let problem { Text(problem).font(.caption2) }
+    }
+}
+
+struct WatchTopicsView: View {
+    @EnvironmentObject private var engine: Engine
+    let chat: ChatItem
+    let openChat: (ChatItem) -> Void
+    @State private var topics: [WatchTopic] = []
+    @State private var cursor: WatchTopicCursor?
+    @State private var loading = false
+    @State private var problem: String?
+
+    var body: some View {
+        List {
+            if chat.has_link == true { WatchDiscussionLink(chat: chat, openChat: openChat) }
+            ForEach(topics) { topic in
+                NavigationLink { ChatView(chat: chat, topic: topic, openChat: openChat) } label: {
+                    VStack(alignment: .leading) {
+                        Text(topic.title)
+                        if topic.unread_count > 0 { Text("\(topic.unread_count) " + L("sin leer", "unread")).font(.caption2) }
+                        if topic.closed { Text(L("Tema cerrado", "Closed topic")).font(.caption2) }
+                    }
+                }
+            }
+            if loading { ProgressView() }
+            if let problem { Text(problem) }
+            if topics.isEmpty && !loading && problem == nil { Text(L("No hay temas.", "No topics.")) }
+            if cursor != nil || problem != nil {
+                Button(cursor == nil ? L("Reintentar", "Retry") : L("Más temas", "More topics")) { Task { await load(more: cursor != nil) } }
+                    .disabled(loading)
+            }
+        }
+        .navigationTitle(chat.name)
+        .task { await load() }
+        .refreshable { await load() }
+    }
+
+    private func load(more: Bool = false) async {
+        guard !loading else { return }
+        loading = true
+        defer { loading = false }
+        var request = chat.request("topics")
+        if more, let cursor { request["cursor"] = cursor.request }
+        do {
+            let page = try await engine.request(request, as: WatchTopicPage.self)
+            guard !Task.isCancelled else { return }
+            var ids = Set(more ? topics.map(\.id) : [])
+            topics = (more ? topics : []) + page.topics.filter { ids.insert($0.id).inserted }
+            cursor = page.next_cursor
+            problem = nil
+        } catch { if !Task.isCancelled { problem = error.localizedDescription } }
+    }
+}
+
 struct ChatView: View {
     @Environment(\.locale) private var locale
     @EnvironmentObject var phone: Phone
     @EnvironmentObject var engine: Engine
     let chat: ChatItem
+    var topic: WatchTopic? = nil
+    let openChat: (ChatItem) -> Void
     @EnvironmentObject var appearance: Appearance
     @State private var messages: [MessageItem] = []
     @State private var selectedMessage: MessageItem?
@@ -115,6 +197,7 @@ struct ChatView: View {
     var body: some View {
         ScrollViewReader { proxy in
             List {
+                if chat.has_link == true && topic == nil { WatchDiscussionLink(chat: chat, openChat: openChat) }
                 if isSecret {
                     Button("🔒 " + L("Clave y autodestrucción", "Encryption key & TTL")) {
                         Task { await loadSecretInfo() }
@@ -196,18 +279,20 @@ struct ChatView: View {
                             .font(Theme.mono(11))
                     }
                 }
-                LazyVGrid(columns: [GridItem(), GridItem(), GridItem()]) {
-                    ForEach(quick, id: \.self) { item in
-                        Button(item) { send(item) }.font(Theme.mono(14))
+                if topic?.can_send != false {
+                    LazyVGrid(columns: [GridItem(), GridItem(), GridItem()]) {
+                        ForEach(quick, id: \.self) { item in
+                            Button(item) { send(item) }.font(Theme.mono(14))
+                        }
                     }
-                }
-                .listRowBackground(Color.clear)
-                TextField(L("Mensaje", "Message"), text: $draft)
-                    .font(Theme.mono(13))
-                    .onSubmit { send(draft) }
-                    .id("composer")
+                    .listRowBackground(Color.clear)
+                    TextField(L("Mensaje", "Message"), text: $draft)
+                        .font(Theme.mono(13))
+                        .onSubmit { send(draft) }
+                        .id("composer")
+                } else { Text(L("Este tema es de solo lectura.", "This topic is read-only.")) }
             }
-            .navigationTitle(chat.name)
+            .navigationTitle(topic?.title ?? chat.name)
             .sheet(item: $selectedMessage) { message in
                 List {
                     if let edited = message.edited_at {
@@ -266,7 +351,7 @@ struct ChatView: View {
 
     func load() async {
         do {
-            messages = try await engine.request(["op": "messages", "peer": chat.id], as: [MessageItem].self)
+            messages = try await engine.request(chat.request("messages", topic: topic), as: [MessageItem].self)
             problem = nil
         } catch {
             problem = error.localizedDescription
@@ -319,11 +404,13 @@ struct ChatView: View {
 
     func send(_ text: String) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        draft = ""
+        guard !text.isEmpty, topic?.can_send != false else { return }
         Task {
             do {
-                _ = try await engine.request(["op": "send", "peer": chat.id, "text": text], as: [String: Bool].self)
+                var request = chat.request("send", topic: topic)
+                request["text"] = text
+                _ = try await engine.request(request, as: [String: Bool].self)
+                if draft.trimmingCharacters(in: .whitespacesAndNewlines) == text { draft = "" }
                 try? await Task.sleep(nanoseconds: 700_000_000)
                 await load()
             } catch {

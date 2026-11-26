@@ -1,4 +1,33 @@
 // Shared controls for the phone and tablet views.
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const interfaceAnimations = new Map();
+
+function stopInterfaceAnimations() {
+  for (const animation of interfaceAnimations.values()) animation.cancel();
+}
+reducedMotion.addEventListener('change', event => { if (event.matches) stopInterfaceAnimations(); });
+
+// Move only the live surface. Input, focus and the Telegram view change immediately.
+function animateSurface(node, kind, leaving = false, done) {
+  interfaceAnimations.get(node)?.cancel();
+  if (!node?.animate || reducedMotion.matches || state.settings?.reduce_animations || state.locked) {
+    done?.();
+    return;
+  }
+  const rtl = document.documentElement.dir === 'rtl' ? -1 : 1;
+  const offset = kind === 'sheet' ? 'translateY(12px)' : kind === 'window' ? 'translateY(6px) scale(.985)' :
+    'translateX(' + (kind === 'back' ? -10 : 10) * rtl + 'px)';
+  const edge = {opacity: kind === 'sheet' || kind === 'window' ? .55 : .84, transform: offset};
+  const rest = {opacity: 1, transform: 'none'};
+  const animation = node.animate(leaving ? [rest, edge] : [edge, rest], {
+    duration: leaving ? 100 : 150, easing: leaving ? 'ease-in' : 'cubic-bezier(.2,.7,.2,1)',
+  });
+  interfaceAnimations.set(node, animation);
+  animation.oncancel = animation.onfinish = () => {
+    if (interfaceAnimations.get(node) === animation) interfaceAnimations.delete(node);
+    done?.();
+  };
+}
 const swipeOptions = [
   ['menu', 'Menú del chat'], ['read', 'Marcar como leído o no leído'], ['archive', 'Archivar o desarchivar'],
   ['mute', 'Silenciar'], ['pin', 'Fijar o desfijar'], ['folders', 'Add to folder'], ['profile', 'Profile'], ['none', 'Sin acción'],

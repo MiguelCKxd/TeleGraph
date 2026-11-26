@@ -136,7 +136,10 @@ def _safe_mimetypes():
         mimetypes.init()
 
 
-class Core(MobileStories, ChatWallpapers, ProfileGallery):
+from .forums import MobileForums
+
+
+class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
     def __init__(self, data_dir, system, locale=''):
         self.root = Path(data_dir)
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -577,6 +580,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
                         else self.draft_store.get(self.account, chat.id)) or {}
         return {'status': status,'id': chat.id, 'name': self.text(chat.name), 'unread': chat.unread, 'pinned': self.is_pinned(chat),
                 'kind': chat.kind, 'muted': chat.muted, 'archived': chat.archived,
+                'forum': bool(getattr(chat, 'forum', False) or getattr(chat.entity, 'forum', False)),
+                'has_link': bool(getattr(chat, 'has_link', False) or getattr(chat.entity, 'has_link', False)),
                 'color': getattr(getattr(chat.entity, 'color', None), 'color', None),
                 'protected': bool(getattr(chat.entity, 'noforwards', False)),
                 'username': getattr(chat.entity, 'username', None),
@@ -608,7 +613,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
                 'w': width, 'h': height, 'album': str(message.grouped_id) if message.grouped_id is not None else None,
                 'time': clock, 'date': stamp, 'out': message.outgoing, 'kind': message.media_kind,
                 'filename': message.filename, 'size': message.size, 'reply_to': message.reply_to_id,
-                'thread_root': message.thread_id,
+                'thread_root': message.thread_id, 'topic_id': getattr(message, 'topic_id', None),
                 'read': message.read, 'sender_id': message.sender_id, 'color': message.sender_color,
                 'service': message.service, 'forwarded': message.forwarded,
                 'edited_at': _timestamp(message.edited_at), 'edited': message.edited_at is not None, 'protected': bool(message.protected or getattr(message.media, 'ttl_seconds', None)),
@@ -658,7 +663,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         items = self.outbox.pending(account, peer) if self.outbox else []
         return {'account': account, 'peer': peer,
                 'items': [{'key': item.key, 'text': self.text(item.preview(400)), 'state': item.state, 'files': bool(item.paths), 'full': item.text,
-                           'error': item.error, 'reply_to': item.reply_to, 'created': item.created, 'thread_root': item.thread_root}
+                           'error': item.error, 'reply_to': item.reply_to, 'created': item.created, 'thread_root': item.thread_root, 'topic_id': getattr(item, 'topic_id', None)}
                           for item in items]}
 
     def account_portrait(self, key):
@@ -764,7 +769,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         self.remember_preview(peer, message)
         chat = next((item for item in self.chats if item.id == peer), None)
         if chat is not None:
-            if not message.outgoing and (peer != self.open_peer or self.preview) and peer not in self.window_peers:
+            if not message.outgoing and not self.reading_message(key, peer, message):
                 chat.unread += 1
             if not self.is_pinned(chat):
                 self.chats.remove(chat)
@@ -773,13 +778,14 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         else:
             self.loop.create_task(self.refresh_chats())
         in_thread = False
+        _, root = self.message_scope(peer, message)
         for context, messages in self.active_discussions():
-            if context == (key, peer, message.thread_id):
+            if root is not None and context == (key, peer, root):
                 messages[message.id] = message
                 in_thread = True
         self.emit('message', {'peer': peer, 'message': self.message_json(message)})
         if in_thread and not self.in_background and not self.locked and not message.outgoing:
-            self.loop.create_task(self._read_comments(self.backend, peer, message.thread_id, [message]))
+            self.loop.create_task(self._read_comments(self.backend, peer, root, [message]))
         self.schedule_save()
         return delivery
 
@@ -794,9 +800,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         def reading_here():
             if key != self.account or self.in_background or self.prefs.values.get('notify_active', False):
                 return False
-            return ((peer == self.open_peer and not self.preview) or peer in self.window_peers
-                    or any(context == (key, peer, getattr(message, 'thread_id', None))
-                           for context, _ in self.active_discussions()))
+            return self.reading_message(key, peer, message)
 
         if not values.get('notifications', True) or reading_here():
             return
@@ -960,6 +964,9 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             store.discard(*payload)
         if key != self.account:
             return
+        if kind == 'forum_topics':
+            self.emit('forum_topics', {'peer': payload[0], 'topic_id': payload[1]})
+            return
         if kind == 'edit':
             peer, message = payload
             self.record_history_change(peer, 'edit', message)
@@ -1080,6 +1087,16 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         try:
             chats = await backend.chats()
         except Exception as exc:
+            import errno
+            import socket
+            # Recovery already publishes the connectivity badge. Only this automatic
+            # dialog refresh is silent for a transport failure; permission errors and
+            # failures of explicit operations still reach their own error handlers.
+            if backend is not self.backend or isinstance(exc, (ConnectionError, TimeoutError, socket.gaierror)):
+                return
+            if isinstance(exc, OSError) and exc.errno in (errno.ENETDOWN, errno.ENETUNREACH, errno.EHOSTUNREACH,
+                                                         errno.EHOSTDOWN, errno.ENETRESET, errno.ENOTCONN, errno.ETIMEDOUT):
+                return
             from tg_ascii.auth import error_message
             self.emit('toast', {'text': error_message(exc), 'kind': 'error'})
             return
@@ -1091,6 +1108,13 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         if backend is not self.backend:
             return
         self.chats = chats
+        known_forums = self.__dict__.get('forum_peers', {})
+        for chat in chats:
+            forum = bool(getattr(chat, 'forum', False) or getattr(getattr(chat, 'entity', None), 'forum', False))
+            if forum:
+                self.floating_peers.discard(chat.id)
+            if (self.account, chat.id) in known_forums:
+                known_forums[(self.account, chat.id)] = forum
         if self.prefs and self.prefs.values.get('local_pins') and self.account not in self.local_pins.values:
             self.local_pins.save_order(self.account, [c.id for c in chats if c.pinned])
         from tg_ascii.secret_chats import is_secret_peer
@@ -1197,12 +1221,45 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             lambda: future.done() or future.set_result(bool(ok))))
         return {'opened': await asyncio.wait_for(future, 10)}
 
-    async def api_window_open(self, peer, account, read=True):
-        """A chat in a separate window: its history (the local copy first, then
-        Telegram's via a 'history' event), without changing the open chat."""
+    async def floating_forum(self, peer, account):
+        """Resolve a restored window before reading or sending to a group without a topic."""
+        from telethon import types, utils
+        from tg_ascii.secret_chats import is_secret_peer
         if account != self.account:
             raise ValueError('The active account changed.')
+        if self.locked:
+            raise PermissionError('locked')
+        chat = next((item for item in self.chats if item.id == peer), None)
+        if not self.is_forum_chat(peer):
+            if (is_secret_peer(peer) or utils.resolve_id(peer)[1] is not types.PeerChannel
+                    or (chat is not None and chat.kind == 'channel')):
+                return None
+            backend = self.backend
+            if backend is None:
+                raise ConnectionError('offline')
+            entity = await asyncio.wait_for(backend.client.get_entity(peer), 15)
+            if account != self.account or backend is not self.backend or self.locked:
+                raise ValueError('The active account changed.')
+            if not isinstance(entity, types.Channel) or utils.get_peer_id(entity) != peer:
+                raise ValueError('The group is unavailable.')
+            if not (entity.megagroup and entity.forum):
+                return None
+            self.__dict__.setdefault('forum_peers', {})[(account, peer)] = True
+            if chat is None:
+                from tg_ascii.backend import Chat
+                chat = Chat(peer, entity.title, kind='group', entity=entity, forum=True)
+            else:
+                chat.forum, chat.entity = True, entity
+        self.floating_peers.discard(peer)
+        descriptor = self.chat_json(chat) if chat else {'id': peer, 'name': str(peer), 'kind': 'group'}
+        return {'forum': True, 'chat': {**descriptor, 'forum': True}}
+
+    async def api_window_open(self, peer, account, read=True):
+        """Open a floating chat without changing the main window's reading position."""
         peer = int(peer)
+        forum = await self.floating_forum(peer, account)
+        if forum:
+            return forum
         self.floating_peers.add(peer)
         cached = self.histories.get(peer) or []
         if self.backend is not None:
@@ -1210,6 +1267,16 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         chat = next((item for item in self.chats if item.id == peer), None)
         return {'messages': [self.message_json(m) for m in cached], 'chat': self.chat_json(chat) if chat else None,
                 'draft': self.draft_record(peer), **self.translation_state(peer, cached)}
+
+    async def api_window_send(self, peer, account, text='', keys=(), reply_to=None, spans=(), custom=()):
+        peer = int(peer)
+        forum = await self.floating_forum(peer, account)
+        if forum:
+            return forum
+        params = dict(reply_to=reply_to, spans=spans, custom=custom, account=account)
+        if keys:
+            return await self.api_send_files(peer, keys, caption=text, **params)
+        return await self.api_send(peer, text, **params)
 
     async def api_window_close(self, peer, account):
         if account != self.account:
@@ -1347,6 +1414,16 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
     async def api_watch(self, request):
         return await self.watch_request(request)
 
+    async def watch_forum(self, peer):
+        from tg_ascii.secret_chats import is_secret_peer
+        if self.is_forum_chat(peer):
+            return True
+        if peer > -1_000_000_000_000 or is_secret_peer(peer):
+            return False
+        # An existing watch may still hold the chat from before topics were enabled.
+        entity = await self.client_for().get_entity(peer)
+        return bool(getattr(entity, 'forum', False))
+
     async def watch_request(self, request):
         """One request from the watch: chats, a chat's latest messages, or a reply."""
         from tg_ascii.i18n import tr
@@ -1374,9 +1451,36 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             return {'ok': True}
         if op == 'chats':
             return [{'pinned': chat.get('pinned', False), 'id': chat['id'], 'name': chat['name'], 'unread': int(chat.get('unread') or 0),
-                     'preview': chat.get('preview') or '', 'kind': chat.get('kind') or 'user'} for chat in (await self.api_chats())[:60]]
-        if op == 'messages':
+                     'preview': chat.get('preview') or '', 'kind': chat.get('kind') or 'user',
+                     'forum': bool(chat.get('forum')), 'has_link': bool(chat.get('has_link')), 'account': self.account} for chat in (await self.api_chats())[:60]]
+        if op == 'linked_discussion':
+            self.check_active_account(request.get('account'))
+            owner = self.account
+            link = await self.forum_call('linked_discussion', int(request['peer']), account=owner)
+            return {'chat': None if not link else {'id': link['peer'], 'name': link['title'], 'kind': link['kind'],
+                                                   'forum': link['forum'], 'unread': 0, 'preview': '', 'account': owner}}
+        if op in ('topics', 'messages', 'send'):
+            owner = self.account
+            self.check_active_account(request.get('account'))
             peer = int(request['peer'])
+            topic = request.get('topic_id')
+            if op == 'topics':
+                return await self.api_forum_topics(peer, cursor=request.get('cursor'), account=owner)
+            if topic is not None:
+                if type(topic) is not int or not 0 < topic <= 0x7fffffff:
+                    raise ValueError(tr('Mensaje no válido.'))
+                if op == 'send':
+                    await self.forum_call('forum_send', peer, topic, str(request.get('text', ''))[:4096], account=owner)
+                    return {'ok': True}
+                page = await self.forum_call('forum_history', peer, topic, limit=25, account=owner)
+                if page:
+                    await self.forum_call('forum_mark_read', peer, topic, page[-1].id, account=owner)
+                return [self.watch_message(self.message_json(m)) for m in page if not m.service]
+            if await self.watch_forum(peer):
+                raise ValueError(tr('Selecciona un tema.'))
+            if self.locked or self.account != owner:
+                raise ValueError(tr('Unlock your messages'))
+        if op == 'messages':
             if self.backend is not None:
                 await asyncio.wait_for(self.reload_and_read(peer), 25)
             items = [self.message_json(m) for m in (self.histories.get(peer) or [])[-25:]]
@@ -1399,7 +1503,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         if op == 'approve_login':
             return await self.api_approve_login(request['url'], request.get('key'))
         if op == 'send':
-            await self.api_send(int(request['peer']), str(request.get('text', ''))[:4096])
+            await self.api_send(peer, str(request.get('text', ''))[:4096], account=owner)
             return {'ok': True}
         if op == 'secret_info':
             return await self.api_secret_info(int(request['peer']))
@@ -1655,22 +1759,11 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         return {'documents': self.remember_documents(result['documents']), 'packs': self.pack_json(result['packs']),
                 'next': result['next']}
 
-    async def api_send_custom(self, peer, text, emojis, reply_to=None):
-        """Text with custom emoji: each [id, fallback emoji] marks the next place
-        where that fallback appears (desktop: custom_entities)."""
-        text = str(text)[:4096]
-        spans, start = [], 0
-        for ident, alt in emojis[:100]:
-            at = text.find(str(alt), start)
-            if at < 0:
-                continue
-            spans.append((at, at + len(alt), int(ident), str(alt)))
-            start = at + len(alt)
-        return await self.api_send(peer, text, reply_to=reply_to,
-                                   emojis=[[ident, alt] for _, _, ident, alt in spans])
-
-    async def api_send_sticker(self, peer, id, reply_to=None, thread_root=None, account=None):
+    async def api_send_sticker(self, peer, id, reply_to=None, thread_root=None, account=None, topic_id=None):
         reply_to = self.send_reply(peer, reply_to, thread_root, account)
+        if topic_id is not None:
+            reply_to = await self.forum_call('forum_reply', int(peer), int(topic_id),
+                                           reply_to if reply_to != thread_root else None, account=account)
         account = self.account
         document = self.__dict__.get('sticker_store', {}).get(int(id))
         if document is None:
@@ -1813,9 +1906,13 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             pass
 
     async def api_send_files(self, peer, keys, caption='', reply_to=None, silent=False, schedule=None,
-                             account=None, thread_root=None, spans=(), custom=()):
+                             account=None, thread_root=None, spans=(), custom=(), topic_id=None):
         from tg_ascii.outbox import Pending
         reply_to = self.send_reply(peer, reply_to, thread_root, account)
+        if topic_id is not None:
+            if int(topic_id) != thread_root:
+                raise ValueError('The topic changed.')
+            reply_to = None if reply_to == thread_root else reply_to
         caption = str(caption or '')
         formats, custom = self.outgoing_format(caption, spans, custom)
         paths = [str(self.staged(key)) for key in keys][:10]
@@ -1823,7 +1920,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             raise ValueError('empty')
         item = Pending(account=self.account, peer=peer, text=caption, paths=paths,
                        reply_to=reply_to, silent=bool(silent), schedule=scheduled_at(schedule),
-                       thread_root=thread_root, format_spans=formats, custom_spans=custom)
+                       thread_root=thread_root, topic_id=topic_id, format_spans=formats, custom_spans=custom)
         self.outbox.add(item, require_persistence=True)
         self.set_draft(int(peer), '', thread_root)
         return {'key': item.key}
@@ -1945,13 +2042,17 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         return True
 
     async def api_send_voice(self, peer, key, duration, preview=None, reply_to=None, silent=False,
-                             thread_root=None, account=None):
+                             thread_root=None, account=None, topic_id=None):
         from tg_ascii.outbox import Pending
         reply_to = self.send_reply(peer, reply_to, thread_root, account)
+        if topic_id is not None:
+            if int(topic_id) != thread_root:
+                raise ValueError('The topic changed.')
+            reply_to = None if reply_to == thread_root else reply_to
         path = self.staged(key)
         voice = float(duration or 0) if path.suffix == '.ogg' else 0.0
         item = Pending(account=self.account, peer=peer, paths=[str(path)], reply_to=reply_to,
-                       thread_root=thread_root, silent=bool(silent), voice=max(1.0, voice) if voice else 0.0)
+                       thread_root=thread_root, topic_id=topic_id, silent=bool(silent), voice=max(1.0, voice) if voice else 0.0)
         self.outbox.add(item, require_persistence=True)
         if preview and preview != key:
             await self.api_discard_files([preview])
@@ -2078,9 +2179,9 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         return self.stage
 
     # chats and messages
-    async def api_tv_share(self, peer, account):
+    async def api_tv_share(self, peer, account, topic_id=None):
         from .tv import share_chat
-        return await share_chat(self, peer, account)
+        return await share_chat(self, peer, account, topic_id)
 
     async def api_tv_disconnect(self):
         self.disconnect_tv()
@@ -2111,6 +2212,11 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             self.open_discussion = None
             self.discussion_messages.clear()
             self.preview = not read
+        chat = next((item for item in self.chats if item.id == peer), None)
+        if chat is not None and self.chat_json(chat)['forum']:
+            if not window:
+                self.open_peer = None
+            return {'peer': peer, 'forum': True, 'chat': self.chat_json(chat)}
         if read:
             self.clear_notifications(peer)
         cached = self.histories.get(peer)
@@ -2130,7 +2236,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
     async def reload_and_read(self, peer):
         backend = self.backend
         await self.refresh_history(peer)
-        if backend is None or backend is not self.backend or self.locked:
+        if backend is None or backend is not self.backend or self.locked or self.is_forum_chat(peer):
             return
         history = self.histories.get(peer) or []
         incoming = [m.id for m in history if not m.outgoing]
@@ -2219,17 +2325,21 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             formatted_entities(text, [tuple(item) for item in formats], [tuple(item) for item in custom])  # rejects overlaps now
         return formats, custom
 
-    async def api_send(self, peer, text, reply_to=None, silent=False, schedule=None, spans=(), emojis=(), custom=(), account=None, thread_root=None):
+    async def api_send(self, peer, text, reply_to=None, silent=False, schedule=None, spans=(), emojis=(), custom=(), account=None, thread_root=None, topic_id=None):
         """spans: text formatting [[start, end, style, argument]] (bold, italic, underline,
         strike, spoiler, code, link, quote, collapsed_quote); emojis: custom emoji [[id, alt]]."""
         from tg_ascii.outbox import Pending
         reply_to = self.send_reply(peer, reply_to, thread_root, account)
+        if topic_id is not None:
+            if int(topic_id) != thread_root:
+                raise ValueError('The topic changed.')
+            reply_to = None if reply_to == thread_root else reply_to
         text = str(text)
         if not text.strip():
             raise ValueError('empty')
         formats, custom = self.outgoing_format(text, spans, custom, emojis)
         item = Pending(account=self.account, peer=peer, text=text, reply_to=reply_to, silent=bool(silent),
-                       thread_root=thread_root, schedule=scheduled_at(schedule), format_spans=formats, custom_spans=custom)
+                       thread_root=thread_root, topic_id=topic_id, schedule=scheduled_at(schedule), format_spans=formats, custom_spans=custom)
         self.outbox.add(item, require_persistence=True)
         self.set_draft(int(peer), '', thread_root)
         return {'key': item.key}
@@ -2477,11 +2587,6 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
                            'still': bool(getattr(folder, 'title_noanimate', False))})
         return result
 
-    async def api_folder_chats(self, ids):
-        wanted = [int(item) for item in ids]
-        by_id = {chat.id: chat for chat in self.chats}
-        return [self.chat_json(by_id[item]) for item in wanted if item in by_id]
-
     async def api_recent_searches(self, account, scope, query=None, clear=False):
         from tg_ascii.recent_searches import RecentSearches
         from tg_ascii.secret_chats import is_secret_peer
@@ -2566,7 +2671,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
 
     async def api_resolve(self, value):
         chat = await asyncio.wait_for(self.backend.resolve_chat(str(value)), 30)
-        return {'id': chat.id, 'name': self.text(chat.name), 'kind': chat.kind}
+        return self.chat_json(chat)
 
     async def api_profile(self, peer):
         cached = self.cached_detail(('profile', peer))
@@ -2608,6 +2713,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
                 'common': data.get('common_chats_count') or 0, 'link': data.get('invite_link') or '',
                 'muted': bool(chat.muted) if chat else False, 'kind': data.get('kind') or (chat.kind if chat else ''),
                 'is_self': bool(data.get('is_self')), 'contact': bool(data.get('contact')),
+                'forum': bool(data.get('forum')), 'creator': bool(data.get('creator')),
                 'member': data.get('member', True) is not False, 'blocked': bool(data.get('blocked')),
                 'first': data.get('first_name', '') or '', 'last': data.get('last_name', '') or '',
                 # Desktop contact card: Telegram ID, birthday, badges, note, admins/online.
@@ -2771,16 +2877,37 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
 
     # -- more conversation tools (desktop parity) -------------------------------------
     async def api_pinned(self, peer, thread_root=None):
+        if thread_root is not None and self.is_forum_chat(peer):
+            messages = await self.forum_call('forum_search', int(peer), int(thread_root), pinned=True)
+            return [self.message_json(m) for m in messages]
         request = (self.backend.pinned_messages(peer) if thread_root is None
                    else self.backend.search_discussion(peer, thread_root, pinned=True))
         messages = await asyncio.wait_for(request, 30)
         return [self.message_json(m) for m in messages]
 
-    async def api_context(self, peer, id):
-        """Messages around one message (jump to a reply / pinned / search result)."""
-        account, backend = self.account, self.backend
-        messages = await self.history_page(peer, asyncio.wait_for(backend.message_context(peer, int(id)), 30))
-        if self.account != account or self.backend is not backend:
+    async def api_context(self, peer, id, account=None, topic_id=None, thread_root=None, window_peer=None):
+        """Messages around an exact ID in its chat, forum topic, or discussion."""
+        self.check_active_account(account)
+        peer, ident = int(peer), int(id)
+        owner, backend = self.account, self.backend
+        if topic_id is not None or thread_root is not None:
+            root = int(topic_id if topic_id is not None else thread_root)
+            context, cached = self.discussion_view(window_peer)
+            if context != (owner, peer, root):
+                raise ValueError('The active conversation changed.')
+            if topic_id is not None:
+                request = backend.forum_history(peer, root, around=ident)
+            else:
+                request = backend.discussion_around(peer, root, ident)
+            page = await asyncio.wait_for(request, 30)
+            current, messages = self.discussion_view(window_peer)
+            if self.locked or self.account != owner or self.backend is not backend or current != context or messages is not cached:
+                raise ValueError('The active conversation changed.')
+            cached.update((message.id, message) for message in page)
+            return {'messages': [self.message_json(m) for m in page], 'next': page.next_offset,
+                    'more': page.more, **self.translation_state(peer, page, root)}
+        messages = await self.history_page(peer, asyncio.wait_for(backend.message_context(peer, ident), 30))
+        if self.locked or self.account != owner or self.backend is not backend:
             raise ValueError('The active account changed.')
         self.histories[peer] = list(messages)
         return [self.message_json(m) for m in messages]
@@ -2792,9 +2919,12 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         self.on_change(account, 'delete', (peer, tuple(ids)))
         return result
 
-    async def api_forward_many(self, peer, ids, destination, account=None):
+    async def api_forward_many(self, peer, ids, destination, account=None, topic_id=None):
         self.check_active_account(account)
         ids = sorted(int(item) for item in ids)[:100]
+        if topic_id is not None:
+            await self.forum_call('forum_forward', int(destination), int(topic_id), int(peer), ids, account=account)
+            return True
         return await self._action(self.backend.forward_selected_messages(peer, ids, 'me' if destination == 'me' else int(destination)))
 
     async def api_vote(self, peer, id, options, account=None):
@@ -3302,8 +3432,11 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
     async def api_send_poll(self, peer, question, answers, multiple=False, quiz=False, correct=0,
                             anonymous=True, reply_to=None, thread_root=None, account=None, solution='',
                             open_answers=False, revoting=True, shuffle=False, hidden_results=False,
-                            subscribers_only=False, countries=(), close_period=None, files=None):
+                            subscribers_only=False, countries=(), close_period=None, files=None, topic_id=None):
         reply_to = self.send_reply(peer, reply_to, thread_root, account)
+        if topic_id is not None:
+            reply_to = await self.forum_call('forum_reply', int(peer), int(topic_id),
+                                           reply_to if reply_to != thread_root else None, account=account)
         answers = [str(item).strip() for item in answers]
         if not quiz:
             answers = [answer for answer in answers if answer]
@@ -3338,8 +3471,11 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         self.send_reply(peer, None, None, account)
         return await self._action(self.backend.close_poll(peer, int(id)))
 
-    async def api_send_contact(self, peer, first, last, phone, reply_to=None, thread_root=None, account=None):
+    async def api_send_contact(self, peer, first, last, phone, reply_to=None, thread_root=None, account=None, topic_id=None):
         reply_to = self.send_reply(peer, reply_to, thread_root, account)
+        if topic_id is not None:
+            reply_to = await self.forum_call('forum_reply', int(peer), int(topic_id),
+                                           reply_to if reply_to != thread_root else None, account=account)
         return await self._action(self.backend.send_contact_card(peer, str(first), str(last), _plus(phone), reply_to=reply_to))
 
     async def api_save_to_saved(self, peer, id):
@@ -3665,25 +3801,6 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             temporary.replace(target)
         return name
 
-    async def api_server_background(self, peer):
-        """The chat's Telegram wallpaper (set from any device or by the other person)."""
-        from telethon import functions, types
-        cache = self.__dict__.setdefault('server_backgrounds', {})
-        if int(peer) in cache:
-            return cache[int(peer)]
-        name = None
-        try:
-            entity = await self.backend.client.get_input_entity(int(peer))
-            if isinstance(entity, types.InputPeerUser):
-                full = await asyncio.wait_for(self.backend.client(functions.users.GetFullUserRequest(entity)), 20)
-                wallpaper = getattr(full.full_user, 'wallpaper', None)
-                if wallpaper is not None:
-                    name = await self.wallpaper_image(wallpaper)
-        except Exception as exc:
-            print('server background:', exc)
-        cache[int(peer)] = name
-        return name
-
     async def _sync_background(self):
         try:
             await self.api_sync_background()
@@ -3707,23 +3824,6 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             current = self.save_appearance(current)
             self.emit('appearance', current)
         return current
-
-    async def api_chat_background(self, peer, value, sync='', account=None):
-        """value: 'interface' (same picture as the interface) or '' (none). Removing a
-        synchronised one also removes it in Telegram (sync: 'devices' / 'both')."""
-        current = self.appearance()
-        self.check_active_account(account)
-        key = str(int(peer))
-        if value == 'interface':
-            current['chats'][key] = 'interface'
-        else:
-            mode = sync or current['chat_sync'].get(key, '')
-            if mode in ('devices', 'both'):
-                await asyncio.wait_for(self.backend.apply_wallpaper(int(peer), None, for_both=mode == 'both'), 60)
-                self.__dict__.setdefault('server_backgrounds', {}).pop(int(peer), None)
-            current['chats'].pop(key, None)
-            current['chat_sync'].pop(key, None)
-        return self.save_appearance(current)
 
     async def api_clear_background(self):
         current = self.appearance()
@@ -3898,8 +3998,11 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         self.on_change(account, 'delete', (peer, (id,)))
         return result
 
-    async def api_forward(self, peer, id, destination, account=None):
+    async def api_forward(self, peer, id, destination, account=None, topic_id=None):
         self.check_active_account(account)
+        if topic_id is not None:
+            await self.forum_call('forum_forward', int(destination), int(topic_id), int(peer), [int(id)], account=account)
+            return True
         return await self._action(self.backend.forward_message(peer, id, destination))
 
     async def api_react(self, peer, id, value):
@@ -4046,7 +4149,9 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
 
     async def api_scheduled(self, peer, thread_root=None):
         from tg_ascii.backend import Message
-        items = await asyncio.wait_for(self.backend.scheduled_history(peer), 30)
+        items = (await self.forum_call('forum_scheduled', int(peer), int(thread_root))
+                 if thread_root is not None and self.is_forum_chat(peer)
+                 else await asyncio.wait_for(self.backend.scheduled_history(peer), 30))
         result = []
         for raw in items:
             try:
@@ -4054,7 +4159,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             except Exception:
                 continue
             data = self.message_json(message) if isinstance(message, Message) else None
-            if data is not None and (thread_root is None or data['thread_root'] == thread_root):
+            if data is not None and (thread_root is None or (data.get('topic_id') or data['thread_root']) == thread_root):
                 data['scheduled'] = _timestamp(getattr(raw, 'date', None))
                 result.append(data)
         return result
@@ -4227,7 +4332,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
     async def api_compose_ai(self, text, mode='proofread', language='en', emojis=()):
         """Proofread, add emoji or translate the text being written (Telegram AI)."""
         spans, position = [], 0
-        for ident, alt in emojis or ():  # same rule as send_custom: next place of each fallback
+        for ident, alt in emojis or ():  # match successive occurrences of each fallback
             start = str(text).find(alt, position)
             if start >= 0:
                 spans.append((start, start + len(alt), int(ident), alt))
@@ -4253,7 +4358,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             self.open_revision += 1
             revision = self.open_revision
         else:
-            if window_peer != int(peer) or window_peer not in self.window_peers:
+            if window_peer not in self.window_peers:
                 raise ValueError('The chat window is no longer open.')
             revision = object()
             self.window_revisions[window_peer] = revision
@@ -4267,6 +4372,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         if not current():
             raise ValueError('The active conversation changed.')
         group, root = found['peer'], found['root_id']
+        if window_peer is not None and window_peer not in (int(peer), group):
+            raise ValueError('The chat window is no longer open.')
         page = await asyncio.wait_for(backend.discussion_history(group, root), 30)
         if self.account != account or self.backend is not backend:
             raise ValueError('The active account changed.')
@@ -4305,7 +4412,10 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         try:
             newest = max((m.id for m in messages), default=0)
             if newest:
-                await backend.read_discussion(peer, root_id, newest)
+                if self.is_forum_chat(peer):
+                    await backend.forum_mark_read(peer, root_id, newest)
+                else:
+                    await backend.read_discussion(peer, root_id, newest)
         except Exception:
             pass
 
@@ -4707,7 +4817,11 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         return await self.api_premium_settings()
 
     # -- articles and checklists (desktop: advanced messaging) ---------------------------
-    async def api_send_article(self, peer, source, format='markdown', rtl=False, noautolink=False, reply_to=None):
+    async def api_send_article(self, peer, source, format='markdown', rtl=False, noautolink=False, reply_to=None, account=None, thread_root=None, topic_id=None):
+        reply_to = self.send_reply(peer, reply_to, thread_root, account)
+        if topic_id is not None:
+            reply_to = await self.forum_call('forum_reply', int(peer), int(topic_id),
+                                           reply_to if reply_to != thread_root else None, account=account)
         from telethon import errors
         from tg_ascii.i18n import tr
         try:
@@ -4718,7 +4832,11 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             raise ValueError(tr('Telegram did not accept the article') + f' ({getattr(exc, "message", "") or type(exc).__name__}).')
         return True
 
-    async def api_send_checklist(self, peer, title, items, reply_to=None):
+    async def api_send_checklist(self, peer, title, items, reply_to=None, account=None, thread_root=None, topic_id=None):
+        reply_to = self.send_reply(peer, reply_to, thread_root, account)
+        if topic_id is not None:
+            reply_to = await self.forum_call('forum_reply', int(peer), int(topic_id),
+                                           reply_to if reply_to != thread_root else None, account=account)
         await asyncio.wait_for(self.backend.send_checklist(int(peer), str(title), [str(item) for item in items if str(item).strip()][:30],
                                                            reply_to=reply_to), 60)
         return True
@@ -4822,7 +4940,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
                                                                  expected_link=expected, expose_history=bool(expose), migrate=bool(migrate)), 60)
         return True
 
-    async def api_share_contacts(self, target, people, account=None):
+    async def api_share_contacts(self, target, people, account=None, topic_id=None):
         """Contact cards for people with a phone, a profile link for the rest."""
         from telethon import utils
         self.check_active_account(account)
@@ -4837,11 +4955,16 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
             first = getattr(person, 'first_name', '') or utils.get_display_name(person) or str(person.id)
             last = getattr(person, 'last_name', '') or ''
             if phone:
-                await backend.send_contact_card(int(target), first, last, '+' + str(phone).lstrip('+'))
+                reply = await self.forum_call('forum_reply', int(target), int(topic_id), account=account) if topic_id is not None else None
+                await backend.send_contact_card(int(target), first, last, '+' + str(phone).lstrip('+'), reply_to=reply)
             else:
                 username = getattr(person, 'username', None)
                 link = f'https://t.me/{username}' if username else f'tg://user?id={person.id}'
-                await backend.send(int(target), f'{utils.get_display_name(person) or first}\n{link}')
+                text = f'{utils.get_display_name(person) or first}\n{link}'
+                if topic_id is not None:
+                    await self.forum_call('forum_send', int(target), int(topic_id), text, account=account)
+                else:
+                    await backend.send(int(target), text)
             sent += 1
             await asyncio.sleep(0.3)
         return {'sent': sent}
@@ -4860,13 +4983,13 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
                           'status': self.text(status or '')})
         return {'items': items, 'next': result['next_offset'], 'more': result['more']}
 
-    async def api_create_community(self, title, about='', channel=False, account=None):
+    async def api_create_community(self, title, about='', channel=False, account=None, forum=False):
         if account is not None and account != self.account:
             raise ValueError('The active account changed.')
-        chat = await asyncio.wait_for(self.backend.create_community(title, about, channel), 60)
+        chat = await asyncio.wait_for(self.backend.create_community(title, about, channel, forum=bool(forum)), 60)
         if account is None or account == self.account:
             self.loop.create_task(self.refresh_chats())
-        return {'id': chat.id, 'name': self.text(chat.name), 'kind': chat.kind}
+        return self.chat_json(chat)
 
     async def api_create_group(self, title, people):
         title = str(title or '').strip()
@@ -4886,6 +5009,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery):
         account, backend = self.account, self.backend
         if date:
             messages = await self.search_day(backend, int(peer), str(query or '').strip(), str(date), thread_root, day_bounds)
+        elif thread_root is not None and self.is_forum_chat(peer):
+            messages = await backend.forum_search(peer, thread_root, query)
         elif thread_root is not None:
             messages = await backend.search_discussion(peer, thread_root, query)
         else:
