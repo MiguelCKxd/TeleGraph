@@ -9,6 +9,8 @@ replies and a text field (keyboard, handwriting or voice on the watch).
 import asyncio
 import io
 import json
+import queue
+import sys
 import textwrap
 from datetime import datetime
 
@@ -50,17 +52,65 @@ def tr(text):
         return text
 
 
-class Events:
+class Events(queue.Queue):
     """A core subscriber: events reach the app's (UI) loop."""
 
     def __init__(self, app):
+        super().__init__()
         self.app = app
+        self.pending_bytes = 0
+        self.scheduled = False
 
-    def qsize(self):
-        return 0
+    def would_overflow(self, data):
+        from tg_ascii_mobile.event_queue import MAX_EVENTS, MAX_EVENT_BYTES
+        with self.mutex:
+            return self._qsize() >= MAX_EVENTS or self.pending_bytes + sys.getsizeof(data) > MAX_EVENT_BYTES
+
+    def _put(self, data):
+        self.pending_bytes += 0 if data is None else sys.getsizeof(data)
+        super()._put(data)
+
+    def _get(self):
+        data = super()._get()
+        self.pending_bytes -= 0 if data is None else sys.getsizeof(data)
+        return data
+
+    def get_nowait(self):
+        # Core purges before lock/overflow. The UI may drain the last entry
+        # between its empty() and get_nowait() calls on another thread.
+        try:
+            return super().get_nowait()
+        except queue.Empty:
+            return None
 
     def put_nowait(self, data):
-        self.app.loop.call_soon_threadsafe(self.app.on_event, json.loads(data))
+        super().put_nowait(data)
+        with self.mutex:
+            if self.scheduled:
+                return
+            self.scheduled = True
+        self.app.loop.call_soon_threadsafe(self.drain)
+
+    def drain(self):
+        # A single UI wakeup, with small batches so touch input can run too.
+        try:
+            for _ in range(20):
+                try:
+                    data = super().get_nowait()
+                except queue.Empty:
+                    break
+                if data is None:
+                    self.app.core.loop.call_soon_threadsafe(self.app.core.subscribers.add, self)
+                    self.app.resync_events()
+                else:
+                    self.app.on_event(json.loads(data))
+        finally:
+            with self.mutex:
+                pending = bool(self._qsize())
+                if not pending:
+                    self.scheduled = False
+            if pending:
+                self.app.loop.call_soon(self.drain)
 
 
 class TgAsciiWatch(toga.App):
@@ -161,6 +211,7 @@ class TgAsciiWatch(toga.App):
         return await asyncio.wrap_future(future)
 
     def run(self, method, done=None, **params):
+        account = getattr(self, 'active_account', None)
         async def task():
             try:
                 result = await self.call(method, **params)
@@ -168,11 +219,12 @@ class TgAsciiWatch(toga.App):
                 from tg_ascii.auth import error_message
                 self.toast(error_message(exc))
                 return
-            if done:
+            if done and account == getattr(self, 'active_account', None):
                 done(result)
         self.loop.create_task(task())
 
     async def refresh(self):
+        navigation = self.navigation
         for _ in range(100):
             try:
                 snapshot = await self.call('state')
@@ -180,6 +232,11 @@ class TgAsciiWatch(toga.App):
             except Exception:
                 await asyncio.sleep(0.2)
         else:
+            return
+        if navigation != self.navigation:
+            return
+        if snapshot.get('locked'):
+            self.show_locked()
             return
         self.stage, self.active_account = snapshot['stage'], snapshot.get('account')
         if self.stage == 'choose_account':
@@ -191,8 +248,36 @@ class TgAsciiWatch(toga.App):
             return
         self.route()
 
+    def resync_events(self):
+        self.navigation += 1
+        self.open_peer = self.topic = self.forum_chat = self.screen = None
+        self.messages = []
+        self.loop.create_task(self.refresh())
+
+    def show_locked(self):
+        self.navigation += 1
+        self.active_account = self.open_peer = self.topic = self.forum_chat = None
+        self.chats, self.messages, self.translations, self.chat_draft = [], [], {}, ''
+        field = self.text_input(password=True)
+        self.page(self.label(tr('Unlock'), 13, STRONG), field,
+                  self.button(tr('Unlock'), lambda: self.run('unlock', pin=field.value or '')))
+        self.screen = 'locked'
+
     def on_event(self, packet):
         kind, data = packet.get('type'), packet.get('data')
+        if kind == 'lock':
+            if data:
+                self.show_locked()
+            else:
+                self.resync_events()
+            return
+        if getattr(getattr(self, 'core', None), 'locked', False) or (kind == 'stage' and data.get('locked')):
+            if self.screen != 'locked':
+                self.show_locked()
+            return
+        account = getattr(self, 'active_account', None)
+        if account is not None and packet.get('account', account) != account and kind not in ('stage', 'lock'):
+            return
         if kind == 'stage':
             if data['stage'] == 'choose_account':
                 self.loop.create_task(self.refresh())
@@ -224,9 +309,10 @@ class TgAsciiWatch(toga.App):
             message = data.get('message')
             if message and (not self.topic or message.get('topic_id') == self.topic['id']) and not any(item['id'] == message['id'] for item in self.messages):
                 self.messages.append(data['message'])
+                del self.messages[:-20]
                 self.show_chat()
         elif kind == 'history' and self.screen == 'chat' and not self.topic and data['peer'] == self.open_peer:
-            self.messages = data['messages']
+            self.messages = data['messages'][-20:]
             self.show_chat()
         elif kind == 'forum_topics' and self.screen == 'topics' and self.forum_chat and data.get('peer') == self.open_peer:
             self.open_topics(self.forum_chat)
@@ -545,7 +631,7 @@ class TgAsciiWatch(toga.App):
                 self.open_kind = data['chat']['kind']
             if data.get('topic'):
                 self.topic = data['topic']
-            self.messages = data.get('messages') or []
+            self.messages = (data.get('messages') or [])[-20:]
             self.show_chat()
         if topic:
             self.run('forum_open', done=opened, peer=chat['id'], topic_id=topic['id'], account=self.active_account)

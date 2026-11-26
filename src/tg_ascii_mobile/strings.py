@@ -10,6 +10,62 @@ from functools import lru_cache
 import unicodedata
 
 MOBILE = {
+    'Comprobar notificaciones': 'Check notifications',
+    'Permiso de notificaciones concedido por el sistema.': 'Notification permission granted by the system.',
+    'Permiso del sistema: sin comprobar.': 'System permission: not checked.',
+    'Actualizar': 'Refresh',
+    'Esta comprobación consulta el registro. No envía una notificación de prueba.':
+        'This check reads the registration status. It does not send a test notification.',
+    'Las notificaciones están desactivadas en esta app.': 'Notifications are turned off in this app.',
+    'Permiso denegado. Activa las notificaciones en Ajustes del sistema.':
+        'Permission denied. Enable notifications in system Settings.',
+    'Todavía no se ha concedido permiso para las notificaciones.': 'Notification permission has not been granted yet.',
+    'Telegram ha aceptado el registro de {count} cuenta(s).': 'Telegram has accepted registration for {count} account(s).',
+    'El registro no se ha completado. La app volverá a intentarlo automáticamente.':
+        'Registration is incomplete. The app will retry automatically.',
+    'Conecta una cuenta para comprobar el registro de notificaciones.':
+        'Connect an account to check notification registration.',
+    'El sistema no ha podido activar las notificaciones.': 'The system could not enable notifications.',
+    'Esperando a que se complete el registro de notificaciones.': 'Waiting for notification registration to complete.',
+    'Entorno de Apple: desarrollo.': 'Apple environment: development.',
+    'Entorno de Apple: distribución.': 'Apple environment: distribution.',
+    'Si no aparecen avisos, revisa el permiso de notificaciones y los modos de concentración en Ajustes del sistema.':
+        'If alerts do not appear, check notification permission and Focus modes in system Settings.',
+    'No se pudo consultar el estado. Vuelve a intentarlo.': 'Could not check the status. Try again.',
+    'Restablecer': 'Reset',
+    'Liquid Glass nativo': 'Native Liquid Glass',
+    'Usar controles de cristal nativos de Apple en iOS 26 o posterior. Respeta Reducir transparencia y Reducir movimiento. Desactivado por defecto.':
+        'Use native Apple glass controls on iOS 26 or later. Respects Reduce Transparency and Reduce Motion. Off by default.',
+    'Conéctate para ir al mensaje.': 'Connect to go to the message.',
+    'Abrir en el reproductor del sistema': 'Open in system player',
+    'Se muestra una vista previa. Reintenta para cargar la calidad seleccionada.':
+        'Showing a preview. Retry to load the selected quality.',
+    'Tipo de contenido': 'Media type', 'Calidad de las fotos': 'Photo quality',
+    'Restablecer ajustes de apariencia': 'Reset appearance settings',
+    'Restablecer ajustes de personalización': 'Reset customization settings',
+    'Restablecer todos los ajustes': 'Reset all settings',
+    'Se restablecerán todos los ajustes de esta app en este dispositivo. Tus cuentas, sesiones, mensajes y bloqueo de seguridad se conservarán. Los ajustes guardados en Telegram no cambiarán.':
+        'All settings of this app will be reset on this device. Your accounts, sessions, messages and security lock will be kept. Settings stored in Telegram will not change.',
+    'Se restablecerán los ajustes de esta sección en este dispositivo. Tus cuentas, sesiones, mensajes y bloqueo de seguridad se conservarán. Los ajustes guardados en Telegram no cambiarán.':
+        'The settings in this section will be reset on this device. Your accounts, sessions, messages and security lock will be kept. Settings stored in Telegram will not change.',
+    'Color de controles': 'Control color', 'Decoración de títulos y menús': 'Title and menu decoration',
+    'Título de la lista de chats': 'Chat list title', 'Acción de cabecera': 'Header action',
+    'Composición de la interfaz': 'Interface layout', 'Estilo de controles': 'Control style',
+    'Entre corchetes': 'Bracketed', 'Sin corchetes': 'Plain', 'Iconos': 'Icons',
+    'Navegación': 'Navigation', 'Menú': 'Menu', 'Pestañas inferiores': 'Bottom tabs',
+    'Navegación principal': 'Main navigation', 'Alineación de cabecera': 'Header alignment',
+    'Izquierda': 'Left', 'Centrada': 'Centered', 'Separadores de chats': 'Chat separators',
+    'Discontinuos': 'Dashed', 'Continuos': 'Solid', 'Ninguno': 'None',
+    'Color de títulos': 'Title color', 'Color secundario': 'Secondary color',
+    'Color de paneles': 'Panel color', 'Color de separadores': 'Separator color',
+    'Color de contadores': 'Counter color', 'Altura mínima de chats (px)': 'Minimum chat height (px)',
+    'Tamaño de fotos en la lista (px)': 'List photo size (px)', 'Margen de separadores (px)': 'Separator inset (px)',
+    'Grosor de títulos': 'Title weight', 'Ancho máximo de burbujas (%)': 'Maximum bubble width (%)',
+    'Mostrar estado en línea de la conexión': 'Show online connection status',
+    'Nombres de remitentes en chats privados': 'Sender names in private chats',
+    'Bordes de burbujas': 'Bubble borders', 'Restablecer composición': 'Reset interface layout',
+    'Cero mantiene el tamaño habitual. Estas opciones solo cambian el aspecto en este dispositivo.':
+        'Zero keeps the usual size. These options only change the appearance on this device.',
     'Compartir con Apple TV': 'Share with Apple TV',
     'Abrir tema': 'Open topic',
     'Activar temas': 'Enable topics',
@@ -144,13 +200,13 @@ def web_keys():
     import re
     from pathlib import Path
     script = (Path(__file__).resolve().parent / 'web' / 'app.js').read_text('utf-8')
-    for feature_script in ('stories.js', 'wallpapers.js', 'media_gallery.js', 'mobile_controls.js', 'forums.js'):
+    for feature_script in ('stories.js', 'wallpapers.js', 'media_gallery.js', 'mobile_controls.js', 'forums.js', 'presentation.js'):
         script += (Path(__file__).resolve().parent / 'web' / feature_script).read_text('utf-8')
     start = script.index('const KEYS = [')
     block = script[start:script.index('];', start)]
     explicit = re.findall(r"'([^']*)'", block)
     literals = re.findall(r"\bt\('((?:[^'\\]|\\.)*)'", script)
-    return tuple(dict.fromkeys(explicit + [re.sub(r"\\(.)", r"\1", key) for key in literals]))
+    return tuple(dict.fromkeys(explicit + list(MOBILE) + [re.sub(r"\\(.)", r"\1", key) for key in literals]))
 
 
 def install():

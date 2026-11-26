@@ -27,20 +27,29 @@ function storiesView() {
 }
 
 function storyViewer(items, index) {
-  const account = state.account;
+  const account = state.account, revision = state.accountRevision;
   const layer = mediaDialog(t('Story'));
   const seen = new Set();
+  let release = () => {};
+  layer.addEventListener('close', () => release(), {once: true});
   function show() {
+    release();
+    if (state.locked || revision !== state.accountRevision) { layer.close(); return; }
     const item = items[index];
     const identity = item.peer + '/' + item.id;
     const url = '/story?' + resourceAuth() + '&' + new URLSearchParams({ account, peer: item.peer, id: item.id, view: crypto.getRandomValues(new Uint32Array(4)).join('-') });
     const read = () => {
-      if (!layer.open || !media.isConnected || state.account !== account || seen.has(identity)) return;
+      if (!layer.open || !media.isConnected || state.locked || state.accountRevision !== revision || state.account !== account || seen.has(identity)) return;
       seen.add(identity);
       attempt(() => api('story_read', {account, peer: item.peer, id: item.id}));
     };
     const media = item.video ? h('video', { src: url, controls: true, playsinline: true, autoplay: true, onplaying: read })
       : h('img', { src: url, alt: item.caption || item.name, onload: read });
+    release = () => {
+      if (item.video) media.pause();
+      media.removeAttribute('src');
+      if (item.video) media.load();
+    };
     media.addEventListener('error', () => media.replaceWith(h('div', {class: 'error'}, t('Media unavailable.'))));
     const previous = button(t('Previous'), () => { index--; show(); });
     const next = button(t('Next'), () => { index++; show(); });

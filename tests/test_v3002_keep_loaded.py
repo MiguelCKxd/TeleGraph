@@ -39,6 +39,21 @@ class KeepLoadedTests(IsolatedAsyncioTestCase):
         self.assertTrue(features['polls'])
         self.assertTrue(mobile_features({'mobile_features': {'keep_loaded': True}})['keep_loaded'])
 
+    def test_media_and_native_glass_require_explicit_opt_in(self):
+        for key in ('media_originals', 'native_liquid_glass'):
+            self.assertFalse(mobile_features({})[key])
+            self.assertFalse(mobile_features({'mobile_features': {key: 'true'}})[key])
+            self.assertTrue(mobile_features({'mobile_features': {key: True}})[key])
+            self.assertFalse(mobile_features({'mobile_features': {key: False}})[key])
+
+    def test_opt_in_survives_shared_preferences_reload(self):
+        from tg_ascii.preferences import Preferences
+        prefs = Preferences(self.core.root)
+        prefs.save({'mobile_features': {'media_originals': True, 'native_liquid_glass': True}})
+        restored = mobile_features(Preferences(self.core.root).values)
+        self.assertTrue(restored['media_originals'])
+        self.assertTrue(restored['native_liquid_glass'])
+
     async def test_recent_chat_only_asks_for_newer_messages(self):
         backend = SimpleNamespace(client=SimpleNamespace(get_messages=AsyncMock(return_value=[])),
                                   resolve_missing_senders=AsyncMock(), message=lambda raw: raw, read_max={},

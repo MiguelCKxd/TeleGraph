@@ -1,0 +1,50 @@
+/* Only exposed settings drive these overrides; empty/default keeps prior look. */
+.control-icon { display: none; }
+html[data-controls=plain] .btn::before, html[data-controls=plain] .btn::after,
+html[data-controls=icons] .btn::before, html[data-controls=icons] .btn::after,
+html[data-controls=icons] .day::before, html[data-controls=icons] .day::after { content: none; }
+html[data-controls=icons] .btn[data-ui-icon] .control-text { display: none; }
+html[data-controls=icons] .control-icon { display: inline-flex; align-items: center; justify-content: center; }
+html[data-controls=icons] .btn[role=switch] {
+  position: relative; flex: none; inline-size: 52px; min-inline-size: 52px; block-size: 44px;
+  min-block-size: 44px; padding: 0; border: 0; border-radius: 999px;
+  background: transparent; color: transparent;
+}
+html[data-controls=icons] .btn[role=switch]::before {
+  content: ''; position: absolute; inset-block-start: 6px; inset-inline-start: 0;
+  inline-size: 52px; block-size: 32px; border-radius: 999px; background: var(--ui-secondary, var(--muted));
+}
+html[data-controls=icons] .btn[role=switch][aria-checked=true]::before { background: var(--ui-control, var(--accent, var(--strong))); }
+html[data-controls=icons] .btn[role=switch]::after {
+  content: ''; position: absolute; inset-block-start: 9px; inset-inline-start: 3px;
+  inline-size: 26px; block-size: 26px; border-radius: 50%; background: #fff;
+}
+html[data-controls=icons] .btn[role=switch][aria-checked=true]::after { inset-inline-start: 23px; }
+.control-icon svg, .app-navigation svg { width: 24px; height: 24px; display: block; }
+.bar .title, .row .name { color: var(--ui-title, var(--strong)); font-weight: var(--ui-title-weight, 700); }
+.btn:not(.danger), .sheet .item:not(.danger) { color: var(--ui-control, var(--text)); }
+.btn.primary { color: var(--ui-control, var(--strong)); }
+html[data-plain-headings] .section h4::before,
+html[data-plain-headings] .sheet h3::before, html[data-plain-headings] .sheet h3::after,
+html[data-plain-headings] .sheet .item::before { content: none; }
+.bar, .search, .app-navigation { background-color: var(--ui-panel, var(--panel)); }
+.row .preview, .row .when, .bar .sub, .status { color: var(--ui-secondary, var(--muted)); }
+#chatlist .row { min-height: var(--ui-row-height, 0); border-bottom: 0; position: relative; }
+#chatlist .row::after { content: ''; position: absolute; bottom: 0; inset-inline-start: var(--ui-separator-inset, 0); inset-inline-end: 0;
+  border-bottom: 1px dashed var(--ui-line, var(--line)); pointer-events: none; }
+html[data-separators=solid] #chatlist .row::after { border-bottom-style: solid; }
+html[data-separators=none] #chatlist .row::after { display: none; }
+#chatlist .row .avatar { width: var(--ui-avatar-size, 2.6em); height: var(--ui-avatar-size, 2.6em); }
+.row .badge:not(.muted) { background-color: var(--ui-badge, var(--text)); }
+html[data-header-alignment=center] .bar .title { text-align: center; }
+html[data-header-alignment=center] .bar .title.with-avatar { justify-content: center; }
+html[data-hide-online] .status:not(.offline) { display: none; }
+html[data-hide-private-senders] #app[data-private-chat] .msg .who { display: none; }
+html[data-no-bubble-border] .bubbles .msg:not(.service) { border-color: transparent; }
+.bubbles .msg { max-width: var(--ui-bubble-width, 88%); }
+.app-navigation { display: flex; flex: none; gap: .25em; align-items: center; justify-content: space-around;
+  padding: .35em .35em max(.35em, var(--bottom)); border-top: 1px solid var(--ui-line, var(--line)); }
+.app-navigation button { flex: 1; border: 0; background: none; color: var(--ui-secondary, var(--muted));
+  display: grid; justify-items: center; gap: .15em; min-height: 44px; font-size: .68em; cursor: pointer; }
+.app-navigation button[aria-current=page] { color: var(--accent, var(--strong)); }
+.presentation-settings select { max-width: 55%; }

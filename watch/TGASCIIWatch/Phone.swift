@@ -12,8 +12,10 @@ struct ChatItem: Identifiable, Decodable, Hashable {
     var has_link: Bool? = nil
     var account: String? = nil
 
-    func request(_ operation: String, topic: WatchTopic? = nil) -> [String: Any] {
-        var request: [String: Any] = ["op": operation, "peer": id]
+    func request(_ operation: String, topic: WatchTopic? = nil, parameters: [String: Any] = [:]) -> [String: Any] {
+        var request = parameters
+        request["op"] = operation
+        if request["peer"] == nil { request["peer"] = id }
         if let account { request["account"] = account }
         if let topic { request["topic_id"] = topic.id }
         return request

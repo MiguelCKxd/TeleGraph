@@ -1,6 +1,6 @@
 // One fullscreen surface serves chat and profile galleries. A history update
 // changes the strip and arrows without replacing the image being pinched.
-function presentGallery({layer, title, items, selected, source, olderStep, hasMore, loadPage, exportItem, active, onSelected, goToMessage}) {
+function presentGallery({layer, title, items, selected, source, olderStep, hasMore, loadPage, exportItem, active, onSelected, goToMessage, allowSystemPlayer = false}) {
   let current = selected, pending = null, moveRevision = 0, exporting = false;
   const tiles = new Map();
   const titleNode = h('span', {});
@@ -8,7 +8,11 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
   const caption = h('div', {class: 'caption', dir: 'auto'});
   const notice = h('div', {class: 'gallery-notice', role: 'status', hidden: true});
   const strip = h('div', {class: 'gallery-strip', 'aria-label': title});
-  let stage = h('div', {class: 'stage'}), releaseGestures;
+  let stage = h('div', {class: 'stage'}), releaseGestures, releaseMedia;
+  const retry = button(t('Reintentar'), () => select(current, true), 'gallery-retry');
+  retry.hidden = true;
+  const external = button(t('Open in system player'), () => send('open'), 'gallery-external');
+  external.hidden = true;
   const previous = symbolButton('‹', t('Previous page'), () => go(-1));
   const next = symbolButton('›', t('Next page'), () => go(1));
   const save = symbolButton('↓', t('Save'), () => send('save'));
@@ -29,13 +33,19 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
     next.disabled = index >= list.length - 1 && !(olderStep === 1 && more);
     previous.hidden = next.hidden = list.length <= 1 && !more;
     save.hidden = share.hidden = !!current.protected || !exportItem;
-    save.disabled = share.disabled = exporting;
+    save.disabled = share.disabled = external.disabled = exporting;
     titleNode.textContent = current.sender || title;
     info.textContent = [current.time, list.length > 1 ? (index + 1) + ' / ' + list.length : ''].filter(Boolean).join(' · ');
     const previews = state.settings?.photo_previews !== false;
     strip.hidden = !previews || list.length < 2;
     if (strip.hidden) { tiles.clear(); strip.replaceChildren(); return; }
-    const controls = list.map((item, n) => {
+    // Keep a useful neighbourhood without retaining thousands of thumbnail
+    // elements after paging through a long history. Arrows still span it all.
+    const start = Math.max(0, index - 15), visible = list.slice(start, Math.max(31, index + 16));
+    const visibleIds = new Set(visible.map(item => item.id));
+    for (const id of tiles.keys()) if (!visibleIds.has(id)) tiles.delete(id);
+    const controls = visible.map((item, offset) => {
+      const n = start + offset;
       let tile = tiles.get(item.id);
       if (!tile) {
         tile = h('button', {type: 'button', onclick: () => select(item)},
@@ -66,24 +76,39 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
     }
     return pending;
   }
-  function select(item) {
+  function select(item, force = false) {
     if (!live()) return;
     moveRevision++;
-    if (stage.firstElementChild && current.id === item.id) return;
-    releaseGestures?.();
-    releaseGestures = null;
+    if (!force && stage.firstElementChild && current.id === item.id) return;
+    releaseGestures?.(); releaseMedia?.();
+    releaseGestures = releaseMedia = null;
+    retry.hidden = external.hidden = true;
     current = item;
-    status('');
+    status(t('Cargando...'));
     const video = item.kind === 'video' || item.kind === 'gif';
     const media = video
-      ? h('video', {src: source(item, false), controls: true, autoplay: true, playsinline: true, loop: item.kind === 'gif'})
-      : h('img', {src: source(item, false), alt: item.caption || title});
+      ? h('video', {src: source(item, false), poster: state.settings?.photo_previews === false ? '' : source(item, true),
+        controls: true, autoplay: true, preload: 'auto', playsinline: true, loop: item.kind === 'gif'})
+      : h('img', {src: source(item, false), decoding: 'async', alt: item.caption || title});
     const replacement = h('div', {class: 'stage'}, media);
-    const failed = () => { if (media.isConnected && live()) status(t('Media unavailable.')); };
+    let ready = false;
+    const failed = () => {
+      if (media.isConnected && live()) {
+        retry.hidden = false;
+        external.hidden = !allowSystemPlayer || !video || !exportItem || !!item.protected;
+        status(t('Media unavailable.'));
+      }
+    };
+    const loaded = () => {
+      if (!media.isConnected || !live()) return;
+      ready = true; retry.hidden = external.hidden = true; status('');
+    };
     if (video) {
       let touch = null;
       replacement.addEventListener('touchstart', event => {
         touch = event.touches.length === 1 ? event.touches[0] : null;
+        // Leave the native seek/volume controls to the video player.
+        if (touch && touch.clientY > media.getBoundingClientRect().bottom - 56) touch = null;
       }, {passive: true});
       replacement.addEventListener('touchcancel', () => { touch = null; });
       replacement.addEventListener('touchend', event => {
@@ -92,13 +117,25 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
         touch = null;
         if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(galleryStep(dx < 0));
       });
-      media.addEventListener('error', failed, {once: true});
+      media.addEventListener('error', failed);
+      media.addEventListener('loadeddata', loaded);
+      media.addEventListener('playing', loaded);
+      media.addEventListener('waiting', () => { if (media.isConnected && live()) status(t('Cargando...')); });
+      media.addEventListener('stalled', () => { if (!ready) failed(); });
+      releaseMedia = () => {
+        media.pause(); media.removeAttribute('src'); media.removeAttribute('poster'); media.load();
+      };
     } else {
+      media.addEventListener('load', loaded, {once: true});
       media.addEventListener('error', () => {
         if (!live() || !media.isConnected) return;
         const fallback = source(item, true);
         if (fallback === source(item, false)) { failed(); return; }
+        failed();
+        status(t('Showing a preview. Retry to load the selected quality.'));
+        // A reduced fallback is useful, but is never presented as the original.
         media.addEventListener('error', failed, {once: true});
+        media.removeEventListener('load', loaded);
         media.src = fallback;
       }, {once: true});
       releaseGestures = photoGestures(replacement, media, right => go(galleryStep(right)));
@@ -149,7 +186,8 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
   const settingsChanged = () => { if (live()) drawControls(); };
   document.addEventListener('appearancechange', settingsChanged);
   layer.addEventListener('close', () => {
-    releaseGestures?.();
+    releaseGestures?.(); releaseMedia?.();
+    tiles.clear();
     document.removeEventListener('appearancechange', settingsChanged);
   }, {once: true});
   layer.addEventListener('keydown', event => {
@@ -158,7 +196,7 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
       event.preventDefault(); go(galleryStep(event.key === 'ArrowRight'));
     }
   });
-  layer.replaceChildren(bar, stage, caption, notice, ...(jump ? [jump] : []), strip);
+  layer.replaceChildren(bar, stage, caption, notice, retry, external, ...(jump ? [jump] : []), strip);
   if (!layer.open) layer.showModal();
   select(selected);
 }
@@ -168,8 +206,12 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
 async function revealGalleryMessage(item, {account, peer, chat, thread, floating}, close) {
   let topic = thread?.topic ? thread.root : item.topic_id;
   let discussion = thread && !thread.topic ? thread : null;
-  if (!thread && !topic && state.connection !== 'offline' &&
-      (chat.forum || !chat.kind || (chat.kind === 'group' && (item.thread_root || item.forwarded)))) {
+  const needsOrigin = !thread && !topic &&
+    (chat.forum || !chat.kind || (chat.kind === 'group' && (item.thread_root || item.forwarded)));
+  if (needsOrigin) {
+    // A missing connection must not turn a not-yet-resolved discussion into
+    // the ordinary group. Keep the media and the previous chat untouched.
+    if (state.connection === 'offline') throw new Error(t('Connect to go to the message.'));
     const origin = await api('gallery_origin', {account, peer, id: item.id});
     topic = origin.topic;
     if (origin.source) discussion = origin;

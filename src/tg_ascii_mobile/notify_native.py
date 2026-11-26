@@ -406,6 +406,12 @@ def install_apns_delegate(app):
             sandbox = apns_uses_sandbox(profile, os.environ.get('SIMULATOR_UDID'))
             app.core.register_push_token(1, raw.hex(), sandbox=sandbox)
 
+    def registration_failed(_self, _cmd, _application, error):
+        # NSError descriptions can contain device-specific information. Keep
+        # only Apple's numeric code and retry transient transport failures.
+        code = int(ObjCInstance(error).code)
+        app.core.loop.call_soon_threadsafe(app.core.native_push_failed, 'APNs', f'APNs_{code}', code != 3000, True)
+
     def remote_received(_self, _cmd, _application, user_info, completion):
         # UIKit owns the incoming block only for the duration of this method.
         owned = blocks._Block_copy(completion)
@@ -419,6 +425,8 @@ def install_apns_delegate(app):
             if not payload:
                 finish(1)
                 return
+            if ObjCClass('UIApplication').sharedApplication.applicationState == 2:
+                app.core.loop.call_soon_threadsafe(setattr, app.core, 'in_background', True)
             future = app.core.receive_push_payload(payload)
         except Exception:
             finish(2)
@@ -434,13 +442,15 @@ def install_apns_delegate(app):
 
     add_method(PythonAppDelegate, 'application:didRegisterForRemoteNotificationsWithDeviceToken:',
                token_received, [None, objc_id, SEL, objc_id, objc_id])
+    add_method(PythonAppDelegate, 'application:didFailToRegisterForRemoteNotificationsWithError:',
+               registration_failed, [None, objc_id, SEL, objc_id, objc_id])
     add_method(PythonAppDelegate, 'application:didReceiveRemoteNotification:fetchCompletionHandler:',
                remote_received, [None, objc_id, SEL, objc_id, objc_id, objc_block])
 
 
 def install_ios(app):
     import ctypes
-    from rubicon.objc import NSObject, ObjCBlock, ObjCClass, objc_id, objc_method, Block
+    from rubicon.objc import NSObject, ObjCBlock, ObjCClass, ObjCInstance, objc_id, objc_method, Block
     from rubicon.objc.runtime import load_library
 
     load_library('UserNotifications')
@@ -473,6 +483,45 @@ def install_ios(app):
     app._notification_presenter = presenter
     center.delegate = presenter
     core = app.core
+    core.native_push_retry = lambda: app.on_main_thread(
+        lambda: ObjCClass('UIApplication').sharedApplication.registerForRemoteNotifications())
+    # A push can cold-start UIApplication directly in the background; there
+    # need not have been a window hide or JavaScript visibility event yet.
+    background = ObjCClass('UIApplication').sharedApplication.applicationState == 2
+    core.loop.call_soon_threadsafe(setattr, core, 'in_background', bool(background))
+    checking_permission = False
+
+    def refresh_permission():
+        """Returning from Settings rechecks permission, without showing a prompt."""
+        def run():
+            nonlocal checking_permission
+            if checking_permission:
+                return
+            checking_permission = True
+            def checked(settings):
+                nonlocal checking_permission
+                checking_permission = False
+                keep.discard(block)
+                status = int(ObjCInstance(settings).authorizationStatus)
+                def apply():
+                    if core._push_stopped or not core.prefs or not core.prefs.values.get('notifications', True):
+                        return
+                    if status in (2, 3, 4):  # authorized, provisional, ephemeral
+                        core._push_permission = 'granted'
+                        core.native_push_retry()
+                    else:
+                        core.native_push_failed('APNs', 'permission_denied' if status == 1 else 'permission_not_requested', False, True)
+                core.loop.call_soon_threadsafe(apply)
+            block = Block(checked, None, objc_id)
+            keep.add(block)
+            try:
+                center.getNotificationSettingsWithCompletionHandler_(block)
+            except Exception:
+                checking_permission = False
+                keep.discard(block)
+                core.loop.call_soon_threadsafe(core.native_push_failed, 'APNs', 'permission_query_failed', False, True)
+        app.on_main_thread(run)
+    core.native_notify_refresh = refresh_permission
 
     def ask_permission():
         def run():
@@ -480,10 +529,15 @@ def install_ios(app):
                 def answered(granted, error):
                     keep.discard(block)
                     if granted:
-                        try:
-                            app.on_main_thread(lambda: ObjCClass('UIApplication').sharedApplication.registerForRemoteNotifications())
-                        except Exception:
-                            pass
+                        def apply():
+                            if core._push_stopped:
+                                return
+                            core._push_permission = 'granted'
+                            if core.prefs and core.prefs.values.get('notifications', True):
+                                core.native_push_retry()
+                        core.loop.call_soon_threadsafe(apply)
+                    else:
+                        core.loop.call_soon_threadsafe(core.native_push_failed, 'APNs', 'permission_denied', False, True)
                 block = Block(answered, None, ctypes.c_bool, objc_id)
                 keep.add(block)
                 center.requestAuthorizationWithOptions_completionHandler_(7 | ((1 << 3) if carplay else 0), block)

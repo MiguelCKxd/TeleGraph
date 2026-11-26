@@ -61,3 +61,18 @@ class WearSubscriptionTests(TestCase):
         self.completed(self.client.getDataItems, ok=True, result=data)
         data.release.assert_called_once()
         self.received.assert_not_called()
+
+    def test_change_burst_keeps_one_read_and_one_followup(self):
+        self.start()
+        self.completed(self.client.addListener, ok=True)
+        for _ in range(100):
+            self.start()  # Same refresh path as Data Layer changes/resume.
+        self.assertEqual(self.client.getDataItems.call_count, 1)
+        data = Mock()
+        data.getCount.return_value = 0
+        self.completed(self.client.getDataItems, ok=True, result=data)
+        self.assertEqual(self.client.getDataItems.call_count, 2)
+        self.received.assert_not_called()  # The coalesced refresh supersedes it.
+        self.completed(self.client.getDataItems, ok=True, result=data)
+        self.received.assert_called_once_with(None)
+        self.assertEqual(data.release.call_count, 2)

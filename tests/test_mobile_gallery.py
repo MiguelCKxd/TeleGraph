@@ -171,3 +171,42 @@ class GalleryTests(IsolatedAsyncioTestCase):
         presented[1][1]()
         await asyncio.sleep(0)
         self.assertFalse(presented[1][0].exists())
+
+    async def test_shared_filters_are_server_queries_and_keep_cursor(self):
+        self.backend.search_messages = AsyncMock(return_value=[])
+        for exposed, expected in [('photos', 'media'), ('photos_only', 'photos'), ('videos', 'videos')]:
+            await self.core.api_shared_media(44, exposed, 88, 'first')
+            self.backend.search_messages.assert_awaited_with(44, '', expected, 88)
+        with self.assertRaises(ValueError):
+            await self.core.api_shared_media(44, 'not-a-filter', 0, 'first')
+
+    async def test_account_switch_during_media_index_cannot_use_new_backend_for_old_folder(self):
+        self.core._fetch_message = AsyncMock(return_value=SimpleNamespace(media='fixture'))
+        async def switching(folder):
+            self.core.accounts.current = 'second'
+            return {}
+        self.core._media_index = switching
+        self.backend.download_media = AsyncMock()
+        with self.assertRaises(PermissionError):
+            await self.core.media_file(44, 82)
+        self.backend.download_media.assert_not_awaited()
+        self.assertFalse(self.core.__dict__.get('media_jobs'))
+
+    async def test_display_and_original_use_separate_cache_and_previews_remain_small(self):
+        self.core._fetch_message = AsyncMock(return_value=SimpleNamespace(media='fixture'))
+        qualities = []
+        async def download(media, path, *, thumbnail, quality):
+            qualities.append((thumbnail, quality))
+            path = path.with_suffix('.jpg')
+            path.write_bytes(b'thumbnail' if thumbnail else quality.encode())
+            return path
+        self.backend.download_media = download
+        display = await self.core.media_file(44, 82, False, quality='display')
+        original = await self.core.media_file(44, 82, False)
+        preview = await self.core.media_file(44, 82, True)
+        self.assertEqual(display.read_bytes(), b'display')
+        self.assertEqual(original.read_bytes(), b'original')
+        self.assertEqual(preview.read_bytes(), b'thumbnail')
+        self.assertEqual(qualities, [(False, 'display'), (False, 'original'), (True, 'original')])
+        self.assertEqual(await self.core.media_file(44, 82, False), original)
+        self.assertEqual(len(qualities), 3)

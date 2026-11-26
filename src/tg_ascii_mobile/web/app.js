@@ -36,6 +36,7 @@ for (const [name, value] of [['--top', Q.get('top')], ['--bottom', Q.get('bottom
 const QUICK = ['👍', '❤', '😂', '😮', '😢', '🔥', '👏', '🎉'];
 
 const KEYS = [
+  'Photos and videos', 'All', 'Videos', 'SD · Standard', 'HD · High quality', 'Original as file',
   'Share screen', 'Stop sharing screen', 'Picture in Picture', 'Picture in Picture is unavailable.',
   'Conectando...', 'Sin conexion', 'En linea', 'Reintentar', 'Iniciar sesion', 'Numero de telefono',
   'Include + and your country calling code. Example: +1 202 555 0123', 'Continuar',
@@ -110,11 +111,13 @@ const state = {
 
 // -- plumbing -----------------------------------------------------------------
 // Calls that create something are not repeated (a lost answer could mean done).
-const NO_RETRY = new Set(['report_message', 'apply_chat_wallpaper', 'publish_story', 'voice_start', 'voice_stop', 'notify_reset', 'group_call_action', 'group_call_manage', 'send', 'send_files', 'send_voice', 'send_sticker', 'send_poll', 'poll_answer', 'poll_close', 'send_contact', 'forward', 'forward_many', 'create_group', 'create_community', 'member_admin', 'member_restrict', 'members_add', 'set_discussion', 'group_change', 'call_action', 'secret_start', 'secret_ttl', 'secret_rekey', 'secret_screenshot', 'secret_discard']);
+const NO_RETRY = new Set(['react', 'window_send', 'send_article', 'send_checklist', 'save_to_saved', 'share_contacts', 'bot_button', 'forum_create', 'forum_manage', 'contact_photo', 'suggest_birthday', 'forum_send', 'forum_forward', 'move_pin', 'scheduled_action', 'account.add', 'login.qr', 'restart', 'reset_settings', 'report_message', 'apply_chat_wallpaper', 'publish_story', 'voice_start', 'voice_stop', 'notify_reset', 'group_call_action', 'group_call_manage', 'send', 'send_files', 'send_voice', 'send_sticker', 'send_poll', 'poll_answer', 'poll_close', 'send_contact', 'forward', 'forward_many', 'create_group', 'create_community', 'member_admin', 'member_restrict', 'members_add', 'set_discussion', 'group_change', 'call_action', 'secret_start', 'secret_ttl', 'secret_rekey', 'secret_screenshot', 'secret_discard']);
 async function api(method, params = {}) {
+  const revision = state.accountRevision;
   let response;
   for (let attempt = 0; ; attempt++) {
     try {
+      if (attempt && state.accountRevision !== revision) throw new Error(t('Reconnecting…'));
       response = await fetch('/api/' + method.replace(/\./g, '_'), {
         method: 'POST', headers: {'X-TG-Token': TOKEN, 'Content-Type': 'application/json',
           ...(WINDOW_ACCOUNT === null ? {} : {'X-TG-Window-Account': WINDOW_ACCOUNT})},
@@ -123,7 +126,7 @@ async function api(method, params = {}) {
       break;
     } catch (error) {
       // The app's local server is being restored (back from the background): wait and retry.
-      if (attempt >= 6 || NO_RETRY.has(method)) throw new Error(t('Reconnecting…'));
+      if (attempt >= 6 || NO_RETRY.has(method) || state.accountRevision !== revision) throw new Error(t('Reconnecting…'));
       await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
     }
   }
@@ -206,7 +209,9 @@ function imageObserver(root) {
       pumpImages();
     }, { root, rootMargin: keepLoaded() ? '1800px 0px' : '900px 0px' });
     imageObservers.set(root, observer);
-    for (const [key] of imageObservers) if (key && !key.isConnected) imageObservers.delete(key);
+    for (const [key, pending] of imageObservers) if (key && !key.isConnected) {
+      pending.disconnect(); imageObservers.delete(key);
+    }
   }
   return observer;
 }
@@ -255,7 +260,8 @@ function lazySrc(img, src) {
 
 const button = (label, action, extra = '') => h('button', { class: 'btn ' + extra, onclick: action }, label);
 function symbolButton(symbol, label, action, disabled = false) {
-  return h('button', { class: 'btn', 'aria-label': label, onclick: action, disabled }, symbol);
+  const node = h('button', { class: 'btn', 'aria-label': label, onclick: action, disabled }, symbol);
+  return window.tgPresentation?.iconize(node, symbol) || node;
 }
 const backButton = () => symbolButton('<', t('Volver'), back);
 
@@ -409,11 +415,14 @@ function applySettings() {
   document.documentElement.dir = state.rtl ? 'rtl' : 'ltr';
   document.documentElement.lang = state.language || 'en';
   document.dispatchEvent(new Event('appearancechange'));
+  window.tgPresentation?.apply();
+  window.tgNativeGlass?.refresh();
 }
 
 async function loadStrings() {
   const language = state.language;
   const keys = [
+    ...(window.tgPresentation?.labels || []),
     ...swipeOptions.map(([, label]) => label), 'Al deslizar un chat hacia la derecha', 'Al deslizar un chat hacia la izquierda',
     ...Object.values(CALL_STATUS), ...MOBILE_FEATURES.flatMap(([, label, note]) => [label, note]),
     ...[...PROFILE_SECTIONS, ...SETTINGS_SECTIONS, ...SHARED_KINDS].map(([, label]) => label),
@@ -429,7 +438,8 @@ function listen() {
   source = new EventSource('/events?' + resourceAuth());
   source.onmessage = (event) => {
     let packet; try { packet = JSON.parse(event.data); } catch { return; }
-    if (WINDOW_ACCOUNT !== null && packet.account !== WINDOW_ACCOUNT && !['stage', 'lock'].includes(packet.type)) return;
+    const account = WINDOW_ACCOUNT ?? state.account;
+    if (account != null && packet.account !== account && !['stage', 'lock'].includes(packet.type)) return;
     const handler = EVENTS[packet.type];
     if (handler) handler(packet.data, packet.account);
   };
@@ -490,14 +500,15 @@ const EVENTS = {
     queueChatList();
   },
   stage(data) {
+    if (state.stage !== data.stage) state.accountRevision++;
     const wasReady = state.stage === 'ready' && state.account === data.account && !unavailableWindow();
     adopt(data);
     if (unavailableWindow()) { render(); return; }
     if (state.stage === 'ready' && !state.locked && !wasReady) {
       state.view = 'chats'; state.open = null;
-      const account = state.account;
+      const account = state.account, revision = state.accountRevision;
       api('chats').then((chats) => {
-        if (state.account !== account) return;
+        if (state.account !== account || revision !== state.accountRevision || state.locked) return;
         state.chats = chats; drawChatList();
         if (WINDOW_CHAT === null) restoreWindows();
       }, () => {});
@@ -522,7 +533,7 @@ const EVENTS = {
       const current = list.find(item => item.id === state.open.peer);
       if (current) Object.assign(state.open.chat, current);
     }
-    if (state.view === 'archived') api('archived').then(chats => { state.archived = chats; queueChatList(); });
+    if (state.view === 'archived') fetchArchived().catch(() => {});
     queueChatList();
     // Folder membership changes rarely: ask for it at most every few seconds.
     if (state.folders.length && Date.now() - (state.foldersAt || 0) > 4000) {
@@ -708,7 +719,8 @@ const EVENTS = {
   lock(value) {
     if (value === state.locked) return;
     if (value) document.getElementById('message-notice')?.remove();
-    if (value) { state.accountRevision++; notificationRoute = null; }
+    state.accountRevision++;
+    if (value) notificationRoute = null;
     if (value) document.querySelector('.media-viewer[open]')?.close();
     state.locked = value;
     drawNativeCall();
@@ -776,26 +788,43 @@ function adopt(snapshot) {
   applySettings();
 }
 
-async function resync() {
+let resyncing = null, resyncRevision = null, resyncAgain = false;
+function resync() {
+  if (resyncing) {
+    if (resyncRevision !== state.accountRevision) resyncAgain = true;
+    return resyncing;
+  }
+  resyncRevision = state.accountRevision;
+  resyncing = syncState().finally(() => {
+    resyncing = null;
+    if (resyncAgain) {resyncAgain = false; return resync();}
+  });
+  return resyncing;
+}
+async function syncState() {
+  const revision = state.accountRevision;
   const snapshot = await api('state');
+  if (revision !== state.accountRevision) return;
   const languageChanged = snapshot.language !== state.language;
   adopt(snapshot);
+  const adopted = state.accountRevision;
   if (state.locked) render();
   if (languageChanged) await loadStrings();
+  if (adopted !== state.accountRevision) return;
   if (state.stage === 'ready' && !state.locked && !unavailableWindow()) {
     const account = state.account;
     const chats = await api('chats');
-    if (state.account !== account) return;
+    if (state.account !== account || adopted !== state.accountRevision || state.locked) return;
     state.chats = chats;
     if (WINDOW_CHAT === null) {
       if (state.windowsRestored) {
         await Promise.all(state.windows.map(async (win) => {
           if (failedDraftWrites.has(draftKey(win.peer))) await saveWindowDraft(win);
-          if (state.account === account && !state.locked && state.windows.includes(win)) {
+          if (state.account === account && adopted === state.accountRevision && !state.locked && state.windows.includes(win)) {
             await refreshFloatingWindow(win, false);
           }
         }));
-        if (state.account !== account || state.locked) return;
+        if (state.account !== account || adopted !== state.accountRevision || state.locked) return;
       } else restoreWindows();
     }
     refreshCallState();
@@ -809,7 +838,7 @@ async function resync() {
       await openChat(WINDOW_CHAT, true);
     }
   }
-  render();
+  if (adopted === state.accountRevision) render();
 }
 
 // -- navigation (history: Android back gesture / button) -----------------------
@@ -894,7 +923,14 @@ function render(direction = 'forward') {
   if (changed) closeSheet(true);
   state.lastScreen = screen;
   state.lastSection = section;
+  const listTop = document.getElementById('chatlist')?.scrollTop || 0;
+  const settingsTop = document.getElementById('settings-scroll')?.scrollTop || 0;
   renderContent();
+  mountChatView();
+  window.tgPresentation?.mount();
+  const list = document.getElementById('chatlist'), settings = document.getElementById('settings-scroll');
+  if (list && listTop) list.scrollTop = listTop;
+  if (settings && settingsTop) settings.scrollTop = settingsTop;
   updateConnectionIndicator();
   if (!previous || state.locked || unavailableWindow() || (!changed && !sectionChanged)) return;
   let surface = root;
@@ -903,9 +939,6 @@ function render(direction = 'forward') {
   animateSurface(surface, direction === 'back' ? 'back' : 'forward');
 }
 function renderContent() {
-  const listTop = document.getElementById('chatlist')?.scrollTop || 0;
-  const settingsTop = document.getElementById('settings-scroll')?.scrollTop || 0;
-  if (settingsTop) setTimeout(() => { const box = document.getElementById('settings-scroll'); if (box) box.scrollTop = settingsTop; }, 0);
   root.replaceChildren();
   root.className = '';
   windowLayer.hidden = state.locked || state.stage !== 'ready';
@@ -938,7 +971,6 @@ function renderContent() {
   else if (state.open) main = chatView();
   else main = [h('div', { class: 'placeholder' }, logo(), h('div', { class: 'muted' }, t('Chats')))];
   root.append(side, divider, h('div', { class: 'pane main' }, ...main), ...syncWindows(true));
-  if (listTop) setTimeout(() => { const list = document.getElementById('chatlist'); if (list) list.scrollTop = listTop; }, 0);
 }
 let wasWide = WIDE();
 window.addEventListener('resize', () => {
@@ -1078,11 +1110,14 @@ function shortTime(seconds) {
 }
 
 function chatListView(forwarding = false, archived = false) {
-  const title = forwarding ? (state.forwarding?.people ? t('Share contact') : t('Reenviar a...')) : archived ? t('Archivados') : (state.settings?.app_display_name || 'TeleGraph');
+  const title = forwarding ? (state.forwarding?.people ? t('Share contact') : t('Reenviar a...')) : archived ? t('Archivados') : (state.appearance?.presentation?.list_title || state.settings?.app_display_name || 'TeleGraph');
   const bar = h('div', { class: 'bar' },
     forwarding || archived ? backButton() : null,
     h('div', { class: 'title' }, title), statusNode(),
-    forwarding || archived ? null : symbolButton('≡', t('More options'), chatsMenu));
+    forwarding || archived ? null : (state.appearance?.presentation?.primary_action === 'compose'
+      ? symbolButton('✎', t('Nuevo chat'), newChat) : symbolButton('≡', t('More options'), chatsMenu)),
+    !forwarding && !archived && state.appearance?.presentation?.primary_action === 'compose'
+      ? symbolButton('⋯', t('More options'), chatsMenu) : null);
   const search = h('div', { class: 'search' }, h('input', {
     type: 'search', 'data-search-scope': forwarding ? 'forward' : archived ? 'archived' : 'chats', placeholder: t('Buscar'), value: state.search,
     oninput: (event) => { state.search = event.target.value; drawChatList(); },
@@ -1096,8 +1131,15 @@ function chatListView(forwarding = false, archived = false) {
     const revision = state.accountRevision;
     fetchFolders(true).catch(() => { if (revision === state.accountRevision) state.foldersLoaded = false; });
   }
-  if (archived && state.archived === null) attempt(() => api('archived'), (chats) => { state.archived = chats; drawChatList(); });
+  if (archived && state.archived === null) attempt(fetchArchived);
   return [bar, selectionBar, search, tabs, list];
+}
+
+async function fetchArchived() {
+  const account = state.account, revision = state.accountRevision;
+  const chats = await api('archived');
+  if (account !== state.account || revision !== state.accountRevision || state.locked) return;
+  state.archived = chats; queueChatList();
 }
 
 // Which list is on screen (on wide screens it stays beside an open chat).
@@ -1259,10 +1301,14 @@ function drawChatList() {
 // global search (chats, people and messages on Telegram) -----------------------------
 let globalTimer = null;
 function drawGlobal(list, query) {
+  const account = state.account, revision = state.accountRevision;
+  const current = () => account === state.account && revision === state.accountRevision && !state.locked &&
+    listMode() === 'chats' && state.search.trim().toLowerCase() === query;
   const section = h('div', { class: 'global', id: 'global' }, h('div', { class: 'section-title' }, t('Search in Telegram')));
   list.append(section);
   const show = (data) => {
-    if (!document.getElementById('global') || state.search.trim().toLowerCase() !== query) return;
+    const shown = document.getElementById('global');
+    if (!shown || !current()) return;
     const rows = [];
     for (const chat of data.chats) rows.push(peerControl({ class: 'row peer-control', onclick: () => openChat(chat.id, true, chat) },
       avatar(chat.id, chat.name), h('div', { class: 'body' }, h('div', { class: 'top' }, nameWithStatus(chat.name, chat.emoji_status, true)))));
@@ -1271,14 +1317,18 @@ function drawGlobal(list, query) {
       avatar(item.peer, item.name),
       h('div', { class: 'body' }, h('div', { class: 'top' }, h('span', { class: 'name' }, item.name), h('span', { class: 'when' }, shortTime(item.message && item.message.date))),
         h('div', { class: 'bottom' }, h('span', { class: 'preview' }, (item.message && item.message.text) || '')))));
-    section.replaceChildren(section.firstChild, ...(rows.length ? rows : [h('div', { class: 'empty' }, t('Sin resultados.'))]));
+    shown.replaceChildren(shown.firstChild, ...(rows.length ? rows : [h('div', { class: 'empty' }, t('Sin resultados.'))]));
   };
   if (state.global && state.global.query === query) { if (state.global.data) show(state.global.data); return; }
   section.append(h('div', { class: 'empty spinner' }, ''));
   clearTimeout(globalTimer);
   globalTimer = setTimeout(() => {
-    state.global = { query, data: null };
-    api('search_global', { query }).then((data) => { if (state.global && state.global.query === query) state.global.data = data; show(data); }, () => {});
+    if (!current()) return;
+    const pending = state.global = { query, data: null };
+    api('search_global', { query }).then((data) => {
+      if (!current() || state.global !== pending) return;
+      pending.data = data; show(data);
+    }, () => {});
   }, 600);
 }
 
@@ -1330,7 +1380,7 @@ function pinMoves(chat) {
   if (!chat.pinned || (chat.kind === 'secret' && !state.settings.local_pins)) return [];
   return [[-1, 'Move pin up'], [1, 'Move pin down']].map(([direction, label]) =>
     [t(label), () => chat.pinFolder != null ? folderPin(chat, {direction}) : attempt(() => api('move_pin', {peer: chat.id, direction, account: state.account}), async () => {
-      if (chat.archived) { state.archived = await api('archived'); queueChatList(); }
+      if (chat.archived) await attempt(fetchArchived);
     })]);
 }
 
@@ -1398,9 +1448,10 @@ function leaveItems(chat, inChat) {
 }
 
 function startSecretChat(peer) {
+  const revision = state.accountRevision;
   toast(t('Iniciando chat secreto...'));
   attempt(() => api('secret_start', { peer }), (chat) => {
-    if (chat && chat.id) openChat(chat.id, true, chat);
+    if (revision === state.accountRevision && !state.locked && chat && chat.id) openChat(chat.id, true, chat);
   });
 }
 
@@ -1505,8 +1556,9 @@ function folderSheet(peers, done) {
 
 // Pinned messages of a chat: tap one to go to it.
 async function pinnedList(chat, thread_root) {
+  const revision = state.accountRevision;
   const list = await attempt(() => api('pinned', {peer: chat.id, thread_root}));
-  if (!list) return;
+  if (!list || revision !== state.accountRevision || state.locked) return;
   if (!list.length) { toast(t('Sin resultados.')); return; }
   sheet(t('Pinned messages'), list.map((message) => [((message.visual ? message.caption : message.text) || message.kind || '').replace(/\s+/g, ' ').slice(0, 90) || '…',
     async () => { if (!state.open || state.open.peer !== chat.id) await openChat(chat.id, true, chat); jumpTo(message.id); }]));
@@ -1514,8 +1566,9 @@ async function pinnedList(chat, thread_root) {
 
 // Scheduled messages: send now or delete (desktop: Scheduled messages).
 async function scheduledList(chat, thread_root) {
+  const revision = state.accountRevision;
   const list = await attempt(() => api('scheduled', {peer: chat.id, thread_root}));
-  if (!list) return;
+  if (!list || revision !== state.accountRevision || state.locked) return;
   if (!list.length) { toast(t('No scheduled messages.')); return; }
   const when = (seconds) => seconds ? new Date(seconds * 1000).toLocaleString(state.language || undefined, { dateStyle: 'short', timeStyle: 'short' }) : '';
   sheet(t('Scheduled messages'), list.map((message) => [when(message.scheduled) + ' · ' + ((message.visual ? message.caption : message.text) || message.kind || '').replace(/\s+/g, ' ').slice(0, 70),
@@ -1642,7 +1695,8 @@ function draftContents(peer, text) {
   }
   custom.sort((left, right) => left[0] - right[0]);
   return { text, formats, custom, reply: state.reply?.id || null,
-    files: state.attachments.map(file => file.key) };
+    files: state.attachments.map(file => file.key),
+    ...(state.attachments.length ? {photo_quality: selectedPhotoQuality(state)} : {}) };
 }
 
 function updateDraftEmoji(peer, text, inserted) {
@@ -1680,6 +1734,7 @@ function restoreComposer(field, record) {
   state.customEmoji[peer] = record.custom.map(([start, , id, alt]) => [id, alt, offset(start)]);
   state.reply = record.reply ? state.open.messages.find(item => item.id === record.reply) ||
     {id: record.reply, sender: '', text: t('Mensaje')} : null;
+  state.photo_quality = selectedPhotoQuality(record);
   state.attachments = record.files.map(file => typeof file === 'string'
     ? {key: file, name: file.slice(file.indexOf('-') + 1), size: 0} : file);
   drawContext(); drawAttachments(); drawFormatPreview();
@@ -1729,7 +1784,10 @@ function writeDraft(peer, record, destination, sourceWindow = null) {
 function newChat() {
   promptThen(t('Nuevo chat'), { value: '@', note: t('Introduce un @usuario o telefono internacional.') }, (value) => {
     if (!value || value.trim() === '@') return false;
-    attempt(() => api('resolve', { value: value.trim() }), (chat) => openChat(chat.id, true, chat));
+    const revision = state.accountRevision;
+    attempt(() => api('resolve', { value: value.trim() }), (chat) => {
+      if (revision === state.accountRevision && !state.locked) openChat(chat.id, true, chat);
+    });
   });
 }
 
@@ -1752,11 +1810,6 @@ function chatView() {
       queuedNote(result); if (state.open && state.open.peer === peer) state.open.preview = false;
       document.getElementById('preview-bar')?.remove();
     }))) : null;
-  setTimeout(() => {
-    const field = document.getElementById('field');
-    if (state.open === open && !state.editing && !open.sending) restoreComposer(field, state.drafts[composerPeer(open)]);
-  }, 0);
-  if (!thread) setTimeout(drawHeaderStatus, 0);
   const scroll = h('div', { class: 'scroll chat-scroll' + (state.settings.bubbles ? ' bubbles' : ''), id: 'scroll',
     onscroll: (event) => chatScrolled(event.target),
     // The person scrolls: stop keeping the newest message in view.
@@ -1769,22 +1822,30 @@ function chatView() {
     const box = document.getElementById('scroll'); box.scrollTop = box.scrollHeight; } }, 'v');
   loadPinned();
   const readonly = !!open.topic && !open.topic.can_send;
-  setTimeout(() => {
-    drawMessages(true); drawOutbox();
-    // Once, when the chat is opened (not on later redraws of the same screen).
-    const key = state.account + ':' + open.peer;
-    const place = keepLoaded() && !thread && !open.placed ? chatPlaces.get(key) : undefined;
-    open.placed = true;
-    const box = document.getElementById('scroll');
-    if (place !== undefined && box && state.open === open) {
-      chatPlaces.delete(key);
-      box.scrollTop = Math.max(0, box.scrollHeight - box.clientHeight - place);
-      open.stickUntil = 0;
-    }
-  }, 0);
   const selectionBar = h('div', { class: 'selection-bar', id: 'selection-bar', hidden: true });
-  setTimeout(drawSelection, 0);
   return [bar, previewBar, pinned, selectionBar, scroll, down, readonly ? h('div', { class: 'readonly' }, t('Este chat es de solo lectura.')) : composer()].filter(Boolean);
+}
+
+// Complete the mounted conversation in the same task as the new DOM. Restoring
+// a multiline draft or scroll on a later timer exposed an intermediate layout.
+function mountChatView() {
+  const open = state.open, box = document.getElementById('scroll');
+  if (!open || open.forumList || !box || !document.getElementById('messages')) return;
+  const field = document.getElementById('field');
+  if (field && !state.editing && !open.sending) restoreComposer(field, state.drafts[composerPeer(open)]);
+  if (field) { drawContext(); drawAttachments(); drawFormatPreview(); composerMode(); }
+  if (!open.thread) drawHeaderStatus();
+  drawMessages(true); drawOutbox();
+  // Once per opening, not when a preference or an event redraws the same chat.
+  const key = state.account + ':' + open.peer;
+  const place = keepLoaded() && !open.thread && !open.placed ? chatPlaces.get(key) : undefined;
+  open.placed = true;
+  if (place !== undefined) {
+    chatPlaces.delete(key);
+    box.scrollTop = Math.max(0, box.scrollHeight - box.clientHeight - place);
+    open.stickUntil = 0;
+  }
+  drawSelection();
 }
 
 // At most once per frame: ask for older messages well before the top is reached
@@ -2124,21 +2185,26 @@ function resultSheet(title, result, apply = null) {
   activateSheet(layer); layer.onclick = closeSheet;
 }
 function translateMessage(message) {
-  const peer = state.open.peer;
-  chooseLanguage(t('Translation'), (language) => attempt(() => api('translate', { peer, ids: [message.id], language }), (result) => {
+  const open = state.open, revision = state.accountRevision, peer = open.peer;
+  const current = () => state.open === open && state.accountRevision === revision && !state.locked;
+  chooseLanguage(t('Translation'), (language) => current() && attempt(() => api('translate', { peer, ids: [message.id], language }), (result) => {
+    if (!current()) return;
     const value = result[String(message.id)];
     if (value) resultSheet(t('Translation'), value); else toast(t('Sin resultados.'));
   }));
 }
 function summarizeMessage(message) {
-  const peer = state.open.peer;
+  const open = state.open, revision = state.accountRevision, peer = open.peer;
   toast(t('Cargando...'));
-  attempt(() => api('summarize', { peer, id: message.id, language: interfaceLanguage() }), (result) => resultSheet(t('Summarize with Telegram AI'), result));
+  attempt(() => api('summarize', { peer, id: message.id, language: interfaceLanguage() }), (result) => {
+    if (state.open === open && state.accountRevision === revision && !state.locked) resultSheet(t('Summarize with Telegram AI'), result);
+  });
 }
 function transcribeMessage(message) {
-  const peer = state.open.peer;
+  const open = state.open, revision = state.accountRevision, peer = open.peer;
   toast(t('Cargando...'));
   attempt(() => api('transcribe', { peer, id: message.id }), (result) => {
+    if (state.open !== open || state.accountRevision !== revision || state.locked) return;
     resultSheet(t('Transcribe audio'), result);
     if (result.pending) toast(t('Transcription pending. Open this action again later.'));
   });
@@ -2211,15 +2277,19 @@ function translatePending(open = state.open) {
 function composeAI() {
   const field = document.getElementById('field');
   if (!state.open || !field || !field.value.trim()) { toast(t('Escribe un mensaje')); return; }
-  const peer = state.open.peer, original = field.value;
+  const open = state.open, revision = state.accountRevision, original = field.value;
+  const current = () => state.open === open && state.accountRevision === revision && !state.locked && field.isConnected;
   const key = composerPeer();
   const emojis = (state.customEmoji[key] || []).filter(([, alt]) => original.includes(alt));
-  const run = (mode, language = interfaceLanguage()) => attempt(() => api('compose_ai', { text: original, mode, language, emojis }), (result) =>
+  const run = (mode, language = interfaceLanguage()) => current() && attempt(() => api('compose_ai', { text: original, mode, language, emojis }), (result) => {
+    if (!current()) return;
     resultSheet(t('Telegram AI'), result, (value) => {
+      if (!current()) return;
       if (field.value !== original) { toast(t('Draft changed. The result was not applied.')); return; }
       field.value = value.text; state.customEmoji[key] = value.emojis.map(([id, alt]) => [id, alt]);
       field.dispatchEvent(new Event('input')); field.focus();
-    }));
+    });
+  });
   sheet(t('Telegram AI'), [
     [t('Proofread'), () => run('proofread')],
     [t('Add emojis'), () => run('emojify')],
@@ -2333,7 +2403,7 @@ function drawNativeCall() {
   const readFrames = async () => {
     try {
       const frames = await api('call_frames', {token: call.token});
-      if (state.nativeCall !== call || state.locked) return;
+      if (state.nativeCall !== call || state.locked || !local.isConnected) return;
       for (const [image, frame] of [[remote, frames.remote], [local, frames.local]]) {
         if (frame) {
           image.src = 'data:image/jpeg;base64,' + frame;
@@ -2341,7 +2411,7 @@ function drawNativeCall() {
         }
       }
     } catch (error) {}
-    if (state.nativeCall === call && !state.locked) frameTimer = setTimeout(readFrames, 160);
+    if (state.nativeCall === call && !state.locked && local.isConnected) frameTimer = setTimeout(readFrames, 160);
   };
   readFrames();
 }
@@ -2755,8 +2825,9 @@ function keyboardNode(message) {
 }
 
 async function pressButton(message, key) {
-  const answer = await attempt(() => api('bot_button', { peer: state.open.peer, id: message.id, row: key.row, column: key.column, signature: key.signature }));
-  if (!answer) return;
+  const open = state.open, revision = state.accountRevision;
+  const answer = await attempt(() => api('bot_button', { peer: open.peer, id: message.id, row: key.row, column: key.column, signature: key.signature }));
+  if (!answer || state.open !== open || revision !== state.accountRevision || state.locked) return;
   if (answer.notice) { if (answer.alert) alert(answer.notice); else toast(answer.notice); }
   if (answer.copy) copy(answer.copy);
   if (answer.url) openUrl(answer.url);
@@ -2969,18 +3040,26 @@ async function startAnimation(img) {
   animationObserver.observe(box);
 }
 
-// Intersection observations do not keep detached media alive.
+// Intersection observations do not keep detached images or animations alive.
 const animationCleanup = new MutationObserver(records => {
   for (const record of records) for (const node of record.removedNodes) {
     if (!(node instanceof Element) || node.isConnected) continue;
-    const elements = [...node.querySelectorAll('.animated, [data-anim]')];
-    if (node.matches('.animated, [data-anim]')) elements.push(node);
+    const elements = [...node.querySelectorAll('img, .animated, [data-anim]')];
+    if (node.matches('img, .animated, [data-anim]')) elements.push(node);
     for (const element of elements) {
       if (element.isConnected) continue;
+      if (element.tagName === 'IMG') {
+        element.lazyObserver?.unobserve(element);
+        delete element.lazyObserver; delete element.lazyRoot;
+        imageQueue.delete(element); imagesToWatch.delete(element);
+      }
       PLAYING.get(element)?.destroy();
       PLAYING.delete(element);
       animationObserver?.unobserve(element);
     }
+  }
+  for (const [root, observer] of imageObservers) if (root && !root.isConnected) {
+    observer.disconnect(); imageObservers.delete(root);
   }
 });
 animationCleanup.observe(document.body, {subtree: true, childList: true});
@@ -3123,9 +3202,9 @@ async function voiceRecorder() {
   const panel = h('div', { class: 'sheet voice', onclick: (event) => event.stopPropagation() },
     h('h3', {}, t('Voice message')), status, clock, meter, actions);
   layer.replaceChildren(panel); activateSheet(layer);
-  let timer = null, recorded = null, finished = false;
+  let timer = null, recorded = null, finished = false, recording = false;
   const close = () => {
-    finished = true; clearInterval(timer);
+    finished = true; recording = false; clearTimeout(timer);
     if (state.voice?.capture === capture) state.voice = null;
     panel.onDismiss = null;
     if (layer.contains(panel)) closeSheet();
@@ -3149,7 +3228,7 @@ async function voiceRecorder() {
     return true;
   };
   const stop = async (andSend) => {
-    clearInterval(timer);
+    recording = false; clearTimeout(timer);
     actions.replaceChildren();
     status.textContent = t('Saving…');
     try {
@@ -3175,21 +3254,28 @@ async function voiceRecorder() {
     h('button', { class: 'btn primary', onclick: () => stop(true) }, t('Enviar')),
     h('button', { class: 'btn', onclick: () => stop(false) }, t('Stop')),
     h('button', { class: 'btn danger', onclick: cancel }, t('Cancelar')));
-  timer = setInterval(async () => {
+  recording = true;
+  const readLevel = async () => {
     try {
       const info = await api('voice_level', {capture});
-      if (finished || !info.recording) return;
+      if (finished || !recording || !info.recording) return;
       clock.textContent = '● ' + clockTime(info.seconds);
       const bars = Math.round(info.level * 20);
       meter.textContent = '█'.repeat(bars) + '░'.repeat(20 - bars);
     } catch (error) { /* the next tick tries again */ }
-  }, 250);
+    finally {
+      if (!finished && recording) timer = setTimeout(readLevel, 250);
+    }
+  };
+  timer = setTimeout(readLevel, 250);
 }
 
 // media (phase 2) ---------------------------------------------------------------
-function mediaUrl(peer, id, thumb) {
+function mediaUrl(peer, id, thumb, viewing = false, stream = '') {
   const owner = WINDOW_ACCOUNT === null && state.account ? '&window_account=' + encodeURIComponent(state.account) : '';
-  return '/media?' + resourceAuth() + owner + '&peer=' + peer + '&id=' + id + '&thumb=' + (thumb ? 1 : 0);
+  const quality = viewing && !thumb && !state.settings?.advanced_features?.media_originals ? '&quality=display' : '';
+  return '/media?' + resourceAuth() + owner + '&peer=' + peer + '&id=' + id + '&thumb=' + (thumb ? 1 : 0) +
+    quality + (!thumb && stream ? '&stream=' + encodeURIComponent(stream) : '');
 }
 
 // A preview picture that takes its final size before it arrives (the core sends
@@ -3253,8 +3339,11 @@ function viewer(message, peer = state.open.peer, shared = null, floating = null)
   };
   const active = () => account === state.account && revision === state.accountRevision && !state.locked &&
     (shared ? state.shared === shared && state.view === 'shared' : !!currentOpen());
-  const visual = item => item.visual && ['image', 'video', 'gif'].includes(item.kind);
+  const visual = item => item.visual && ['image', 'video', 'gif'].includes(item.kind) &&
+    (!shared || shared.kind !== 'photos_only' || item.kind === 'image') &&
+    (!shared || shared.kind !== 'videos' || item.kind === 'video');
   const images = new Map([[message.id, message]]);
+  const stream = globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2);
   let entries;
   function collect() {
     for (const item of (shared?.items || currentOpen()?.messages || [])) if (visual(item)) images.set(item.id, item);
@@ -3265,13 +3354,7 @@ function viewer(message, peer = state.open.peer, shared = null, floating = null)
     (shared ? !shared.galleryDone : !currentOpen().done);
   async function load() {
     if (shared) {
-      const before = shared.items[shared.items.length - 1]?.id;
-      if (!before) { shared.galleryDone = true; return; }
-      const found = await api('shared_media', {account, peer, kind: shared.kind, offset: before});
-      if (!active() || !layer.open) return;
-      const older = found.filter(item => item.id < before);
-      shared.items.push(...older);
-      shared.galleryDone = !older.length || found.length < 50;
+      await loadSharedPage(shared);
     } else if (!await loadOlder(true, currentOpen())) {
       throw new Error(t('Media unavailable.'));
     }
@@ -3288,8 +3371,9 @@ function viewer(message, peer = state.open.peer, shared = null, floating = null)
     }
   }
   presentGallery({layer, title: t('Shared media'), items: () => entries, selected: message,
-    source: (item, thumb) => mediaUrl(peer, item.id, thumb), olderStep: -1, hasMore: more, loadPage: load,
-    goToMessage: (item, close) => revealGalleryMessage(item, origin, close),
+    source: (item, thumb) => mediaUrl(peer, item.id, thumb, true,
+      item.kind === 'video' || item.kind === 'gif' ? stream : ''), olderStep: -1, hasMore: more, loadPage: load,
+    goToMessage: (item, close) => revealGalleryMessage(item, origin, close), allowSystemPlayer: true,
     exportItem: (initialOpen?.chat || state.chats.find(chat => chat.id === peer))?.protected ? null :
       (item, action, report) => openFile(item, peer, action, report), active, onSelected: syncChat});
 }
@@ -3560,8 +3644,6 @@ function composer() {
         event.preventDefault(); send();
       }
     } });
-  setTimeout(() => { drawContext(); drawAttachments(); composerMode(); }, 0);
-  setTimeout(drawFormatPreview, 0);
   return h('div', { class: 'composer' }, context, h('div', { class: 'attachments', id: 'attachments' }),
     h('div', { class: 'format-bar', id: 'format-bar', hidden: !state.formatBar }, FORMAT_BUTTONS.map(([style, label, title]) =>
       h('button', { class: 'btn', title: t(title), 'aria-label': t(title),
@@ -3716,12 +3798,18 @@ function attachMenu() {
 }
 
 // panes and chat windows (desktop: resizable panes, chats in their own windows) -------
+let appearanceWrites = Promise.resolve();
 const saveLook = (values) => {
-  const account = state.account;
-  return attempt(() => api('appearance', { values, account }), (result) => {
-    if (state.account !== account) return;
-    state.appearance = result; applySettings(); render();
+  const account = state.account, revision = state.accountRevision;
+  appearanceWrites = appearanceWrites.catch(() => {}).then(() => {
+    if (state.account !== account || state.accountRevision !== revision || state.locked) return;
+    const patch = typeof values === 'function' ? values(state.appearance || {}) : values;
+    return attempt(() => api('appearance', { values: patch, account }), (result) => {
+      if (state.account !== account || state.accountRevision !== revision) return;
+      state.appearance = result; applySettings(); render();
+    });
   });
+  return appearanceWrites;
 };
 
 function resizePanes(event, side) {
@@ -3968,7 +4056,12 @@ function drawWindowContext(win) {
       if (draftSends.has(draftKey(win.peer))) return;
       win.reply = null; drawWindowContext(win); saveWindowDraft(win);
     })] : []),
-    ...(win.draft?.files || []).map((file) => h('span', {}, file.name || file)));
+    ...(win.draft?.files || []).map((file) => h('span', {}, file.name || file)),
+    ...((win.draft?.files || []).some(isPhotoAttachment) ? [photoQualityControl(win.draft, value => {
+      if (draftSends.has(draftKey(win.peer))) return;
+      win.draft = {...win.draft, photo_quality: value};
+      saveWindowDraft(win);
+    }, draftSends.has(draftKey(win.peer)))] : []));
 }
 function restoreWindowDraft(win, record) {
   win.draftReady = !!record;
@@ -4011,13 +4104,14 @@ async function sendFromWindow(win) {
       || (!field.value.trim() && !win.draft?.files.length)) return;
   const write = saveWindowDraft(win);
   const {text, reply, files, formats, custom} = win.draft;
+  const photo_quality = selectedPhotoQuality(win.draft);
   win.sending = true;
   draftSends.add(key);
   syncDraftReadOnly(win.peer);
   const params = {peer: win.peer, account: win.account, reply_to: reply, spans: formats, custom};
   try {
     if (!(await write) || state.account !== win.account || !state.windows.includes(win)) return;
-    const result = await api('window_send', {...params, keys: files.map(file => file.key || file), text});
+    const result = await api('window_send', {...params, keys: files.map(file => file.key || file), text, photo_quality});
     if (result && state.account === win.account && state.windows.includes(win)) {
       if (result.forum) { showFloatingForum(win, result.chat); return; }
       state.drafts[win.peer] = emptyDraft();
@@ -4036,9 +4130,15 @@ function syncDraftReadOnly(peer) {
   for (const win of state.windows) {
     const field = win.peer === peer && win.node?.querySelector('textarea');
     if (field) field.readOnly = !win.opened || !win.draftReady || sending;
+    const quality = win.peer === peer && win.node?.querySelector('.photo-quality select');
+    if (quality) quality.disabled = sending;
   }
   const field = state.open && composerPeer() === peer && document.getElementById('field');
-  if (field) field.readOnly = sending;
+  if (field) {
+    field.readOnly = sending;
+    const quality = field.closest('.composer')?.querySelector('.photo-quality select');
+    if (quality) quality.disabled = sending;
+  }
 }
 function dragWindow(event, win) {
   if (event.target.closest('button')) return;
@@ -4081,34 +4181,22 @@ function restoreWindows() {
 
 // one picture from the gallery (backgrounds) -----------------------------------------
 async function pickImage() {
-  keepUnlocked(120);
-  if (PLATFORM === 'Android') {
-    const files = await api('pick_files', { kind: 'gallery' });
-    if (files.length > 1) api('discard_files', { keys: files.slice(1).map((file) => file.key) }).catch(() => {});
-    return files.length ? files[0].key : null;
-  }
-  return new Promise((resolve, reject) => {
-    const input = h('input', { type: 'file', accept: 'image/*', hidden: true });
-    input.addEventListener('change', async () => {
-      const file = input.files[0]; input.remove();
-      if (!file) return resolve(null);
-      try {
-        const response = await fetch('/upload?' + resourceAuth() + '&name=' + encodeURIComponent(file.name),
-          { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        resolve((await response.json()).result.key);
-      } catch (error) { reject(error); }
-    });
-    document.body.append(input); input.click();
-  });
+  const file = await pickOnePhoto();
+  return file?.key || null;
 }
 
 async function chooseBackground(target, sync = '') {
+  const account = state.account, revision = state.accountRevision;
+  const current = () => state.account === account && state.accountRevision === revision && !state.locked;
   let key;
-  try { key = await pickImage(); } catch (error) { return toast(error.message, 'error'); }
+  try { key = await pickImage(); } catch (error) { if (current()) toast(error.message, 'error'); return; }
   if (!key) return;
+  if (!current()) { api('discard_files', {keys: [key]}).catch(() => {}); return; }
   toast(t('Cargando...'));
-  attempt(() => api('set_background', { key, target, sync }), (look) => { state.appearance = look; applySettings(); if (state.view === 'settings') render(); });
+  try {
+    const look = await api('set_background', {key, target, sync, account});
+    if (current()) { state.appearance = look; applySettings(); if (state.view === 'settings') render(); }
+  } catch (error) { if (current()) toast(error.message, 'error'); }
 }
 // Where a new background applies: this device, all your devices, or (private chats) also the other person.
 function backgroundSync(done, general = false, chat = null) {
@@ -4126,7 +4214,9 @@ function appearanceSection(save) {
   const settings = state.settings, look = state.appearance || {};
   const theme = document.documentElement.dataset.theme || 'dark';
   const color = (key, label, fallback) => h('div', { class: 'setting' }, h('span', {}, label),
-    h('input', { type: 'color', value: settings[key] || PALETTES[theme][fallback], onchange: (event) => save({ [key]: event.target.value }) }),
+    h('input', { type: 'color', 'aria-label':label,
+      value: settings[key] || getComputedStyle(document.documentElement).getPropertyValue('--' + fallback).trim() || PALETTES[theme][fallback],
+      onchange: (event) => save({ [key]: event.target.value }) }),
     settings[key] ? button('x', () => save({ [key]: '' })) : null);
   const slider = (key, label) => h('div', {class: 'setting effect-setting'}, h('span', {}, label),
     numericSlider(label, settings[key] || 0, 0, settings.radius_max || 48, value => save({[key]: value}), 48));
@@ -4191,14 +4281,16 @@ function keepUnlocked(seconds = 120) {
 // forms in a sheet ---------------------------------------------------------------------
 function formSheet(title, nodes, submitLabel, submit) {
   const layer = document.getElementById('sheet-layer');
+  let panel;
   const run = async () => {
     const ok = await submit();
-    if (ok !== false) closeSheet();
+    if (ok !== false && currentSheetPanel === panel) closeSheet();
   };
   layer.replaceChildren(h('div', { class: 'sheet form', onclick: (event) => event.stopPropagation() },
     h('h3', {}, title), ...nodes,
     h('div', { class: 'actions' }, button(submitLabel, run, 'primary'), button(t('Cancelar'), closeSheet))));
   activateSheet(layer);
+  panel = currentSheetPanel;
   layer.onclick = closeSheet;
   layer.querySelector('input')?.focus();
 }
@@ -4324,13 +4416,26 @@ async function shareContactSheet() {
 }
 
 async function chooseFiles(kind, {receive = addAttachments, limit = 10 - state.attachments.length, accept = null} = {}) {
-  const open = state.open;
+  const open = state.open, revision = state.accountRevision, panel = currentSheetPanel;
+  const current = () => state.open === open && revision === state.accountRevision && !state.locked &&
+    (receive === addAttachments || !panel || currentSheetPanel === panel);
+  const discard = files => files?.length && api('discard_files', {keys: files.map(file => file.key)}).catch(() => {});
+  if (open?.sending) return;
+  const received = files => {
+    if (receive === addAttachments && files?.length) {
+      if (kind === 'any') state.photo_quality = 'original';
+      else if (!state.attachments.length) state.photo_quality = selectedPhotoQuality(state);
+    }
+    receive(files);
+  };
   keepUnlocked(120);
   if (PLATFORM === 'Android') {
     state.uploading += 1; drawAttachments();
     try {
       const files = await api('pick_files', {kind});
-      if (state.open === open) receive((files || []).slice(0, limit));
+      const keep = current() ? (files || []).slice(0, limit) : [];
+      discard((files || []).slice(keep.length));
+      if (current()) received(keep);
     }
     catch (error) { toast(error.message, 'error'); }
     finally { state.uploading -= 1; drawAttachments(); }
@@ -4340,19 +4445,22 @@ async function chooseFiles(kind, {receive = addAttachments, limit = 10 - state.a
   const input = h('input', { type: 'file', multiple: !camera && limit > 1, hidden: true,
     accept: accept || (camera ? 'image/*' : ['media', 'gallery'].includes(kind) ? 'image/*,video/*' : null),
     capture: camera && !MAC ? 'environment' : null });
+  input.addEventListener('cancel', () => input.remove(), {once: true});
   input.addEventListener('change', async () => {
-    if (state.open !== open) { input.remove(); return; }
+    if (!current()) { input.remove(); return; }
     const files = [...input.files].slice(0, limit);
     input.remove();
     for (const file of files) {
+      if (!current()) break;
       state.uploading += 1; drawAttachments();
       try {
         const response = await fetch('/upload?' + resourceAuth() + '&name=' + encodeURIComponent(file.name),
           { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
         if (!response.ok) throw new Error('HTTP ' + response.status);
         const data = await response.json();
-        if (state.open === open) receive([{...data.result,
+        if (current()) received([{...data.result,
           preview: receive === addAttachments && file.type.startsWith('image/') ? URL.createObjectURL(file) : null}]);
+        else discard([data.result]);
       } catch (error) { toast(error.message, 'error'); }
       finally { state.uploading -= 1; drawAttachments(); }
     }
@@ -4373,18 +4481,36 @@ function humanSize(bytes) {
   return (unit ? value.toFixed(1) : value) + ' ' + units[unit];
 }
 
+const PHOTO_QUALITY_CHOICES = [['sd', 'SD · Standard'], ['hd', 'HD · High quality'], ['original', 'Original as file']];
+const selectedPhotoQuality = record => PHOTO_QUALITY_CHOICES.some(([value]) => value === record?.photo_quality)
+  ? record.photo_quality : 'sd';
+const isPhotoAttachment = file => /\.(jpe?g|png|webp)$/i.test(typeof file === 'string' ? file : file.name || file.key || '');
+function photoQualityControl(record, changed, disabled = false) {
+  const select = h('select', {'aria-label': t('Photo quality'), disabled,
+    onchange: event => changed(event.target.value)}, PHOTO_QUALITY_CHOICES.map(([value, label]) =>
+      h('option', {value}, t(label))));
+  select.value = selectedPhotoQuality(record);
+  return h('label', {class: 'photo-quality'}, h('span', {}, t('Photo quality') + ' '), select);
+}
+
 function drawAttachments() {
   const box = document.getElementById('attachments');
   if (!box) return;
-  setTimeout(composerMode, 0);
   box.replaceChildren(...state.attachments.map((file, index) => h('div', { class: 'chip' },
     file.preview ? h('img', { src: file.preview, alt: '' }) : null,
     h('span', {}, file.name + ' · ' + humanSize(file.size)),
     button('x', () => {
-      state.attachments.splice(index, 1);
+      if (state.open?.sending) return;
+      const removed = state.attachments.splice(index, 1)[0];
+      if (removed.preview?.startsWith('blob:')) URL.revokeObjectURL(removed.preview);
       drawAttachments(); saveDraft();
     }))),
-    ...(state.uploading ? [h('div', { class: 'chip' }, h('span', { class: 'spinner' }, t('Enviando...') + ' '))] : []));
+    ...(state.uploading ? [h('div', { class: 'chip' }, h('span', { class: 'spinner' }, t('Enviando...') + ' '))] : []),
+    ...(state.attachments.some(isPhotoAttachment) ? [photoQualityControl(state, value => {
+      if (state.open?.sending) return;
+      state.photo_quality = value; saveDraft();
+    }, !!state.open?.sending)] : []));
+  composerMode();
 }
 
 async function send(options = {}) {
@@ -4408,14 +4534,15 @@ async function send(options = {}) {
   open.sending = true;
   draftSends.add(key);
   syncDraftReadOnly(peer);
-  const {formats, custom, reply, files} = draftContents(composerPeer(open), text);
+  const {formats, custom, reply, files, photo_quality} = draftContents(composerPeer(open), text);
   const params = {peer: open.peer, account: state.account, reply_to: reply, thread_root: open.thread?.root, topic_id: open.topic?.id, ...options};
   try {
     if (!(await write) || state.open !== open) return;
     const result = files.length
-      ? await api('send_files', {...params, keys: files, caption: text, spans: formats, custom})
+      ? await api('send_files', {...params, keys: files, caption: text, spans: formats, custom, photo_quality})
       : await api('send', {...params, text, spans: formats, custom});
     if (result && state.open === open) {
+      for (const file of state.attachments) if (file.preview?.startsWith('blob:')) URL.revokeObjectURL(file.preview);
       state.drafts[peer] = emptyDraft();
       restoreComposer(document.getElementById('field'), state.drafts[peer]);
       drawChatList();
@@ -4432,16 +4559,18 @@ async function send(options = {}) {
 // Stickers and custom emoji (desktop: sticker_picker.open_picker): packs, recent,
 // search by name / keyword / emoji, send or insert, view and save a pack.
 function stickerPicker(custom, onChoose = null) {
-  const open = state.open;
+  const open = state.open, revision = state.accountRevision;
   if (!open && !onChoose) return;
   const layer = document.getElementById('sheet-layer');
   const search = h('input', { type: 'search', placeholder: t('Search packs, keywords or an emoji') });
   const chooser = h('select', {});
   const status = h('div', { class: 'muted small' }, t('Cargando...'));
   const grid = h('div', { class: 'sticker-grid' + (custom ? ' emoji' : '') });
+  const current = () => grid.isConnected && !layer.hidden && !state.locked && revision === state.accountRevision;
   const more = button(t('More'), () => runSearch(true)); more.hidden = true;
   let packs = [], choices = [], results = [], next = null, timer = null, version = 0;
   const use = (doc) => {
+    if (!current()) return;
     if (!onChoose && state.open !== open) return;
     if (doc.standard) {  // a standard emoji from "Recently used"
       if (onChoose) return;
@@ -4473,7 +4602,7 @@ function stickerPicker(custom, onChoose = null) {
       (() => {
         const img = h('img', { src: stickerUrl(doc.id), alt: doc.emoji, onerror: (event) => {
           const img = event.target;  // one retry (first downloads of a pack can queue)
-          if (!img.dataset.retried) { img.dataset.retried = 1; setTimeout(() => { img.src = stickerUrl(doc.id) + '&r=1'; }, 1500); }
+          if (!img.dataset.retried) { img.dataset.retried = 1; setTimeout(() => { if (current() && img.isConnected) img.src = stickerUrl(doc.id) + '&r=1'; }, 1500); }
           else img.replaceWith(doc.emoji);
         } });
         if (doc.animated || doc.video) animated(img, doc.id);
@@ -4492,12 +4621,13 @@ function stickerPicker(custom, onChoose = null) {
       pack === null ? t(searching ? 'Search results' : 'Recent') : typeof pack === 'string' ? t(SPECIAL[pack]) : pack.title)));
   };
   const change = () => {
+    if (!current()) return;
     const pack = choices[Number(chooser.value) || 0];
     if (pack === undefined) return show([]);
     if (pack === null && search.value.trim()) { show(results); more.hidden = next === null; return; }
     const mine = ++version; status.textContent = t('Cargando...'); more.hidden = true;
     api('sticker_documents', { pack: pack === null ? null : typeof pack === 'string' ? pack : pack.id }).then((docs) => {
-      if (mine !== version) return;
+      if (mine !== version || !current()) return;
       // Nothing used yet: start on the first pack instead of an empty page.
       if (!docs.length && typeof pack === 'string' && pack === 'recent_emoji' && choices.length > 1) { chooser.value = 1; change(); return; }
       show(docs);
@@ -4505,11 +4635,12 @@ function stickerPicker(custom, onChoose = null) {
       () => { if (mine === version) status.textContent = t('Search failed.'); });
   };
   const runSearch = (page = false) => {
+    if (!current()) return;
     const value = search.value.trim();
     if (!value) { options(packs, false); change(); return; }
     const mine = ++version; status.textContent = t('Cargando...');
     api('sticker_search', { query: value, custom, offset: page ? next : 0 }).then((found) => {
-      if (mine !== version) return;
+      if (mine !== version || !current()) return;
       results = page ? results.concat(found.documents) : found.documents; next = found.next;
       if (!page) options(found.packs, true);
       show(results); more.hidden = next === null;
@@ -4525,13 +4656,14 @@ function stickerPicker(custom, onChoose = null) {
     custom ? h('div', { class: 'muted small' }, t('Some emoji require Telegram Premium.')) : null,
     h('button', { class: 'item', onclick: closeSheet }, t('Cancelar'))));
   activateSheet(layer); layer.onclick = closeSheet;
-  api('sticker_packs', { custom }).then((list) => { packs = list; options(packs, false); change(); },
+  if (currentSheetPanel) currentSheetPanel.onDismiss = () => {clearTimeout(timer); version++;};
+  api('sticker_packs', { custom }).then((list) => { if (!current()) return; packs = list; options(packs, false); change(); },
     () => { status.textContent = t('Search failed.'); });
 }
 
 // The pack of a sticker / custom emoji, with Save pack (desktop: show_pack).
 function packView(doc, custom) {
-  const open = state.open;
+  const open = state.open, revision = state.accountRevision;
   const layer = document.getElementById('sheet-layer');
   const status = h('div', { class: 'muted small' }, t('Cargando...'));
   const grid = h('div', { class: 'sticker-grid' + (custom ? ' emoji' : '') });
@@ -4540,6 +4672,7 @@ function packView(doc, custom) {
     h('h3', {}, t('View pack')), status, grid, save, h('button', { class: 'item', onclick: closeSheet }, t('Cancelar'))));
   activateSheet(layer); layer.onclick = closeSheet;
   api('sticker_pack_of', { id: doc.id }).then((data) => {
+    if (!grid.isConnected || layer.hidden || state.locked || revision !== state.accountRevision) return;
     status.textContent = data.pack.title + ' · ' + data.documents.length + ' · ' + t(data.pack.emoji ? 'Custom emoji' : 'Stickers');
     const use = (item) => {
       if (!open || state.open !== open) return;
@@ -4649,16 +4782,18 @@ async function reportMessage(account, peer, id, option = '', comment = '') {
 }
 
 async function reactionPicker(message) {
-  const revision = state.accountRevision;
-  const data = await attempt(() => api('reactions', { peer: state.open.peer, id: message.id }));
-  if (!data || revision !== state.accountRevision) return;
-  sheet(t('Reactions'), [], data.standard.map((emoji) => [emoji, () => react(message, emoji)]));
+  const revision = state.accountRevision, open = state.open;
+  const current = () => revision === state.accountRevision && open === state.open && !state.locked;
+  const reactHere = value => current() && react(message, value, open.peer);
+  const data = await attempt(() => api('reactions', { peer: open.peer, id: message.id }));
+  if (!data || !current()) return;
+  sheet(t('Reactions'), [], data.standard.map((emoji) => [emoji, () => reactHere(emoji)]));
   // Custom emoji reactions (Telegram Premium): recent ones, and any custom emoji.
   const panel = document.querySelector('#sheet-layer .sheet');
   if (!panel) return;
   const row = h('div', { class: 'quick custom-reactions' }, (data.custom || []).map((id) =>
-    h('button', { onclick: () => { closeSheet(); react(message, id); } }, customEmoji(id, '◆', false))),
-    h('button', { title: t('Custom emoji'), onclick: () => stickerPicker(true, (doc) => react(message, doc.id)) }, '+'));
+    h('button', { onclick: () => { closeSheet(); reactHere(id); } }, customEmoji(id, '◆', false))),
+    h('button', { title: t('Custom emoji'), onclick: () => stickerPicker(true, (doc) => reactHere(doc.id)) }, '+'));
   panel.insertBefore(row, panel.querySelector('.item'));
 }
 
@@ -4898,6 +5033,7 @@ function createCommunity(channel) {
 }
 
 function newGroup(ids, done) {
+  const revision = state.accountRevision;
   if (!ids.length) {
     toast(t('Selecciona participantes en la lista.'));
     if (state.view !== 'contacts') go('contacts', { contacts: null, search: '' });
@@ -4907,6 +5043,7 @@ function newGroup(ids, done) {
   promptThen(t('Nuevo grupo'), { placeholder: t('Nombre del grupo:') }, (title) => {
     if (!title.trim()) return false;
     attempt(() => api('create_group', { title, people: ids }), (chat) => {
+      if (revision !== state.accountRevision || state.locked) return;
       if (done) done();
       if (chat.missing) toast(t('Grupo creado; algunos usuarios no pudieron ser invitados.'));
       openChat(chat.id, true, chat);
@@ -4926,13 +5063,14 @@ function addByUsername() {
 
 // New contact (by phone) or save / edit the person shown (by id).
 function contactForm(person) {
+  const revision = state.accountRevision;
   const first = h('input', { type: 'text', value: person ? person.first || '' : '' });
   const last = h('input', { type: 'text', value: person ? person.last || '' : '' });
   const phone = h('input', { type: 'tel', placeholder: '+34…', value: person && person.phone ? '+' + String(person.phone).replace(/^\+/, '') : '' });
   formSheet(person ? (person.contact === false ? t('Add contact') : t('Edit contact')) : t('Add contact'),
     [labelled(t('First name'), first), labelled(t('Last name'), last), labelled(t('Phone number'), phone)], t('Save'), async () => {
       const result = await attempt(() => api('add_contact', { first: first.value, last: last.value, phone: phone.value, peer: person ? person.id : null }));
-      if (!result) return false;
+      if (!result || revision !== state.accountRevision || state.locked) return false;
       toast(t('Saved.'));
       state.contacts = null;
       if (state.view === 'contacts') { loadContacts(); }
@@ -5586,13 +5724,19 @@ async function communityMember(chat, member, source, backToMembers) {
 
 // Suggest a profile photo (they decide whether to use it) or set one only you see.
 async function contactPhoto(data, suggest) {
+  const revision = state.accountRevision;
   let file;
   try { file = await pickOnePhoto(); } catch (error) { toast(error.message, 'error'); return; }
   if (!file) return;
   const key = typeof file === 'string' ? file : file.key;
+  if (revision !== state.accountRevision || state.locked) {
+    api('discard_files', {keys: [key]}).catch(() => {});
+    return;
+  }
   const question = suggest ? t('Suggest this photo to {name}? They decide whether to use it.') : t('Set this photo for {name}? Only you will see it.');
   sheet(question.replace('{name}', data.name || ''), [
     [suggest ? t('Suggest') : t('Save'), () => attempt(() => api('contact_photo', { peer: data.id, key, suggest }), () => {
+      if (revision !== state.accountRevision || state.locked) return;
       toast(suggest ? t('Photo suggested.') : t('Photo saved.'));
       if (!suggest) { state.avatarVersion = Date.now(); refreshProfile(); }
     })],
@@ -5631,9 +5775,9 @@ async function commonGroups(data) {
 }
 
 // shared media of a chat ----------------------------------------------------------------
-const SHARED_KINDS = [['photos', 'Photos'], ['files', 'Files'], ['audio', 'Audio'], ['voice', 'Voice messages'], ['links', 'Links'], ['gifs', 'GIF'], ['polls', 'Encuestas']];
+const SHARED_KINDS = [['photos', 'Photos and videos'], ['files', 'Files'], ['audio', 'Audio'], ['voice', 'Voice messages'], ['links', 'Links'], ['gifs', 'GIF'], ['polls', 'Encuestas']];
 function openShared(data, kind) {
-  state.shared = { peer: data.id, name: data.name, kind, items: null };
+  state.shared = { peer: data.id, name: data.name, kind, items: null, account: state.account, revision: state.accountRevision };
   if (state.view === 'shared') render(); else go('shared');
   const shared = state.shared, revision = state.accountRevision;
   attempt(() => api('shared_media', {peer: data.id, kind, account: state.account}), (items) => {
@@ -5644,16 +5788,32 @@ function openShared(data, kind) {
   });
 }
 
+function loadSharedPage(shared) {
+  if (shared.loading) return shared.loading;
+  if (shared.galleryDone || !shared.items?.length) return Promise.resolve();
+  const before = shared.items[shared.items.length - 1].id;
+  shared.loading = (async () => {
+    const found = await api('shared_media', {account: shared.account, peer: shared.peer, kind: shared.kind, offset: before});
+    if (state.shared !== shared || state.accountRevision !== shared.revision || state.locked) return;
+    const older = found.filter(item => item.id < before);
+    shared.items.push(...older);
+    shared.galleryDone = !older.length || found.length < 50;
+  })().finally(() => {shared.loading = null;});
+  return shared.loading;
+}
+
 function sharedView() {
   const shared = state.shared;
   const bar = h('div', { class: 'bar' }, backButton(),
     h('div', { class: 'title' }, t('Shared media'), h('span', { class: 'sub' }, shared.name)), statusNode());
-  const tabs = h('div', { class: 'tabs' }, SHARED_KINDS.map(([kind, label]) => h('button', { class: 'tab' + (shared.kind === kind ? ' on' : ''),
+  const visual = ['photos', 'photos_only', 'videos'].includes(shared.kind);
+  const tabs = h('div', { class: 'tabs' }, SHARED_KINDS.map(([kind, label]) => h('button', { class: 'tab' +
+    (shared.kind === kind || (kind === 'photos' && visual) ? ' on' : ''),
     onclick: () => openShared({ id: shared.peer, name: shared.name }, kind) }, t(label))));
   let content;
   if (shared.items === null) content = h('div', { class: 'empty spinner' }, t('Cargando...') + ' ');
   else if (!shared.items.length) content = h('div', { class: 'empty' }, t('Sin resultados.'));
-  else if (shared.kind === 'photos' || shared.kind === 'gifs') content = h('div', { class: 'grid' }, shared.items.map((message) =>
+  else if (visual || shared.kind === 'gifs') content = h('div', { class: 'grid' }, shared.items.map((message) =>
     h('button', { class: 'cell', onclick: () => viewer(message, shared.peer, shared), 'aria-label': t(message.kind === 'video' ? 'Vídeo' : 'Foto') + ' ' + (message.time || '') },
       state.settings?.photo_previews === false ? t(message.kind === 'video' ? 'Vídeo' : 'Foto') :
         h('img', { loading: 'lazy', alt: '', src: mediaUrl(shared.peer, message.id, true) }))));
@@ -5666,18 +5826,35 @@ function sharedView() {
     } }, h('div', { class: 'body' }, h('div', { class: 'top' }, h('span', { class: 'name' }, text || message.kind),
       h('span', { class: 'when' }, shortTime(message.date))), h('div', { class: 'bottom' }, h('span', { class: 'preview' }, message.sender))));
   }));
-  return [bar, tabs, h('div', { class: 'scroll' }, content)];
+  const filters = visual ? h('div', {class: 'tabs shared-filters', role: 'group', 'aria-label': t('Media type')},
+    [['photos', 'All'], ['photos_only', 'Photos'], ['videos', 'Videos']].map(([kind, label]) =>
+      h('button', {type: 'button', class: 'tab' + (shared.kind === kind ? ' on' : ''),
+        'aria-pressed': String(shared.kind === kind),
+        onclick: () => openShared({id: shared.peer, name: shared.name}, kind)}, t(label)))) : null;
+  const more = shared.items?.length && !shared.galleryDone ? button(t('Load more'), async () => {
+    more.disabled = true;
+    const scroll = more.closest('.scroll'), top = scroll?.scrollTop;
+    await attempt(() => loadSharedPage(shared));
+    if (state.shared === shared && state.view === 'shared') {
+      render();
+      const replacement = document.getElementById('shared-scroll');
+      if (replacement && top !== undefined) replacement.scrollTop = top;
+    }
+  }) : null;
+  return [bar, tabs, filters, h('div', { class: 'scroll', id: 'shared-scroll' }, content, more)];
 }
 
 // settings -------------------------------------------------------------------------
 // devices (Settings › Accounts) --------------------------------------------------------
 function devicesView() {
+  const account = state.account, revision = state.accountRevision;
   const list = h('div', { class: 'scroll', id: 'devicelist' }, h('div', { class: 'empty' }, t('Cargando...')));
+  const current = () => state.account === account && state.accountRevision === revision && !state.locked;
   const when = (stamp) => stamp ? new Date(stamp * 1000).toLocaleString(state.language || undefined,
     { dateStyle: 'short', timeStyle: 'short' }) : '—';
   const draw = (data) => {
-    const box = document.getElementById('devicelist');
-    if (!box) return;
+    const box = list;
+    if (!current() || !box.isConnected || document.getElementById('devicelist') !== box) return;
     const row = (item) => h('div', { class: 'device' + (item.current ? ' current' : '') },
       h('div', { class: 'name' }, item.device || item.app || t('Devices')),
       h('div', { class: 'muted small' }, [item.app, [item.platform, item.system].filter(Boolean).join(' '), item.place, item.ip].filter(Boolean).join(' · ')),
@@ -5704,7 +5881,7 @@ function devicesView() {
       h('div', { class: 'section' }, h('div', { class: 'muted small' }, t('Scan the login QR code shown on another device to sign it in with this account.')),
         button(t('Scan QR code'), () => scanLogin(reload), 'primary'), button(t('From a photo'), () => scanLoginPhoto(reload))));
   };
-  const reload = () => attempt(() => api('devices'), draw);
+  const reload = () => current() && attempt(() => api('devices'), draw);
   reload();
   return [h('div', { class: 'bar' }, backButton(), h('div', { class: 'title' }, t('Devices')), statusNode()), list];
 }
@@ -5727,24 +5904,33 @@ function scanLogin(done) {
   attempt(() => api('scan_qr', origin), (result) => approveScanned(result, done));
 }
 async function pickOnePhoto() {
+  const revision = state.accountRevision;
+  const current = () => revision === state.accountRevision && !state.locked;
   keepUnlocked(120);
-  if (PLATFORM === 'Android') {
-    const files = await api('pick_files', { kind: 'gallery' });
-    if (files.length > 1) api('discard_files', { keys: files.slice(1).map((file) => file.key) }).catch(() => {});
-    return files[0] || null;
-  }
-  return new Promise((resolve) => {
-    const input = h('input', { type: 'file', accept: 'image/*', hidden: true });
+  const accept = files => {
+    const keep = current() ? files.slice(0, 1) : [];
+    const discarded = files.slice(keep.length);
+    if (discarded.length) api('discard_files', {keys: discarded.map(file => file.key)}).catch(() => {});
+    return keep[0] || null;
+  };
+  if (PLATFORM === 'Android') return accept(await api('pick_files', {kind: 'gallery'}));
+  return new Promise((resolve, reject) => {
+    const input = h('input', {type: 'file', accept: 'image/*', hidden: true});
+    input.addEventListener('cancel', () => {input.remove(); resolve(null);}, {once: true});
     input.addEventListener('change', async () => {
       const file = input.files[0]; input.remove();
-      if (!file) return resolve(null);
-      const response = await fetch('/upload?' + resourceAuth() + '&name=' + encodeURIComponent(file.name),
-        { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
-      resolve(response.ok ? (await response.json()).result : null);
-    });
+      if (!file || !current()) return resolve(null);
+      try {
+        const response = await fetch('/upload?' + resourceAuth() + '&name=' + encodeURIComponent(file.name),
+          {method: 'POST', headers: {'Content-Type': 'application/octet-stream'}, body: file});
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        resolve(accept([(await response.json()).result]));
+      } catch (error) { reject(error); }
+    }, {once: true});
     document.body.append(input); input.click();
   });
 }
+
 async function scanLoginPhoto(done) {
   try {
     const file = await pickOnePhoto();
@@ -5793,6 +5979,8 @@ async function chooseDefaultReaction() {
 
 // Ajustes › Funciones complejas (desktop: advanced_features.FEATURES), same store.
 const MOBILE_FEATURES = [
+  ['media_originals', 'Original media in the viewer', 'Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.'],
+  ['native_liquid_glass', 'Native Liquid Glass', 'Use native Apple glass controls on iOS 26 or later. Respects Reduce Transparency and Reduce Motion. Off by default.'],
   ['polls', 'Encuestas y cuestionarios', 'Crear, votar y consultar resultados.'],
   ['checklists', 'Listas de tareas', 'Crear y editar listas compartidas; requiere Premium para crearlas.'],
   ['contacts', 'Compartir contactos', 'Elegir los datos de contacto que se enviarán.'],
@@ -5816,11 +6004,11 @@ function switchSetting(label, enabled, change) {
 }
 
 // Off unless turned on (the rest are on unless turned off).
-const FEATURES_OFF = new Set(['keep_loaded', 'preload_startup']);
+const FEATURES_OFF = new Set(['keep_loaded', 'preload_startup', 'media_originals', 'native_liquid_glass']);
 function complexFeatures(save) {
   const enabled = (state.settings && state.settings.advanced_features) || {};
   const on = (key) => FEATURES_OFF.has(key) ? enabled[key] === true : enabled[key] !== false;
-  return h('div', { class: 'section' }, ...MOBILE_FEATURES.map(([key, label, note]) => h('div', { class: 'setting column' },
+  return h('div', { class: 'section' }, ...MOBILE_FEATURES.filter(([key]) => key !== 'native_liquid_glass' || PLATFORM === 'iOS').map(([key, label, note]) => h('div', { class: 'setting column' },
     switchSetting(t(label), on(key), () => save({ advanced_features: { [key]: !on(key) } })),
     h('div', { class: 'muted small' }, t(note)))));
 }
@@ -5829,6 +6017,8 @@ const SETTINGS_SECTIONS = [['appearance', 'Apariencia'], ['customization', 'Cust
   ['notifications', 'Notifications'], ['account', 'Cuenta'], ['premium', 'Telegram Premium'], ['logos', 'App logos'],
   ['advanced', 'Funciones complejas'], ['data', 'App data']];
 function logoSettings() {
+  const account = state.account, revision = state.accountRevision;
+  const isCurrent = () => state.account === account && state.accountRevision === revision && !state.locked;
   const look = state.appearance;
   const holder = h('div', {class: 'setting column'}, t('Cargando...'));
   const load = async () => {
@@ -5870,8 +6060,15 @@ function logoSettings() {
     ], () => saveLook({official_logo: key})]));
   }]));
   const photo = async () => {
-    const key = await attempt(() => pickImage());
-    if (key) await attempt(() => api('set_logo_photo', {key}), result => { state.appearance = result; render(); });
+    if (!isCurrent()) return;
+    let key;
+    try { key = await pickImage(); } catch (error) { if (isCurrent()) toast(error.message, 'error'); return; }
+    if (!key) return;
+    if (!isCurrent()) { api('discard_files', {keys: [key]}).catch(() => {}); return; }
+    try {
+      const result = await api('set_logo_photo', {key, account});
+      if (isCurrent()) { state.appearance = result; render(); }
+    } catch (error) { if (isCurrent()) toast(error.message, 'error'); }
   };
   return [holder, h('div', {class: 'setting'}, button('Telegram', official), button(t('Image'), photo),
     look.brand_photo || look.official_logo ? button(t('Remove'), () => saveLook({brand_photo: '', official_logo: ''})) : null)];
@@ -5890,6 +6087,58 @@ async function chatNotifications(chat) {
   const account = state.account;
   const options = await notificationOptions({peer: chat.id});
   if (options) notificationForm(chat.name, chat.id, options.current, account, options.ringtones);
+}
+
+function checkNotificationStatus() {
+  const account = state.account, revision = state.accountRevision;
+  const layer = document.getElementById('sheet-layer');
+  const result = h('div', {'aria-live': 'polite'});
+  const refresh = button(t('Actualizar'), load);
+  const panel = h('div', {class: 'sheet form', onclick: event => event.stopPropagation()},
+    h('h3', {}, t('Comprobar notificaciones')), result,
+    h('p', {class: 'muted small'}, t('Esta comprobación consulta el registro. No envía una notificación de prueba.')),
+    h('div', {class: 'actions'}, refresh, button(t('Close'), closeSheet)));
+  layer.replaceChildren(panel); activateSheet(layer); layer.onclick = closeSheet;
+  async function load() {
+    refresh.disabled = true;
+    result.replaceChildren(h('p', {}, t('Cargando...')));
+    const current = () => currentSheetPanel === panel && state.account === account &&
+      state.accountRevision === revision && !state.locked;
+    try {
+      const status = await api('notification_status');
+      if (!current()) return;
+      const registered = Number.isInteger(status.registered_accounts) ? status.registered_accounts : 0;
+      const connected = Number.isInteger(status.connected_accounts) ? status.connected_accounts : 0;
+      const disabled = state.settings.notifications === false || status.state === 'disabled';
+      const accepted = status.state === 'registered' && registered > 0 && connected > 0 && registered >= connected;
+      const text = disabled ? t('Las notificaciones están desactivadas en esta app.')
+        : accepted ? t('Telegram ha aceptado el registro de {count} cuenta(s).', {count: registered})
+        : status.state === 'retrying' ? t('El registro no se ha completado. La app volverá a intentarlo automáticamente.')
+        : connected === 0 ? t('Conecta una cuenta para comprobar el registro de notificaciones.')
+        : status.state === 'unavailable' ? t('El sistema no ha podido activar las notificaciones.')
+        : t('Esperando a que se complete el registro de notificaciones.');
+      result.replaceChildren(h('p', {}, text));
+      const permission = status.permission || (status.error === 'permission_denied' ? 'denied'
+        : status.error === 'permission_not_requested' ? 'not_requested' : 'unknown');
+      result.append(h('p', {class: permission === 'denied' ? 'error' : 'muted'},
+        permission === 'denied' ? t('Permiso denegado. Activa las notificaciones en Ajustes del sistema.')
+        : permission === 'not_requested' ? t('Todavía no se ha concedido permiso para las notificaciones.')
+        : permission === 'granted' ? t('Permiso de notificaciones concedido por el sistema.')
+        : t('Permiso del sistema: sin comprobar.')));
+      if (status.provider === 'APNs' && status.token_received) {
+        result.append(h('p', {class: 'muted'}, status.sandbox
+          ? t('Entorno de Apple: desarrollo.') : t('Entorno de Apple: distribución.')));
+      }
+      if (!disabled && permission !== 'denied' && permission !== 'not_requested') {
+        result.append(h('p', {class: 'muted'}, t('Si no aparecen avisos, revisa el permiso de notificaciones y los modos de concentración en Ajustes del sistema.')));
+      }
+    } catch (_) {
+      if (current()) result.replaceChildren(h('p', {class: 'error'}, t('No se pudo consultar el estado. Vuelve a intentarlo.')));
+    } finally {
+      if (current()) refresh.disabled = false;
+    }
+  }
+  load();
 }
 
 async function telegramNotifications() {
@@ -5915,6 +6164,8 @@ async function telegramNotifications() {
 }
 
 function notificationForm(title, target, current, account, ringtones) {
+  const revision = state.accountRevision;
+  const isCurrent = () => state.account === account && state.accountRevision === revision && !state.locked;
   const custom = h('input', {type: 'datetime-local', 'aria-label': t('Date')});
   const customField = labelled(t('Date'), custom);
   customField.hidden = true;
@@ -5945,7 +6196,7 @@ function notificationForm(title, target, current, account, ringtones) {
   let saving = false;
   formSheet(title, [labelled(t('Mute until'), mute), customField,
     ...rows.map(row => row.node), ...sounds.map(sound => sound.node)], t('Guardar'), async () => {
-    if (saving || state.account !== account) return false;
+    if (saving || !isCurrent()) return false;
     const changes = Object.fromEntries(rows.filter(row => row.input.checked !== row.original)
       .map(row => [row.key, row.input.checked]));
     for (const {key, select} of sounds) if (select.value) changes[key] = select.value;
@@ -5964,6 +6215,7 @@ function notificationForm(title, target, current, account, ringtones) {
     saving = true;
     try {
       const result = await attempt(() => api('save_notify_preferences', {target, changes, account}));
+      if (!isCurrent()) return false;
       if (result && typeof target === 'number' && 'mute_until' in changes) {
         const chat = state.chats.find(item => item.id === target);
         if (chat) chat.muted = changes.mute_until > 0;
@@ -6025,9 +6277,12 @@ async function reactionNotifications(account, ringtones) {
 }
 
 function editDisplayName() {
+  const account = state.account, revision = state.accountRevision;
+  const current = () => state.account === account && state.accountRevision === revision && !state.locked;
   promptThen(t('Nombre visible de la app'), {value: state.settings?.app_display_name || '', placeholder: 'TeleGraph', maxlength: 64}, async value => {
+    if (!current()) return false;
     const result = await attempt(() => api('settings', {values: {app_display_name: value.trim()}}));
-    if (!result) return false;
+    if (!result || !current()) return false;
     state.settings = result;
     applySettings();
     render();
@@ -6062,8 +6317,11 @@ async function chooseSiriChats() {
 
 function settingsView() {
   const settings = state.settings;
+  const account = state.account, revision = state.accountRevision;
+  const current = () => state.account === account && state.accountRevision === revision && !state.locked;
   const tab = SETTINGS_SECTIONS.some(([key]) => key === state.settingsTab) ? state.settingsTab : 'appearance';
   const save = (values) => attempt(() => api('settings', { values }), async (result) => {
+    if (!current()) return;
     const languageChanged = values.language && values.language !== state.language;
     state.settings = result; applySettings();
     if (languageChanged) { await resync(); go('settings'); } else render();
@@ -6077,26 +6335,48 @@ function settingsView() {
   };
   const section = (title, ...children) => h('div', { class: 'section' }, title ? h('h4', {}, title) : null, ...children);
   const note = (text) => h('div', { class: 'muted small' }, text);
+  const openSection = key => { state.settingsQuery = ''; state.settingsTab = key; render(); };
+  const searchLinks = (key, title, labels) => section(t(title), ...labels.map(label => button(t(label), () => openSection(key))));
+  const reset = (scope, label) => button(t(label), () => {
+    const account = state.account, revision = state.accountRevision;
+    confirmThen(
+    t(scope === 'all'
+      ? 'Se restablecerán todos los ajustes de esta app en este dispositivo. Tus cuentas, sesiones, mensajes y bloqueo de seguridad se conservarán. Los ajustes guardados en Telegram no cambiarán.'
+      : 'Se restablecerán los ajustes de esta sección en este dispositivo. Tus cuentas, sesiones, mensajes y bloqueo de seguridad se conservarán. Los ajustes guardados en Telegram no cambiarán.'),
+    async () => {
+      await appearanceWrites;
+      if (state.account !== account || state.accountRevision !== revision || state.locked) return;
+      await attempt(() => api('reset_settings', {scope, account}), async result => {
+        if (state.account !== account || state.accountRevision !== revision) return;
+        state.settings = result.settings; state.appearance = result.appearance;
+        state.language = result.settings.language;
+        if (scope !== 'customization') state.windows.forEach((win, index) => Object.assign(win, defaultGeometry(index)));
+        await loadStrings(); applySettings(); render();
+      });
+    });
+  });
   const pages = {
     appearance: () => {
       const languages = h('div', { class: 'setting' }, h('span', {}, t('Idioma')), h('span', { class: 'muted' }, '...'));
       api('languages').then((list) => languages.replaceWith(select('language', t('Idioma'), list)));
       const look = appearanceSection(save);
       return [section(null, languages,
-        h('div', {class: 'setting'}, h('span', {}, t('Nombre visible de la app')),
+        h('div', {class: 'setting display-name-setting'}, h('span', {}, t('Nombre visible de la app')),
           button(settings.app_display_name || 'TeleGraph', editDisplayName),
           button(t('Restablecer nombre'), () => save({app_display_name: ''}))),
         select('theme', t('Tema'), [['dark', t('Oscuro')], ['light', t('Claro')], ['system', t('Sistema')]]),
         h('div', {class: 'setting effect-setting'}, h('span', {}, t('Tamaño de letra')),
           numericSlider(t('Tamaño de letra'), settings.font_size || 12, settings.font_min || 8, settings.font_max || 40, value => save({font_size: value}))),
-        ...look.colors, look.typeface, look.view, look.reset)];
+        ...look.colors, look.typeface, toggle('bubbles', t('Burbujas')), look.view, look.reset), window.tgPresentation?.settings(),
+        section(null, reset('appearance', 'Restablecer ajustes de apariencia'))];
     },
     customization: () => {
       const look = appearanceSection(save);
       return [section(null, button(t('App logos'), () => { state.settingsTab = 'logos'; render(); }),
           toggle('reduce_animations', t('Disable all animations')),
           note(t('Animated emoji, stickers, transitions and effects stay still, so the app runs smoothly on slower devices. Off by default.'))),
-        section(t('Corners'), ...look.corners), section(t('Backgrounds'), ...look.backgrounds), effectsSection()];
+        section(t('Corners'), ...look.corners), section(t('Backgrounds'), ...look.backgrounds), effectsSection(),
+        section(null, reset('customization', 'Restablecer ajustes de personalización'))];
     },
     chats: () => [section(null, defaultReactionSetting(), toggle('bubbles', t('Burbujas')), toggle('ascii_text', t('Mostrar el texto solo en ASCII')),
       toggle('local_pins', t('Unlimited local pins (device only)')),
@@ -6111,37 +6391,44 @@ function settingsView() {
       toggle('notify_preview', t('Preview')),
       toggle('notify_sound', t('Play a sound')),
       toggle('notify_active', t('Notify for the open chat')),
+      ['Android', 'iOS'].includes(PLATFORM) ? button(t('Comprobar notificaciones'), checkNotificationStatus) : null,
       button(t('Telegram settings (synchronized)'), telegramNotifications),
       ['Android', 'iOS'].includes(PLATFORM) ? lookToggle('keep_connected', t('Keep connected in the background')) : null,
       PLATFORM === 'Android' ? note(t('Android keeps TG-ASCII connected with a permanent notification, so new messages arrive with the app closed. Uses more battery.')) : null)],
-    account: () => [myProfileSection(), accountsSection(toggle), lockSection(),
+    account: (searching = false) => [searching ? searchLinks('account', 'My profile', ['First name', 'Last name', 'Username', 'Bio']) : myProfileSection(), accountsSection(toggle), lockSection(),
       PLATFORM === 'iOS' ? section('Siri', button(t('Nombres de chats para Siri'), chooseSiriChats)) : null],
-    premium: () => [premiumSection()],
+    premium: (searching = false) => [searching ? searchLinks('premium', 'Telegram Premium', [
+      'Emoji status', 'Name color', 'Profile color', 'Privacy', 'Hide read time',
+      'Only contacts and Premium users can message me', 'Archive and mute new chats from non-contacts',
+      'Automatic translation (Premium)', 'Transcribe audio', 'Custom emoji', 'Custom reactions', 'Read time', 'Show folder tags (Premium)']) : premiumSection()],
     logos: () => [section(null, ...logoSettings())],
     advanced: () => [complexFeatures(save), section(null, lookToggle('watch_own', t('Watch with its own connection')),
       note(t('The watch connects to Telegram by itself, with its own session approved by this app, and keeps working with the phone off. Off: the watch shows what this app receives.')))],
-    data: () => {
+    data: (searching = false) => {
       const cache = h('span', { class: 'muted' }, '');
-      api('cache_size').then((size) => { cache.textContent = size; }).catch(() => {});
+      if (!searching) api('cache_size').then((size) => { if (current()) cache.textContent = size; }).catch(() => {});
       return [section(null, h('div', { class: 'setting' }, h('span', {}, t('Caché')), cache),
         button(t('Borrar caché'), () => attempt(() => api('clear_cache'), (freed) => { toast(t('Liberado: {size}', { size: freed })); render(); })),
         ...appLifeItems().map(([label, action, kind]) => button(label, action, kind || '')),
+        reset('all', 'Restablecer todos los ajustes'),
         button(t('Borrar todos los datos'), () => confirmThen(t('¿Borrar todos los datos? Se cerraran todas las sesiones de este dispositivo.'), () => attempt(() => api('delete_all'))), 'danger')),
         section(t('Acerca de'), h('div', { class: 'muted' }, 'TeleGraph ' + state.version + ' · ' + PLATFORM),
           button(t('Política de privacidad'), () => openUrl('https://github.com/MiguelCKxd/TeleGraph/blob/main/PRIVACIDAD.md')))];
     },
   };
   const tabs = h('div', {class: 'tabs settings-tabs'}, SETTINGS_SECTIONS.map(([key, label]) =>
-    h('button', {class: 'tab' + (key === tab ? ' on' : ''), onclick: () => {
-      state.settingsQuery = ''; state.settingsTab = key; render();
-    }}, t(label))));
+    h('button', {class: 'tab' + (key === tab ? ' on' : ''), onclick: () => openSection(key)}, t(label))));
   const scroll = h('div', {class: 'scroll', id: 'settings-scroll'});
   const search = h('input', {type: 'search', 'data-search-scope': 'settings', placeholder: t('Buscar en ajustes'),
     'aria-label': t('Buscar en ajustes'), value: state.settingsQuery || ''});
   const sections = new Map();
-  const content = key => {
-    if (!sections.has(key)) sections.set(key, pages[key]().filter(Boolean));
-    return sections.get(key);
+  const content = (key, searching = false) => {
+    // Index server-backed options by their labels. Searching local settings
+    // must not request account/Premium data or recursively measure the cache.
+    const indexOnly = searching && ['account', 'premium', 'data'].includes(key);
+    const cacheKey = (indexOnly ? 'search:' : '') + key;
+    if (!sections.has(cacheKey)) sections.set(cacheKey, pages[key](indexOnly).filter(Boolean));
+    return sections.get(cacheKey);
   };
   function filter() {
     const terms = searchText(search.value).split(/\s+/).filter(Boolean);
@@ -6158,7 +6445,7 @@ function settingsView() {
     }
     const matches = [];
     for (const [key, label] of SETTINGS_SECTIONS) {
-      for (const section of content(key)) {
+      for (const section of content(key, true)) {
         let hit = false;
         const title = section.querySelector('h4')?.textContent || '';
         for (const row of section.children) {
@@ -6220,8 +6507,10 @@ function effectsSection() {
 
 // Telegram Premium: emoji status, name and profile colours, privacy (desktop: profile customization).
 function premiumSection() {
+  const account = state.account, revision = state.accountRevision;
   const box = h('div', { class: 'section' }, h('h4', {}, t('Telegram Premium')), h('div', { class: 'empty spinner' }, t('Cargando...')));
   const fill = (data) => {
+    if (state.account !== account || state.accountRevision !== revision || state.locked) return;
     state.premiumInfo = data;
     const status = data.emoji_status;
     const colorRow = (field, label, options, current) => h('div', { class: 'setting column' }, h('span', {}, label),
@@ -6265,19 +6554,22 @@ function chooseEmojiStatus(done) {
 }
 
 function myProfileSection() {
+  const account = state.account, revision = state.accountRevision;
+  const current = () => state.account === account && state.accountRevision === revision && !state.locked;
   const section = h('div', { class: 'section' }, h('h4', {}, t('My profile')));
   const fill = (me) => {
+    if (!current()) return;
     const input = (key, label) => h('div', { class: 'field wide' }, h('label', {}, label), h('input', { type: 'text', value: me[key] || '', 'data-key': key }));
     const about = h('div', { class: 'field wide' }, h('label', {}, t('Bio')), h('textarea', { rows: 2, 'data-key': 'about' }, me.about || ''));
     section.append(input('first', t('First name')), input('last', t('Last name')), input('username', t('Username')), about,
       button(t('Save'), () => {
         const values = {};
         for (const node of section.querySelectorAll('[data-key]')) values[node.dataset.key] = node.value;
-        attempt(() => api('save_my_profile', values), (saved) => { state.me = saved; toast(t('Saved.')); });
+        attempt(() => api('save_my_profile', values), (saved) => { if (current()) { state.me = saved; toast(t('Saved.')); } });
       }, 'primary'));
   };
   if (state.me) fill(state.me);
-  else api('my_profile').then((me) => { state.me = me; fill(me); }, () => {});
+  else api('my_profile').then((me) => { if (current()) { state.me = me; fill(me); } }, () => {});
   return section;
 }
 
