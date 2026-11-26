@@ -1,0 +1,10 @@
+.topic-toolbar { display:flex; gap:10px; padding:12px; align-items:center; }
+.topic-toolbar input { min-width:0; flex:1; }
+.topic-list { display:flex; flex-direction:column; overflow:auto; }
+.topic-row { display:flex; align-items:center; border-bottom:1px solid var(--border, #8883); }
+.topic-open { flex:1; min-width:0; background:none; color:inherit; border:0; display:flex; gap:12px; align-items:center; text-align:start; padding:15px; font:inherit; cursor:pointer; }
+.topic-name { flex:1; min-width:0; overflow-wrap:anywhere; }
+.topic-name small { display:block; opacity:.65; font-size:.8em; margin-top:3px; }
+.topic-icon { border-radius:12px; color:white; background:var(--topic-color); font-size:24px; font-weight:700; text-align:center; line-height:40px; width:40px; height:40px; flex:none; }
+.topic-emoji { width:40px; height:40px; object-fit:contain; }
+.topic-open:focus-visible { outline:2px solid var(--accent); outline-offset:-3px; }

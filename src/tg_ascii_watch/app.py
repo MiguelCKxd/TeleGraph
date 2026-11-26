@@ -78,6 +78,9 @@ class TgAsciiWatch(toga.App):
         self.load_wear_look()
         self.core.subscribers.add(Events(self))
         self.stage, self.chats, self.open_peer, self.messages, self.screen = 'loading', [], None, [], None
+        self.active_account = self.topic = self.forum_chat = None
+        self.navigation = 0
+        self.chat_ready = False
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.show_note(tr('Conectando...'))
         self.main_window.show()
@@ -178,7 +181,7 @@ class TgAsciiWatch(toga.App):
                 await asyncio.sleep(0.2)
         else:
             return
-        self.stage = snapshot['stage']
+        self.stage, self.active_account = snapshot['stage'], snapshot.get('account')
         if self.stage == 'choose_account':
             # One account at a time on the watch: open the last one used.
             accounts = snapshot.get('accounts') or []
@@ -194,8 +197,13 @@ class TgAsciiWatch(toga.App):
             if data['stage'] == 'choose_account':
                 self.loop.create_task(self.refresh())
                 return
-            changed = data['stage'] != self.stage
-            self.stage = data['stage']
+            changed = data['stage'] != self.stage or data.get('account') != self.active_account
+            if changed:
+                self.navigation += 1
+                self.open_peer = self.topic = self.forum_chat = None
+                self.messages = []
+                self.screen = None
+            self.stage, self.active_account = data['stage'], data.get('account')
             if changed or self.stage != 'ready':
                 self.route(data.get('error', ''))
         elif kind == 'qr' and self.stage == 'qr':
@@ -213,12 +221,15 @@ class TgAsciiWatch(toga.App):
             if self.screen == 'chats':
                 self.show_chats()
         elif kind == 'message' and self.screen == 'chat' and data['peer'] == self.open_peer:
-            if data['message'] and not any(item['id'] == data['message']['id'] for item in self.messages):
+            message = data.get('message')
+            if message and (not self.topic or message.get('topic_id') == self.topic['id']) and not any(item['id'] == message['id'] for item in self.messages):
                 self.messages.append(data['message'])
                 self.show_chat()
-        elif kind == 'history' and self.screen == 'chat' and data['peer'] == self.open_peer:
+        elif kind == 'history' and self.screen == 'chat' and not self.topic and data['peer'] == self.open_peer:
             self.messages = data['messages']
             self.show_chat()
+        elif kind == 'forum_topics' and self.screen == 'topics' and self.forum_chat and data.get('peer') == self.open_peer:
+            self.open_topics(self.forum_chat)
         elif kind == 'connection' and self.screen == 'chats':
             self.show_chats()
         elif kind == 'toast':
@@ -246,7 +257,7 @@ class TgAsciiWatch(toga.App):
 
     def got_chats(self, chats):
         self.chats = chats
-        if self.screen not in ('chat', 'logos'):
+        if self.screen not in ('chat', 'topics', 'logos'):
             self.show_chats()
 
     # -- layout helpers --------------------------------------------------------------
@@ -457,20 +468,89 @@ class TgAsciiWatch(toga.App):
             ])
         self.page(*controls)
 
-    def open_chat(self, chat):
-        self.open_peer, self.open_name, self.messages = chat['id'], chat['name'], []
+    def open_linked(self, chat):
+        navigation = self.navigation
+        def opened(link):
+            if navigation != self.navigation:
+                return
+            if link:
+                self.open_chat({'id': link['peer'], 'name': link['title'], 'kind': link['kind'], 'forum': link['forum']})
+            else:
+                self.toast(tr('Sin resultados.'))
+        self.run('linked_discussion', done=opened, peer=chat['id'], account=self.active_account)
+
+    def open_topics(self, chat, cursor=None):
+        if cursor is None:
+            self.topic_rows = []
+        self.navigation += 1
+        navigation = self.navigation
+        self.open_peer, self.forum_chat, self.topic = chat['id'], chat, None
+        self.screen = 'topics'
+
+        def draw(next_cursor=None, error=None):
+            children = [self.button('< ' + chat['name'][:22], self.close_chat, color=STRONG)]
+            if chat.get('has_link'):
+                children.append(self.button(tr('Linked discussion / channel'), lambda: self.open_linked(chat)))
+            for topic in self.topic_rows:
+                unread = topic.get('unread_count', 0)
+                label = topic['title'] + (f' [{unread}]' if unread else '')
+                if topic.get('closed'):
+                    label += ' · ' + tr('Tema cerrado')
+                children.append(self.button(label, lambda item=topic: self.open_chat(chat, item)))
+            if error:
+                children += [self.label(error, 10, MUTED), self.button(tr('Reintentar'), lambda: self.open_topics(chat, cursor))]
+            elif next_cursor:
+                children.append(self.button(tr('Más temas'), lambda: self.open_topics(chat, next_cursor)))
+            elif not self.topic_rows:
+                children.append(self.label(tr('Sin resultados.'), 10, MUTED))
+            self.page(*children)
+
+        async def load():
+            from tg_ascii.auth import error_message
+            try:
+                page = await self.call('forum_topics', peer=chat['id'], account=self.active_account, cursor=cursor, open_view=True)
+            except Exception as exc:
+                if self.navigation == navigation:
+                    draw(error=error_message(exc))
+                return
+            if self.navigation == navigation:
+                known = {t['id'] for t in self.topic_rows}
+                self.topic_rows.extend(t for t in page['topics'] if t['id'] not in known)
+                draw(page['next_cursor'])
+
+        self.page(self.button('< ' + chat['name'][:22], self.close_chat, color=STRONG), self.label(tr('Cargando...')))
+        self.loop.create_task(load())
+
+    def open_chat(self, chat, topic=None):
+        if chat.get('forum') and topic is None:
+            self.open_topics(chat)
+            return
+        self.navigation += 1
+        navigation = self.navigation
+        self.forum_chat, self.topic = (chat if topic else None), topic
+        self.open_peer, self.open_name, self.messages = chat['id'], topic['title'] if topic else chat['name'], []
         self.open_kind = chat.get('kind')
         self.chat_draft, self.translations = '', {}
-        self.translating = False
+        self.chat_ready = self.translating = False
         self.show_chat()
 
         def opened(data):
-            if self.open_peer == chat['id']:
-                if data.get('chat') and data['chat'].get('kind'):
-                    self.open_kind = data['chat']['kind']
-                self.messages = data.get('messages') or []
-                self.show_chat()
-        self.run('open', done=opened, peer=chat['id'])
+            if self.navigation != navigation:
+                return
+            if data.get('forum'):
+                self.open_topics(data.get('chat') or chat)
+                return
+            self.chat_ready = True
+            if data.get('chat') and data['chat'].get('kind'):
+                self.open_kind = data['chat']['kind']
+            if data.get('topic'):
+                self.topic = data['topic']
+            self.messages = data.get('messages') or []
+            self.show_chat()
+        if topic:
+            self.run('forum_open', done=opened, peer=chat['id'], topic_id=topic['id'], account=self.active_account)
+        else:
+            self.run('open', done=opened, peer=chat['id'])
 
     def message_text(self, message):
         if message.get('service'):
@@ -530,12 +610,19 @@ class TgAsciiWatch(toga.App):
 
         def send(text):
             text = (text or '').strip()
-            if text:
-                self.run('send', peer=self.open_peer, text=text)
-                self.chat_draft = field.value = ''
+            if text and self.chat_ready and (not self.topic or self.topic.get('can_send')):
+                topic_id = self.topic['id'] if self.topic else None
+                navigation = self.navigation
+                def sent(_):
+                    if navigation == self.navigation and self.chat_draft.strip() == text:
+                        self.chat_draft = field.value = ''
+                self.run('send', done=sent, peer=self.open_peer, text=text, thread_root=topic_id,
+                         topic_id=topic_id, account=self.active_account)
         is_secret = getattr(self, 'open_kind', None) == 'secret'
         children = [self.button('< ' + self.open_name[:22], self.close_chat, color=STRONG)]
         chat = next((c for c in self.chats if c['id'] == self.open_peer), {})
+        if chat.get('has_link') and not self.topic:
+            children.append(self.button(tr('Linked discussion / channel'), lambda: self.open_linked(chat)))
         if chat.get('pinned') and not is_secret:
             for direction, label in [(-1, 'Move pin up'), (1, 'Move pin down')]:
                 children.append(self.button(tr(label), lambda step=direction: self.run(
@@ -593,7 +680,10 @@ class TgAsciiWatch(toga.App):
             children.append(self.button(tr('Translate chat'), lambda: self.translate_chat(translatable, chat=True)))
         rows = [toga.Box(children=[self.button(item, lambda item=item: send(item), size=12) for item in QUICK[index:index + 2]],
                          style=Pack(direction='row', background_color=self.colour(BG))) for index in range(0, len(QUICK), 2)]
-        children += [*rows, field, self.button(tr('Enviar'), lambda: send(field.value))]
+        if self.chat_ready and (not self.topic or self.topic.get('can_send')):
+            children += [*rows, field, self.button(tr('Enviar'), lambda: send(field.value))]
+        elif self.chat_ready:
+            children.append(self.label(tr('Este chat es de solo lectura.'), 10, MUTED))
         box = self.page(*children)
         # Newest messages at the bottom: scroll there once laid out.
         content = self.main_window.content
@@ -682,9 +772,13 @@ class TgAsciiWatch(toga.App):
         self.run('secret_info', done=render_info, peer=peer)
 
     def close_chat(self):
+        self.navigation += 1
+        if self.topic and self.forum_chat:
+            self.open_topics(self.forum_chat)
+            return
         if self.open_peer is not None:
             self.run('close', peer=self.open_peer)
-        self.open_peer = None
+        self.open_peer = self.forum_chat = self.topic = None
         self.show_chats()
 
     # -- Android chrome and the back gesture (swipe right on Wear OS) --------------------------
@@ -724,7 +818,7 @@ class TgAsciiWatch(toga.App):
                 def go_back():
                     if app.screen == 'secret_info':
                         app.show_chat(scroll_to_latest=False)
-                    elif app.screen == 'chat':
+                    elif app.screen in ('chat', 'topics'):
                         app.close_chat()
                     elif app.screen == 'logos':
                         app.close_logos()

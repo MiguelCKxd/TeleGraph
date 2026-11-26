@@ -6,8 +6,10 @@ from types import SimpleNamespace
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import AsyncMock, patch
 
-from telethon import types
+from telethon import types, utils
 from tg_ascii.backend import Message
+from tg_ascii.forum_topics import message_topic
+from tg_ascii.peer_tools import HistoryPage
 from tg_ascii_mobile.core import Core
 
 
@@ -26,6 +28,67 @@ class GalleryTests(IsolatedAsyncioTestCase):
         self.backend = SimpleNamespace(client=SimpleNamespace())
         self.core.accounts = SimpleNamespace(current='first', services={
             'first': SimpleNamespace(backend=self.backend), 'second': SimpleNamespace(backend=SimpleNamespace())})
+
+    async def test_shared_comment_route_requires_the_exact_channel_discussion(self):
+        group, channel = types.PeerChannel(45), types.PeerChannel(80)
+        peer, source = utils.get_peer_id(group), utils.get_peer_id(channel)
+        comment = SimpleNamespace(peer_id=group, reply_to=SimpleNamespace(reply_to_top_id=25), fwd_from=None)
+        forwarded = SimpleNamespace(peer_id=group, reply_to=None,
+                                    fwd_from=SimpleNamespace(from_id=channel, channel_post=90))
+        self.backend.forum_message_topic = message_topic
+        self.backend.checked_message = AsyncMock(side_effect=lambda peer, id: comment if id == 32 else forwarded)
+        self.backend.names = {source: 'Canal'}
+        self.backend.discussion_message = AsyncMock(return_value={'peer': peer, 'root_id': 25})
+        self.assertEqual(await self.core.api_gallery_origin(peer, 32, 'first'), {
+            'account': 'first', 'peer': peer, 'id': 32, 'source': source, 'post': 90, 'root': 25, 'source_name': 'Canal'})
+        # A regular forwarded copy and a reply to it stay in the receiving chat.
+        self.backend.discussion_message.return_value = {'peer': peer, 'root_id': 19}
+        for ident in (25, 32):
+            self.assertEqual(await self.core.api_gallery_origin(peer, ident, 'first'),
+                             {'account': 'first', 'peer': peer, 'id': ident})
+
+    async def test_shared_topic_and_account_change_during_lookup(self):
+        group = types.PeerChannel(45)
+        peer = utils.get_peer_id(group)
+        raw = SimpleNamespace(peer_id=group, reply_to=SimpleNamespace(forum_topic=True, reply_to_top_id=76))
+        self.backend.forum_message_topic = message_topic
+        self.backend.checked_message = AsyncMock(return_value=raw)
+        self.assertEqual((await self.core.api_gallery_origin(peer, 90, 'first'))['topic'], 76)
+        async def switching(*args):
+            self.core.accounts.current = 'second'
+            return raw
+        self.backend.checked_message = switching
+        with self.assertRaises(PermissionError):
+            await self.core.api_gallery_origin(peer, 90, 'first')
+
+    async def test_context_preserves_scope_cursor_and_independent_window(self):
+        group = -1000000000045
+        page = HistoryPage([Message(32, 'Alba', 'foto', '12:00')], next_offset=29, more=True)
+        self.backend.forum_history = AsyncMock(return_value=page)
+        self.backend.discussion_around = AsyncMock(return_value=page)
+        self.core.window_discussions[80] = (('first', group, 25), {})
+        self.core.open_discussion = ('first', group, 1)
+        topic = await self.core.api_context(group, 32, account='first', topic_id=1)
+        comment = await self.core.api_context(group, 32, account='first', thread_root=25, window_peer=80)
+        self.assertEqual(topic['messages'][0]['id'], comment['messages'][0]['id'])
+        self.assertEqual((comment['next'], comment['more']), (29, True))
+        self.assertEqual(set(self.core.discussion_messages), {32})
+        self.assertEqual(set(self.core.window_discussions[80][1]), {32})
+        self.assertNotIn(group, self.core.histories)
+        self.backend.forum_history.assert_awaited_once_with(group, 1, around=32)
+        self.backend.discussion_around.assert_awaited_once_with(group, 25, 32)
+        with self.assertRaisesRegex(ValueError, 'conversation'):
+            await self.core.api_context(group, 32, thread_root=25)
+
+    async def test_context_discarded_if_same_topic_reopened_during_read(self):
+        self.core.open_discussion = ('first', -45, 7)
+        async def reopened(*args, **kwargs):
+            self.core.discussion_messages = {}
+            return HistoryPage([Message(32, 'Alba', 'foto', '12:00')])
+        self.backend.forum_history = reopened
+        with self.assertRaisesRegex(ValueError, 'conversation'):
+            await self.core.api_context(-45, 32, account='first', topic_id=7)
+        self.assertFalse(self.core.discussion_messages)
 
     async def test_profile_history_pages_keep_int64_and_video_type(self):
         large_id = (1 << 60) + 61

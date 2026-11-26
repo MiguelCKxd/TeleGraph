@@ -4,6 +4,8 @@ import DeviceDiscoveryUI
 
 private struct SharedChat: Decodable {
     let id: Int64
+    let topic_id: Int64?
+    var key: String { "\(id)/\(topic_id.map(String.init) ?? "")" }
     let title: String
     let messages: [String]
     let appearance: TelevisionLook?
@@ -58,8 +60,8 @@ final class Television: UITableViewController {
     } ?? TelevisionLook()
     private var connection: NWConnection?
     private var chats: [SharedChat] = []
-    private var selected: Int64?
-    private var chat: SharedChat? { chats.first { $0.id == selected } }
+    private var selected: String?
+    private var chat: SharedChat? { chats.first { $0.key == selected } }
     private var status = "Conectar con el iPhone"
 
     override func viewDidLoad() {
@@ -141,7 +143,7 @@ final class Television: UITableViewController {
         }
         if indexPath.row > 0 {
             let choice = chats[indexPath.row - 1]
-            selected = choice.id
+            selected = choice.key
             title = choice.title
             tableView.reloadData()
             return
@@ -208,7 +210,7 @@ final class Television: UITableViewController {
                 guard error == nil, !ended, let body, body.count == bytes,
                       let chat = try? JSONDecoder().decode(SharedChat.self, from: body),
                       chat.messages.count <= 50 else { self.clearSession(); return }
-                if let index = self.chats.firstIndex(where: { $0.id == chat.id }) {
+                if let index = self.chats.firstIndex(where: { $0.key == chat.key }) {
                     self.chats[index] = chat
                 } else {
                     self.chats.append(chat)

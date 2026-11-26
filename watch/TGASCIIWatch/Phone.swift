@@ -8,6 +8,46 @@ struct ChatItem: Identifiable, Decodable, Hashable {
     var pinned: Bool? = nil
     let preview: String
     let kind: String?
+    var forum: Bool? = nil
+    var has_link: Bool? = nil
+    var account: String? = nil
+
+    func request(_ operation: String, topic: WatchTopic? = nil) -> [String: Any] {
+        var request: [String: Any] = ["op": operation, "peer": id]
+        if let account { request["account"] = account }
+        if let topic { request["topic_id"] = topic.id }
+        return request
+    }
+}
+
+struct WatchLinkedChat: Decodable { let chat: ChatItem? }
+
+struct WatchTopic: Identifiable, Decodable {
+    let id: Int64
+    let title: String
+    let unread_count: Int
+    let closed: Bool
+    let can_send: Bool
+}
+
+struct WatchTopicCursor: Decodable {
+    let peer: Int64
+    let query: String
+    let owner: String
+    let seen: Int
+    let pinned: [Int64]
+    let offset_date: Int
+    let offset_id: Int
+    let offset_topic: Int
+    var request: [String: Any] {
+        ["peer": peer, "query": query, "owner": owner, "seen": seen, "pinned": pinned,
+         "offset_date": offset_date, "offset_id": offset_id, "offset_topic": offset_topic]
+    }
+}
+
+struct WatchTopicPage: Decodable {
+    let topics: [WatchTopic]
+    let next_cursor: WatchTopicCursor?
 }
 
 struct SecretInfoItem: Decodable {
