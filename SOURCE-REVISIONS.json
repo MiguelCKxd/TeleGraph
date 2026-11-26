@@ -6,7 +6,18 @@
   "sources": {
     "desktop": "1cd6c891cd9f70389aede8d3374ed494938284b6",
     "linux": "b1ac4f5b749c6f19cc69304eb0ec8efa1fb5e27e",
-    "android-wear": "dcc5b1d3a1b5d0f901c91b731c0059ebc2a39eff",
-    "apple": "e3dd2e7826514e7c0d4e56f7bacb439c2e7f20eb"
+    "android-wear": "187f2c6934fed3d22527dcf27f9b97e96c1d74f2",
+    "apple": "ffa14cc2926bda307cc97e68c7dcf85aea59311f"
+  },
+  "platform_builds": {
+    "ios_ipados_watchos_notification_extension": 2,
+    "android_wearos": 1,
+    "tvos": 1
+  },
+  "source_branches": {
+    "desktop": "escritorio-v3.4.1",
+    "linux": "linux-v3.4.1",
+    "android-wear": "movil-v3.4.1-build1",
+    "apple": "apple-v3.4.1-build2"
   }
 }

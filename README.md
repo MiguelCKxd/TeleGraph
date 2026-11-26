@@ -4,7 +4,11 @@ TeleGraph es un cliente independiente de Telegram para ordenadores, teléfonos, 
 
 **La 3.4.1 está retenida y no se ha publicado.** Falta confirmar la recepción real de notificaciones push con la aplicación cerrada en el iPhone. Las mejoras del registro y del diagnóstico no demuestran por sí solas que esa recepción funcione. La compilación iOS enviada para diagnóstico interno no se ofrece aquí como descarga ni como distribución externa. Este snapshot permite revisar y compilar las fuentes; no anuncia una versión lista para entregar.
 
+Las fuentes Apple usan la compilación **2** para iOS, iPadOS, Apple Watch y la extensión de notificaciones. Android, Wear OS y tvOS conservan la compilación **1**. La rama Apple del build 1 se conserva como referencia del diagnóstico anterior; las fuentes vigentes de Apple están en `apple-v3.4.1-build2`. Esta numeración no significa que los paquetes nuevos estén distribuidos.
+
 ## Novedades del candidato 3.4.1
+
+Se corrige una carrera de inicialización de los puentes Siri/TV que podía impedir el arranque en iOS. Al volver a la aplicación, la recuperación del servidor de la interfaz se serializa para evitar escuchas simultáneas. La prueba push física sigue pendiente.
 
 El gestor de descargas muestra progreso y estados, permite cancelar y reintentar, y ofrece las acciones de abrir, guardar o compartir que admite cada plataforma. Limita las transferencias simultáneas y las colas, comprueba el contexto de la cuenta y respeta las restricciones de los archivos. Los reintentos empiezan desde cero; no se anuncia reanudación por bloques ni continuidad garantizada cuando el sistema suspende la aplicación.
 

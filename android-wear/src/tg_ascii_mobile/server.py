@@ -89,6 +89,7 @@ class Server:
     def __init__(self, core):
         self.core = core
         self.port = None
+        self._ensure_lock = asyncio.Lock()
         self.story_downloads = {}
         from .media_stream import VideoRanges
         self.video_ranges = VideoRanges(core)
@@ -112,17 +113,22 @@ class Server:
         """iOS reclaims the listening sockets of a suspended app: after a while in
         the background every request of the interface fails. Listen again (same
         port when possible, so the page keeps its address) and return the port."""
-        if await self.alive():
-            return self.port
-        old = self.server
-        try:
-            old.close()
-        except Exception:
-            pass
-        try:
-            return await self.start(self.port)
-        except OSError:
-            return await self.start(0)
+        # Toga's show callback and the foreground notification can arrive together.
+        # Recheck inside the lock so only one caller replaces a reclaimed socket.
+        async with self._ensure_lock:
+            if await self.alive():
+                return self.port
+            old = self.server
+            try:
+                old.close()
+            except Exception:
+                pass
+            # Do not wait_closed(): accepted SSE/download connections may still
+            # be active and do not need to finish before replacing the listener.
+            try:
+                return await self.start(self.port)
+            except OSError:
+                return await self.start(0)
 
     # -- HTTP ------------------------------------------------------------------
     async def handle(self, reader, writer):
