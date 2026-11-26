@@ -21,7 +21,7 @@ from .accounts import Accounts
 from .preferences import Preferences, data_root
 from .desktop_features import DesktopFeatures
 from .telegram_features import matches_folder, compile_folder, in_chat_list
-from .ui_work import bind_text_action, clear_text_actions, sync_tree_rows, set_tree_label
+from .ui_work import bind_text_action, clear_text_actions, sync_tree_rows
 from .tk_safety import drain as drain_deferred_images
 
 BG = '#08100c'
@@ -1047,6 +1047,13 @@ class Desktop(DesktopFeatures):
             self._history_key, self._history_changes = None, []
             self._read_hold_until = 0
             self.render_messages()
+            if getattr(self, '_canvas_chat_view', False) and hasattr(self, 'bubble_view'):
+                from .transitions import slide_in
+                slide_in(self, self.bubble_view)
+            # 3.3: a forum opens its topics, as Telegram does.
+            from .desktop_forums import chat_flags, open_topics
+            if chat_flags(next((item for item in getattr(self, 'chats', ()) if item.id == chat_id), None))[0]:
+                self.root.after_idle(lambda: open_topics(self, chat_id) if self.active == chat_id else None)
             # 1.4.1: open at the first unread message, as the official apps do,
             # so unread messages below the viewport are not marked as read.
             chat = next((item for item in getattr(self, 'chats', ()) if item.id == chat_id), None)

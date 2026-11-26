@@ -11,7 +11,7 @@ from telethon import types
 from tg_ascii.backend import Chat, Message
 from tg_ascii.bubbles import cached_measure, rich_runs
 from tg_ascii.desktop_plus import DesktopPlus
-from tg_ascii.ui_work import set_tree_label, sync_tree_rows, visible_tree_rows
+from tg_ascii.ui_work import sync_tree_rows, visible_tree_rows
 
 
 class Tree:
@@ -53,10 +53,15 @@ class TreeWorkTests(unittest.TestCase):
         for _ in range(10):sync_tree_rows(tree,rows)
         self.assertEqual(tree.reads,0)
         self.assertEqual(tree.writes,[])
-        set_tree_label(tree,'3','Unread')
+        changed = [(ident, 'Unread' if ident == '3' else label) for ident, label in rows]
+        sync_tree_rows(tree, changed)
+        self.assertEqual(tree.writes, ['3'])
+        self.assertEqual(tree.rows['3'], 'Unread')
         tree.writes.clear()
-        sync_tree_rows(tree,rows)
-        self.assertEqual(tree.writes,['3'])
+        sync_tree_rows(tree, changed)
+        self.assertEqual(tree.writes, [])
+        sync_tree_rows(tree, rows)
+        self.assertEqual(tree.writes, ['3'])
 
     def test_viewport_is_bounded_even_before_scroll_fraction_settles(self):
         tree=Tree()

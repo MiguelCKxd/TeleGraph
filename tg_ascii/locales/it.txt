@@ -664,3 +664,13 @@
 663|{count} voti
 664|{field}: usa da 1 a {maximum} caratteri.
 665|{title}\nDestinatario: {recipient}\nTotale: {amount} Stelle Telegram\n\nConfermi l’acquisto?
+666|Scegli un gruppo con argomenti.
+667|Emoji non valida.
+668|Ricerca non valida.
+669|Questo argomento non è più disponibile.
+670|Colore dell’argomento non valido.
+671|Impostazioni dell’argomento non valide.
+672|Telegram non ha restituito il nuovo argomento. Aggiorna l’elenco degli argomenti.
+673|Per attivare gli argomenti, converti questo gruppo in un supergruppo.
+674|Riapri il gruppo per controllare le impostazioni degli argomenti.
+675|La chiamata continua in background.

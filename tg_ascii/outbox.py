@@ -102,6 +102,7 @@ class Pending:
     key: int = field(default_factory=lambda: next(_sequence))
     progress: int = -1
     thread_root: int | None = None
+    topic_id: int | None = None
 
     def schedule_date(self):
         return datetime.fromisoformat(self.schedule) if self.schedule else None
@@ -130,6 +131,12 @@ def build_operation(backend, item, progress=None, demo=False):
     formats = [tuple(span) for span in item.format_spans]
     custom = [tuple(span) for span in item.custom_spans]
     schedule = item.schedule_date()
+    if item.topic_id is not None:
+        return backend.forum_send(item.peer, item.topic_id, text, formats, custom, paths=paths,
+                                  reply_to=item.reply_to, progress=progress, silent=item.silent,
+                                  schedule=schedule, voice=bool(item.voice), duration=item.voice,
+                                  as_photo=bool(len(paths) == 1 and paths[0].suffix.lower() in
+                                                ('.jpg', '.jpeg', '.png', '.webp')))
     if item.voice and len(paths) == 1 and not demo:
         return backend.send_audio(item.peer, paths[0], True, item.voice, reply_to=item.reply_to)
     if len(paths) > 1:

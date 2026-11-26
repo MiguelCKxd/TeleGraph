@@ -34,6 +34,9 @@ class DesktopActions(DesktopAdvancedMixin, DesktopProfile, DesktopTools):
             video_call_button=call_allowed(self, video=True),
             secret_chat_button=caps.kind == 'secret',
         )
+        from .desktop_forums import chat_flags
+        forum, linked = chat_flags(getattr(self, '_chat_by_id', {}).get(getattr(self, 'active', None)))
+        flags.update(topics_button=forum and not demo, discussion_button=linked and not demo)
         for name, visible in flags.items():
             widget = getattr(self, name, None)
             if widget is None or not widget.winfo_exists():
@@ -333,6 +336,9 @@ class DesktopActions(DesktopAdvancedMixin, DesktopProfile, DesktopTools):
                 if not chat_capabilities(self,chat.id,chat=chat).writable:return
                 if not messagebox.askyesno(tr('Forward message'), tr('Forward to {name}?').format(name=chat.name), parent=target): return
                 if account!=self.ui_account or backend is not self.service.backend:return
+                # 3.3: a forum asks which topic receives the message.
+                from .desktop_forums import forward_to
+                if forward_to(self, account, backend, chat, peer, [message.id], lambda _: target.destroy() if target.winfo_exists() else None): return
                 self.call(backend.forward_message(peer,message.id,chat.id),lambda _:target.destroy(),tr('Enviando...'))
             ttk.Button(body,text=tr('Enviar >'),command=send).pack(fill='x',pady=8)
         def edit():
@@ -528,6 +534,15 @@ class DesktopActions(DesktopAdvancedMixin, DesktopProfile, DesktopTools):
             button.pack(side='left', padx=2)
             setattr(self, name, button)
             self.action_buttons[title] = button
+        # 3.3: forum topics and a channel's linked discussion group.
+        from .desktop_forums import open_topics, open_discussion
+        from .interface_layout import caption
+        self.topics_button = ttk.Button(row, text='# ' + caption('Topics', 'Temas'), command=lambda: open_topics(self))
+        self.topics_button.pack(side='left', padx=2)
+        self.action_buttons['Topics'] = self.topics_button
+        self.discussion_button = ttk.Button(row, text='💬 ' + caption('Discussion', 'Debate'), command=lambda: open_discussion(self))
+        self.discussion_button.pack(side='left', padx=2)
+        self.action_buttons['Discussion'] = self.discussion_button
         secret_btn = ttk.Button(row, text='🔒 ' + tr('Clave / TTL'), command=self.secret_chat_dialog)
         secret_btn.pack(side='left', padx=2)
         self.secret_chat_button = secret_btn

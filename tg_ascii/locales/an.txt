@@ -664,3 +664,13 @@
 663|{count} votos
 664|{field}: emplega entre 1 y {maximum} caracters.
 665|{title}\nDestinatario: {recipient}\nTotal: {amount} Telegram Stars\n\nConfirmar ista compra?
+666|Tría un grupo con temas.
+667|L’emoji no ye valido.
+668|A busca no ye valida.
+669|Iste tema ya no ye disponible.
+670|A color d’o tema no ye valida.
+671|Os achustes d’o tema no son validos.
+672|Telegram no ha tornau o tema nuevo. Esviella a lista de temas.
+673|Convierte iste grupo en un supergrupo pa activar os temas.
+674|Torna a ubrir o grupo pa comprebar os achustes d’os temas.
+675|A clamada contina en segundo plano.
