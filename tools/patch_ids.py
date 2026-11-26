@@ -440,7 +440,10 @@ if platform == 'android':
             text = text.replace('</application>', '    <activity android:name="org.tgas.qr.QrCaptureActivity"'
                                 ' android:exported="false" android:screenOrientation="fullSensor"'
                                 ' android:theme="@style/zxing_CaptureTheme" />\n    </application>', 1)
-    manifest.write_text(android_backup_rules(text, manifest.parent / 'res'))
+    from android.keyboard_insets import main_activity as keyboard_activity, manifest as keyboard_manifest
+    activity = manifest.parent / 'java/org/beeware/android/MainActivity.java'
+    activity.write_text(keyboard_activity(activity.read_text()))
+    manifest.write_text(android_backup_rules(keyboard_manifest(text), manifest.parent / 'res'))
     import shutil
     res = build / 'android' / 'gradle' / 'app' / 'src' / 'main' / 'res'
     if not WATCH:
