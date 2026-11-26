@@ -7,8 +7,10 @@ from add_watch_target import IOS_TARGET, add_to_list, add_to_section
 
 
 def configure_glass(xcode):
-    source = Path(__file__).parent / 'ios' / 'TGNativeGlass.swift'
-    shutil.copyfile(source, xcode / 'TGASCII' / source.name)
+    source_names = ('TGNativeGlass.swift', 'TGNativeGeometry.swift', 'TGNativeViewport.swift', 'TGNativeDialogs.swift')
+    for name in source_names:
+        source = Path(__file__).parent / 'ios' / name
+        shutil.copyfile(source, xcode / 'TGASCII' / source.name)
     project = xcode / 'TG-ASCII.xcodeproj' / 'project.pbxproj'
     prefix = '34A61A55'
     text = '\n'.join(line for line in project.read_text().split('\n') if prefix not in line)
@@ -16,11 +18,17 @@ def configure_glass(xcode):
     def uid(number):
         return f'{prefix}{number:016X}'
 
-    for section, number, fields in (
-        ('PBXFileReference', 1, 'lastKnownFileType = sourcecode.swift; path = TGASCII/TGNativeGlass.swift; sourceTree = SOURCE_ROOT;'),
-        ('PBXBuildFile', 2, f'fileRef = {uid(1)};'),
-    ):
-        text = add_to_section(text, section, f'\t\t{uid(number)} /* Native Glass */ = {{isa = {section}; {fields} }};\n')
+    builds = []
+    for index, name in enumerate(source_names):
+        # ID 3 belonged to an obsolete second Sources phase: never reuse it.
+        file_id = 1 if index == 0 else 2 * index + 2
+        build_id = file_id + 1
+        builds.append(build_id)
+        for section, number, fields in (
+            ('PBXFileReference', file_id, f'lastKnownFileType = sourcecode.swift; path = TGASCII/{name}; sourceTree = SOURCE_ROOT;'),
+            ('PBXBuildFile', build_id, f'fileRef = {uid(file_id)};'),
+        ):
+            text = add_to_section(text, section, f'\t\t{uid(number)} /* {name} */ = {{isa = {section}; {fields} }};\n')
     target = re.search(rf'\n\t\t{IOS_TARGET} /\*.*?\*/ = \{{(.*?)\n\t\t\}};', text, re.S)
     if not target:
         raise ValueError('Missing phone target')
@@ -34,7 +42,8 @@ def configure_glass(xcode):
             sources.append(phase)
     if len(sources) != 1:
         raise ValueError('Phone target must have one Sources phase')
-    text = add_to_list(text, sources[0], 'files', uid(2))
+    for build in builds:
+        text = add_to_list(text, sources[0], 'files', uid(build))
     config_list = re.search(r'buildConfigurationList = ([A-F0-9]{24})', target[1])[1]
     configs = re.search(rf'\n\t\t{config_list} /\*.*?\*/ = \{{(.*?)\n\t\t\}};', text, re.S)
     if not configs:

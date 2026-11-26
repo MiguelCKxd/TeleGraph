@@ -57,7 +57,13 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
       return tile;
     });
     reconcile(strip, controls);
-    if (center) tiles.get(current.id)?.scrollIntoView({inline: 'center', block: 'nearest', behavior: 'instant'});
+    if (center) {
+      const tile = tiles.get(current.id);
+      if (tile) {
+        const item = tile.getBoundingClientRect(), rail = strip.getBoundingClientRect();
+        strip.scrollLeft += item.left - rail.left - (rail.width - item.width) / 2;
+      }
+    }
   }
   function fetchPage() {
     if (!pending) {

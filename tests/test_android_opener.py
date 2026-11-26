@@ -37,8 +37,13 @@ class AndroidOpenerTests(IsolatedAsyncioTestCase):
             def createChooser(intent, title):
                 return intent
 
+        class Integer(int):
+            pass
+
         class Values(dict):
             def put(self, key, value):
+                if type(value) is int:
+                    raise TypeError('ContentValues.put is ambiguous for arguments (str, int)')
                 self[key] = value
 
         class Stream:
@@ -76,6 +81,7 @@ class AndroidOpenerTests(IsolatedAsyncioTestCase):
             'android.net': dict(Uri=SimpleNamespace(parse=lambda uri: uri)),
             'android.os': dict(Build=SimpleNamespace(VERSION=SimpleNamespace(SDK_INT=35))),
             'java.io': dict(File=lambda path: path),
+            'java.lang': dict(Integer=Integer),
             'androidx.core.content': dict(FileProvider=SimpleNamespace(getUriForFile=lambda *args: args[-1])),
             'android.provider': dict(MediaStore=SimpleNamespace(
                 MediaColumns=SimpleNamespace(DISPLAY_NAME='name', MIME_TYPE='mime', RELATIVE_PATH='path', IS_PENDING='pending'),
