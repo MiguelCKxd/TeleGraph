@@ -14,7 +14,7 @@ CUSTOMIZATION_PREFS = ('reduce_animations', 'bubble_radius', 'button_radius', 'm
                        *EFFECT_DEFAULTS)
 APPEARANCE_LOOK = ('font', 'layout', 'side_width', 'windows', 'presentation')
 CUSTOMIZATION_LOOK = ('background', 'dim', 'chats', 'chat_sync', 'background_sync', 'effects',
-                       'icon', 'brand_logo', 'brand_photo', 'official_logo')
+                       'icon', 'brand_logo', 'brand_photo', 'official_logo', 'native_dialogs')
 
 
 async def reset_settings(core, scope, account):

@@ -1,9 +1,12 @@
 {
-  "version": "3.4.0",
+  "version": "3.4.1",
+  "status": "candidate-held-pending-physical-push-validation",
+  "published": false,
+  "push_closed_app_verified": false,
   "sources": {
-    "desktop": "2a672f6dac6915083f9081e844f2b0c1478649c7",
-    "linux": "7a8d154ee39aa3f01b7a25dc2215c1d130998ae7",
-    "android-wear": "fa1df967e64c1a8399bbdfbfa50f3ca8147a3644",
-    "apple": "6524fd8bafea29a276c825bbe915758d3ec1d463"
+    "desktop": "1cd6c891cd9f70389aede8d3374ed494938284b6",
+    "linux": "b1ac4f5b749c6f19cc69304eb0ec8efa1fb5e27e",
+    "android-wear": "dcc5b1d3a1b5d0f901c91b731c0059ebc2a39eff",
+    "apple": "e3dd2e7826514e7c0d4e56f7bacb439c2e7f20eb"
   }
 }

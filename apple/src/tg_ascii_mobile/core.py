@@ -26,6 +26,8 @@ from tg_ascii.media_cache import has_expiry
 
 from .siri_vocabulary import SiriVocabulary, suspend_vocabulary
 from .gallery import ProfileGallery
+from .download_manager import MobileDownloads
+from . import native_dialogs
 from .stories import MobileStories
 from .wallpapers import ChatWallpapers
 from .native_logos import NAMES, NATIVE_LOGOS
@@ -154,7 +156,7 @@ def _safe_mimetypes():
 from .forums import MobileForums
 
 
-class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
+class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
     def __init__(self, data_dir, system, locale=''):
         self.root = Path(data_dir)
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -205,7 +207,10 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         self._push_retry_native = False
         self._push_stopped = False
         self._push_generation = 0
-        self._push_status = {'state': 'waiting', 'provider': None, 'error': None}
+        # Per account: (client, period, generation, code) of a failed UpdateDeviceLocked
+        # whose registration was still accepted (previews allowed). Diagnostic only.
+        self._push_privacy_warnings = {}
+        self._push_status = {'state': 'waiting', 'provider': None, 'phase': None, 'error': None}
         self._push_permission = 'unknown'
         self.native_push_retry = None
         self.native_incoming_call = None
@@ -452,9 +457,12 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         self.stage = 'loading'
         self._push_stopped = True
         self._push_generation = getattr(self, '_push_generation', 0) + 1
+        self._push_privacy_warnings = {}
         if getattr(self, '_push_check', None) is not None:
             self._push_check.cancel()
             self._push_check = None
+        native_dialogs.cancel(self)
+        await self.close_downloads()
         await self.close_media_requests()
         if self.outbox is not None:
             self.outbox.app.closed = True
@@ -1693,6 +1701,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
         shutil.rmtree(self.root / 'secret-previews', ignore_errors=True)
         shutil.rmtree(self.root / 'secret-exports', ignore_errors=True)
+        shutil.rmtree(self.root / 'mobile-downloads', ignore_errors=True)
         # A process killed while serving a temporary attachment has no reader
         # left; never resurrect that response's private files on the next boot.
         shutil.rmtree(self.root / 'temporary-media', ignore_errors=True)
@@ -3545,6 +3554,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         if self.lock_record() is not None and not self.locked:
             self.disconnect_tv()
             self.locked = True
+            native_dialogs.cancel(self)
+            self.loop.create_task(self.close_downloads())
             self.loop.create_task(self.close_media_requests())
             if getattr(self, 'call_pip', None):
                 self.call_pip.close()
@@ -3871,7 +3882,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                   'layout': 'auto', 'side_width': 0, 'windows': [], 'watch_own': False,
                   'swipe_right': 'read', 'swipe_left': 'menu',
                   'keep_connected': False, 'background_sync': False, 'chat_sync': {}, 'effects': {},
-                  'brand_logo': {}, 'brand_photo': '', 'official_logo': '', 'presentation': {}}
+                  'brand_logo': {}, 'brand_photo': '', 'official_logo': '', 'presentation': {},
+                  'native_dialogs': False}
     LAYOUTS = ('auto', 'single', 'double')
     ICONS = tuple(NATIVE_LOGOS)
     FONTS = ('', 'courier', 'sans', 'serif', 'system', 'rounded', 'humanist', 'classic', 'book', 'mono', 'sf',
@@ -3973,27 +3985,12 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
         return await asyncio.to_thread(brand_asset_path, self.root / 'mobile', variant, theme, color, size=1024)
 
     def official_logo_file(self, key):
-        source, _, name = str(key).partition('/')
-        prefix = 'official-telegram-' if source == 'Telegram' else 'mobile-'
-        if source not in ('Telegram', 'Android', 'iOS') or Path(name).name != name:
-            return None
-        if not name.startswith(prefix) or not name.endswith('.png'):
-            return None
-        folder = (self.root / 'mobile' / 'official-icons' / source).resolve()
-        path = (folder / name).resolve()
-        return path if path.parent == folder and path.is_file() else None
+        """Official Telegram artwork is not offered (Telegram API terms 2.4).
 
-    async def api_official_logos(self, source):
-        folder = self.root / 'mobile' / 'official-icons'
-        if source == 'Telegram':
-            from tg_ascii.official_icons import load_collection
-            choices = await asyncio.to_thread(load_collection, folder / source)
-        elif source in ('Android', 'iOS'):
-            from tg_ascii.mobile_icons import load_mobile_icons
-            choices = await asyncio.to_thread(load_mobile_icons, source, folder)
-        else:
-            raise ValueError('Invalid logo source.')
-        return [{'label': label, 'key': source + '/' + path.name} for label, path in choices]
+        Kept as a None-returning hook so a selection saved by an earlier
+        version falls back to TeleGraph's own logo everywhere it is read.
+        """
+        return None
 
     def logo_photo_file(self, name):
         import re
@@ -4020,6 +4017,12 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             if name is not None and not saved:
                 (folder / name).unlink(missing_ok=True)
 
+    async def api_native_dialog(self, request, account):
+        return await native_dialogs.request(self, request, account)
+
+    async def api_native_dialog_cancel(self, request_id, account):
+        return native_dialogs.cancel(self, request_id, account)
+
     async def api_appearance(self, values=None, account=None):
         current = self.appearance()
         if values:
@@ -4029,10 +4032,9 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                     logo = current['brand_logo']
                     values = {**values, 'icon': NAMES[logo['variant'], logo['theme'], logo['color']]}
             if 'official_logo' in values:
-                logo = values['official_logo']
-                if not isinstance(logo, str) or (logo and self.official_logo_file(logo) is None):
+                if values['official_logo'] != '':
                     raise ValueError('Invalid official logo.')
-                current.update(official_logo=logo, brand_photo='')
+                current['official_logo'] = ''
             if values.get('brand_photo') == '':
                 current['brand_photo'] = ''
             if 'dim' in values:
@@ -4044,6 +4046,10 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 current['font'] = values['font']
             if 'watch_own' in values:
                 current['watch_own'] = bool(values['watch_own'])
+            if type(values.get('native_dialogs')) is bool:
+                current['native_dialogs'] = values['native_dialogs']
+                if not current['native_dialogs']:
+                    native_dialogs.cancel(self)
             if 'keep_connected' in values:
                 current['keep_connected'] = bool(values['keep_connected'])
                 if current['keep_connected'] and self.native_battery_exemption is not None:
@@ -5811,6 +5817,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     @suspend_vocabulary
     async def api_account_select(self, key):
+        native_dialogs.cancel(self)
         await self.close_media_requests()
         await self.cancel_current_voice()
         await self.save_snapshot()
@@ -5822,6 +5829,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     @suspend_vocabulary
     async def api_account_add(self):
+        native_dialogs.cancel(self)
         await self.close_media_requests()
         self.disconnect_tv()
         await self.cancel_current_voice()
@@ -5837,6 +5845,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
 
     @suspend_vocabulary
     async def api_logout(self, key):
+        native_dialogs.cancel(self, account=key)
+        await self.close_downloads(key)
         self.disconnect_tv()
         if key == self.account:
             await self.cancel_current_voice()
@@ -5917,7 +5927,8 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             if self._push_stopped:
                 return
             self._push_retry_native = False
-            self._push_status = {'state': 'registering', 'provider': 'APNs' if token_type == 1 else 'FCM', 'error': None}
+            self._push_status = {'state': 'registering', 'provider': 'APNs' if token_type == 1 else 'FCM',
+                                 'phase': 'telegram', 'error': None}
             self.schedule_push_check(0)
         self.loop.call_soon_threadsafe(accepted)
 
@@ -5938,14 +5949,46 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 self.native_push_retry()
         self._push_check = self.loop.call_later(max(0, delay), run)
 
-    def native_push_failed(self, provider, code, retry=True, native=False):
+    @staticmethod
+    def push_error_code(error):
+        """Only fixed categories cross the UI bridge; RPC messages can contain secrets."""
+        import re
+        from telethon.errors import RPCError
+        # Literal codes confirmed by Telegram's registerDevice reference,
+        # Telegram-iOS RegisterNotificationToken.swift and tdlib/td#1948.
+        # Unknown Telethon errors otherwise collapse to BadRequestError/RPCError.
+        rpc_codes = {'APP_PUSH_APIKEY_MISSING', 'TOKEN_EMPTY', 'TOKEN_INVALID',
+                     'TOKEN_TYPE_INVALID', 'TOKEN_WAS_INVALIDATED'}
+        if isinstance(error, RPCError):
+            message = error.message
+            if type(message) is str and message in rpc_codes:
+                return message  # Exact equality only; never expose surrounding text.
+        code = type(error).__name__ if isinstance(error, BaseException) else error
+        allowed = {'permission_denied', 'permission_not_requested', 'permission_query_failed',
+                   'privacy_registration', 'registration_rejected', 'registration_error',
+                   'TimeoutError', 'OSError', 'ConnectionError', 'ConnectionResetError',
+                   'ConnectionAbortedError', 'BrokenPipeError', 'TypeError', 'ValueError',
+                   'RuntimeError', 'RPCError', 'BadRequestError', 'ServerError', 'RpcCallFailError',
+                   'FloodWaitError', 'FloodPremiumWaitError', 'TokenInvalidError',
+                   'TokenEmptyError', 'TokenTypeInvalidError', 'TokenWasInvalidatedError',
+                   'AppPushApiKeyMissingError', 'AuthKeyUnregisteredError',
+                   'AuthKeyInvalidError', 'AuthKeyDuplicatedError', 'SessionRevokedError', 'SessionExpiredError'}
+        if isinstance(code, str) and (code in allowed or code in rpc_codes or re.fullmatch(r'APNs_-?\d{1,10}', code)):
+            return code
+        return 'registration_error'
+
+    def native_push_failed(self, provider, code, retry=True, native=False, *, phase=None):
         """Only fixed/numeric error codes, never provider payloads or tokens."""
         if self._push_stopped:
             return
+        code = self.push_error_code(code)
         if code in ('permission_denied', 'permission_not_requested'):
             self._push_permission = 'denied' if code == 'permission_denied' else 'not_requested'
-        self._push_status = {'state': 'retrying' if retry else 'unavailable', 'provider': provider,
-                             'error': str(code)[:80]}
+        if phase not in {'permission', 'native', 'privacy', 'telegram'}:
+            phase = 'permission' if code.startswith('permission_') else 'native' if native else 'telegram'
+        self._push_status = {'state': 'retrying' if retry else 'unavailable',
+                             'provider': provider if provider in {'APNs', 'FCM'} else None,
+                             'phase': phase, 'error': code}
         self._push_retry_native = native
         if retry:
             self.schedule_push_check(self._push_retry_delay)
@@ -5955,10 +5998,26 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             self._push_check = None
 
     async def api_notification_status(self):
+        clients = self.push_clients()
+        token = getattr(self, '_push_token', None)
+        registered = sum(self._push_registered.get(key) == (client, token, self.push_other_users(key, clients))
+                         for key, client in clients.items()) if token else 0
         return {**self._push_status, 'permission': self._push_permission,
-                'token_received': bool(getattr(self, '_push_token', None)),
-                'registered_accounts': len(self._push_registered), 'connected_accounts': len(self.push_clients()),
-                'sandbox': bool(getattr(self, '_push_token', (None, None, False))[2])}
+                'token_received': bool(token), 'registered_accounts': registered,
+                'connected_accounts': len(clients), 'pending_accounts': len(clients) - registered,
+                'sandbox': bool(token[2]) if token else False,
+                **self.push_privacy_warning(clients)}
+
+    PUSH_PRIVACY_RETRY = 300  # seconds; a failed privacy update is retried without re-registering
+
+    def push_privacy_warning(self, clients):
+        """Current warnings only: same live client and generation; fixed codes only."""
+        warnings = [code for key, (client, _period, generation, code)
+                    in getattr(self, '_push_privacy_warnings', {}).items()
+                    if clients.get(key) is client and generation == self._push_generation]
+        enabled = not (self.prefs and not self.prefs.values.get('notifications', True))
+        return {'privacy_warning': (warnings[0] if warnings else None) if enabled else None,
+                'privacy_warning_accounts': len(warnings) if enabled else 0}
 
     async def connect_saved_push_account(self, key):
         """Attach a known saved session while keeping the start-up chooser open."""
@@ -6099,9 +6158,14 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
             token_type, token, sandbox = info
             live = self.push_clients()
             failure = None
+            failure_phase = None
             now = time.monotonic()
             for key in set(self._push_registered_at) - live.keys():
                 self._push_registered_at.pop(key, None)
+            warnings = self._push_privacy_warnings
+            for key, (client, _period, warned_generation, _code) in tuple(warnings.items()):
+                if live.get(key) is not client or warned_generation != generation:
+                    warnings.pop(key, None)
             for key, client in live.items():
                 if self._push_token != info or self.push_clients().get(key) is not client:
                     continue
@@ -6109,6 +6173,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 registration = (client, info, others)
                 previous = self._push_registered.get(key)
                 if self.prefs and not self.prefs.values.get('notifications', True):
+                    warnings.pop(key, None)
                     if await self.remove_push_registration(previous or registration, ()):
                         if not current():
                             return
@@ -6117,16 +6182,24 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                 if token_type == 1 and self.prefs:
                     period = 0 if self.lock_record() or not self.prefs.values.get('notify_preview', True) else -1
                     if self._push_privacy.get(key) != (client, period):
+                        privacy_error = 'privacy_registration'
                         try:
                             updated = await asyncio.wait_for(client(functions.account.UpdateDeviceLockedRequest(period)), 8)
-                        except Exception:
+                        except Exception as error:
                             updated = False
+                            privacy_error = self.push_error_code(error)
                         if not current():
                             return
+                        warnings.pop(key, None)
                         if updated:
                             self._push_privacy[key] = (client, period)
+                        elif period == 0:
+                            failure, failure_phase = privacy_error, 'privacy'
                         else:
-                            failure = 'privacy_registration'
+                            # Previews allowed: this request hides nothing, so its failure
+                            # must not deny an accepted registerDevice. Kept as a warning and
+                            # retried at PUSH_PRIVACY_RETRY; the protected branch is unchanged.
+                            warnings[key] = (client, period, generation, privacy_error)
                         if not updated and period == 0:
                             # Retry on reconnect before enabling previews on a protected device.
                             if await self.remove_push_registration(previous or registration, ()):
@@ -6151,22 +6224,27 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
                         self._push_registered[key] = registration
                         self._push_registered_at[key] = time.monotonic()
                     else:
-                        failure = 'registration_rejected'
+                        failure, failure_phase = 'registration_rejected', 'telegram'
                 except Exception as error:
-                    failure = type(error).__name__
+                    failure, failure_phase = self.push_error_code(error), 'telegram'
             if not current():
                 return
             if self.prefs and not self.prefs.values.get('notifications', True):
+                warnings.clear()
                 if self._push_check is not None:
                     self._push_check.cancel()
                     self._push_check = None
-                self._push_status = {'state': 'disabled', 'provider': 'APNs' if token_type == 1 else 'FCM', 'error': None}
+                self._push_status = {'state': 'disabled', 'provider': 'APNs' if token_type == 1 else 'FCM',
+                                     'phase': None, 'error': None}
             elif failure:
-                self.native_push_failed('APNs' if token_type == 1 else 'FCM', failure)
+                self.native_push_failed('APNs' if token_type == 1 else 'FCM', failure, phase=failure_phase)
             elif live:
                 self._push_retry_delay = 5
-                self._push_status = {'state': 'registered', 'provider': 'APNs' if token_type == 1 else 'FCM', 'error': None}
-                self.schedule_push_check(min(max(1, 23 * 3600 - (time.monotonic() - self._push_registered_at.get(key, 0))) for key in live))
+                self._push_status = {'state': 'registered', 'provider': 'APNs' if token_type == 1 else 'FCM',
+                                     'phase': None, 'error': None}
+                renewal = min(max(1, 23 * 3600 - (time.monotonic() - self._push_registered_at.get(key, 0))) for key in live)
+                # A pending privacy warning must not wait for the 23 h renewal.
+                self.schedule_push_check(min(renewal, self.PUSH_PRIVACY_RETRY) if warnings else renewal)
 
     @staticmethod
     async def remove_push_registration(registration, others):
@@ -6182,6 +6260,7 @@ class Core(MobileStories, ChatWallpapers, ProfileGallery, MobileForums):
     async def unregister_push_account(self, key):
         async with self._push_gate:
             self._push_privacy.pop(key, None)
+            self._push_privacy_warnings.pop(key, None)
             registration = self._push_registered.pop(key, None)
             if registration:
                 await self.remove_push_registration(registration, self.push_other_users(key, self.push_clients()))

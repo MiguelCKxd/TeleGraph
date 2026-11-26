@@ -9,7 +9,7 @@ import tempfile
 from telethon import functions, types, utils
 from .auth import normalize_phone
 from .i18n import tr
-from .transfers import transfer_timeout, tracked_transfer
+from .transfers import DownloadProgress, transfer_timeout, tracked_transfer
 
 DOWNLOAD_IDLE_TIMEOUT=60
 DOWNLOAD_CONCURRENCY=4
@@ -265,13 +265,43 @@ class TelegramFeatures(ProfileDetails, FolderFeatures):
 
     @tracked_transfer
     async def download_media(self, media, destination, progress=None, thumbnail=False, *, quality='original'):
+        """Download atomically; progress is absolute bytes for the current attempt.
+
+        Cancellation removes this attempt's partial file. A retry starts at
+        zero; no byte-range resumption is implied by this API.
+        """
         if quality not in ('original', 'display'):raise ValueError('Unknown media quality')
         from .secret_chats import SecretMedia
-        if isinstance(media, SecretMedia) and hasattr(self, 'secret_chats'):
-            async with transfer_timeout(progress, DOWNLOAD_IDLE_TIMEOUT) as report:
-                return await self.secret_chats.download_media(media, destination, progress=report, thumbnail=thumbnail)
         target = Path(destination)
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        slots=getattr(self,'_download_slots',None)
+        if slots is None:slots=self._download_slots=asyncio.Semaphore(__import__('tg_ascii.resources',fromlist=['x']).network_slots(DOWNLOAD_CONCURRENCY))
+        progress_state = DownloadProgress(progress)
+        if isinstance(media, SecretMedia) and hasattr(self, 'secret_chats'):
+            # The existing secret-media cipher processes one complete file in
+            # memory. Bound that cost separately instead of allowing every
+            # visible attachment to allocate another full plaintext/ciphertext.
+            secret_slots=getattr(self,'_secret_download_slots',None)
+            if secret_slots is None:secret_slots=self._secret_download_slots=asyncio.Semaphore(1)
+            async with secret_slots, slots:
+                fd, temporary = tempfile.mkstemp(prefix='.tg-download-', suffix=target.suffix, dir=target.parent)
+                os.close(fd)
+                try:
+                    async with transfer_timeout(progress_state.report, DOWNLOAD_IDLE_TIMEOUT) as report:
+                        async def secret_progress(current, total):
+                            # Encrypted transport padding is not part of the
+                            # user-visible file. Preserve unknown totals.
+                            size = media.size if not thumbnail and media.size > 0 else total
+                            await report(min(current, size) if size else current, size)
+                        result = await self.secret_chats.download_media(media, temporary, progress=secret_progress, thumbnail=thumbnail)
+                    if result is None:
+                        return None
+                    size = Path(temporary).stat().st_size
+                    await progress_state.report(size, size)
+                    os.replace(temporary, target)
+                    return str(target)
+                finally:
+                    Path(temporary).unlink(missing_ok=True)
         thumb=None
         if not thumbnail and quality=='display':
             from .media_quality import photo_variant
@@ -310,21 +340,22 @@ class TelegramFeatures(ProfileDetails, FolderFeatures):
             cache_entry=media_cache.preview_entry(self,media,thumb,target.suffix)
             if cache_entry is not None and await asyncio.to_thread(media_cache.fetch,cache_entry,target):
                 return target
-        slots=getattr(self,'_download_slots',None)
-        if slots is None:slots=self._download_slots=asyncio.Semaphore(__import__('tg_ascii.resources',fromlist=['x']).network_slots(DOWNLOAD_CONCURRENCY))
         async def attempt():
             # A FLOOD_WAIT is waited out *outside* the slot, so other
             # accounts/categories keep their concurrency meanwhile.
             nonlocal target
             async with slots:
+                await progress_state.restart()
                 fd,temporary=tempfile.mkstemp(prefix='.tg-download-',suffix=target.suffix,dir=target.parent)
                 try:
                     with os.fdopen(fd,'wb') as stream:
                         # Timeout only when no bytes arrive. A large, active transfer
                         # may legitimately take much longer than a small RPC.
-                        async with transfer_timeout(progress,DOWNLOAD_IDLE_TIMEOUT) as report:
+                        async with transfer_timeout(progress_state.report,DOWNLOAD_IDLE_TIMEOUT) as report:
+                            async def written_progress(_current,total):
+                                await report(stream.tell(),total)
                             result=await self.client.download_media(media,file=stream,
-                                progress_callback=report,thumb=thumb)
+                                progress_callback=written_progress,thumb=thumb)
                         if result is None:
                             raise ValueError(tr('No hay vista previa disponible. Puedes guardar el archivo.'))
                         source=getattr(media,'media',None) or media
@@ -334,6 +365,7 @@ class TelegramFeatures(ProfileDetails, FolderFeatures):
                         # downloader; never publish that incomplete replacement.
                         if thumb is None and isinstance(document,types.Document) and stream.tell()!=document.size:
                             raise OSError('Incomplete Telegram document download')
+                        await progress_state.report(stream.tell(),stream.tell())
                     # Keep the previous file intact on cancellation, disconnection or
                     # disk error; consumers never observe a half-downloaded cache file.
                     if inferred_extension:

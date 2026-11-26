@@ -25,25 +25,28 @@ private struct GlassControl: Identifiable, Equatable {
     let family: String
     let radius: Double
     let color: String
+    let selected: Bool
+    let showsText: Bool
 
-    init?(_ data: [String: Any], bounds: CGRect) {
+    init?(_ data: [String: Any], viewport: TGNativeViewportGeometry) {
         guard let id = data["id"] as? Int, id > 0,
               let x = data["x"] as? Double, let y = data["y"] as? Double,
               let w = data["width"] as? Double, let h = data["height"] as? Double,
               [x, y, w, h].allSatisfy({ $0.isFinite }), w >= 28, h >= 28,
               let label = data["label"] as? String, !label.isEmpty, label.count <= 160 else { return nil }
-        let rect = CGRect(x: x, y: y, width: w, height: h)
-        guard bounds.insetBy(dx: -1, dy: -1).contains(rect) else { return nil }
+        guard let rect = viewport.rect(x: x, y: y, width: w, height: h) else { return nil }
         self.id = id; self.rect = rect; self.label = label
         text = String((data["text"] as? String ?? "").prefix(40))
         symbol = String((data["symbol"] as? String ?? "").prefix(40))
         disabled = data["disabled"] as? Bool ?? false
         let font = data["font"] as? Double ?? 17
-        fontSize = font.isFinite ? min(96, max(12, font)) : 17
+        fontSize = (font.isFinite ? min(96, max(12, font)) : 17) * viewport.scale
         family = String((data["family"] as? String ?? "").prefix(80))
         let rounding = data["radius"] as? Double ?? 0
-        radius = rounding.isFinite ? min(100, max(0, rounding)) : 0
+        radius = (rounding.isFinite ? min(100, max(0, rounding)) : 0) * viewport.scale
         color = data["color"] as? String ?? ""
+        selected = data["selected"] as? Bool ?? false
+        showsText = data["showsText"] as? Bool ?? false
     }
 
     var typeface: Font {
@@ -58,8 +61,9 @@ private struct GlassControl: Identifiable, Equatable {
     var foreground: Color {
         let values = color.replacingOccurrences(of: "rgba(", with: "").replacingOccurrences(of: "rgb(", with: "")
             .replacingOccurrences(of: ")", with: "").split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
-        guard values.count >= 3 else { return .primary }
-        return Color(red: values[0] / 255, green: values[1] / 255, blue: values[2] / 255)
+        guard values.count >= 3, values.prefix(3).allSatisfy({ $0.isFinite }) else { return .primary }
+        return Color(red: min(255, max(0, values[0])) / 255,
+                     green: min(255, max(0, values[1])) / 255, blue: min(255, max(0, values[2])) / 255)
     }
 }
 
@@ -86,7 +90,12 @@ private struct GlassControlsView: View {
                     Button { activate(control.id, revision, session) } label: {
                         Group {
                             if control.symbol.isEmpty { Text(control.text.isEmpty ? control.label : control.text) }
-                            else { Image(systemName: control.symbol).accessibilityHidden(true) }
+                            else if control.showsText {
+                                VStack(spacing: 3) {
+                                    Image(systemName: control.symbol).accessibilityHidden(true)
+                                    Text(control.text.isEmpty ? control.label : control.text).lineLimit(1)
+                                }
+                            } else { Image(systemName: control.symbol).accessibilityHidden(true) }
                         }
                         .font(control.typeface)
                         .foregroundStyle(control.foreground)
@@ -98,6 +107,7 @@ private struct GlassControlsView: View {
                                  in: RoundedRectangle(cornerRadius: control.radius))
                     .disabled(control.disabled)
                     .accessibilityLabel(control.label)
+                    .accessibilityAddTraits(control.selected ? .isSelected : [])
                     .offset(x: control.rect.minX, y: control.rect.minY)
                 }
             }
@@ -200,7 +210,11 @@ private final class GlassCoordinator: NSObject, WKScriptMessageHandler {
               webView.window?.windowScene?.activationState == .foregroundActive, installOverlay() else {
             clear(); acknowledge(revision, ids: [], session: session); return
         }
-        let controls = (body["controls"] as? [[String: Any]] ?? []).prefix(24).compactMap { GlassControl($0, bounds: webView.bounds) }
+        guard let viewportData = body["viewport"] as? [String: Any],
+              let viewport = TGNativeViewportGeometry(viewportData, bounds: webView.bounds) else {
+            clear(); acknowledge(revision, ids: [], session: session); return
+        }
+        let controls = (body["controls"] as? [[String: Any]] ?? []).prefix(32).compactMap { GlassControl($0, viewport: viewport) }
         enabled = true
         model.revision = revision
         model.session = session

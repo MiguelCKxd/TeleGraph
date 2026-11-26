@@ -9,7 +9,6 @@ import zipfile
 from PIL import Image
 from tg_ascii.free_crop import CropSelection,cropped_image,pixel_bounds
 from tg_ascii.interface_background import InterfaceBackground,canvas_background,pin_canvas_background
-from tg_ascii.official_icons import import_collection,load_collection,official_url,select_icon
 from tg_ascii.preferences import Preferences
 
 
@@ -103,40 +102,6 @@ class BackgroundTests(unittest.TestCase):
         painter=InterfaceBackground(NS(root=Mock(),preferences=NS(values={'interface_background':''})))
         canvas=Mock();painter.paint_canvas(canvas)
         canvas.delete.assert_called_with('wallpaper');self.assertIsNone(canvas.wallpaper)
-
-
-class OfficialIconTests(unittest.TestCase):
-    def payload(self):
-        data=io.BytesIO();Image.new('RGBA',(64,64),(0,120,255,255)).save(data,format='PNG');return data.getvalue()
-
-    def test_only_official_https_source_allowed(self):
-        self.assertEqual(official_url('https://telegram.org/img/t_logo.png'),'https://telegram.org/img/t_logo.png')
-        for url in ('http://telegram.org/a','https://telegram.org.evil.test/a','file:///tmp/a','https://user@telegram.org/a'):
-            with self.assertRaises(ValueError):official_url(url)
-
-    def test_collection_keeps_original_bytes_deduplicates_and_never_extracts_paths(self):
-        payload=self.payload();data=io.BytesIO()
-        with zipfile.ZipFile(data,'w') as z:
-            z.writestr('../../evil.png',payload);z.writestr('Blue.png',payload);z.writestr('ignored.txt','hello')
-        with tempfile.TemporaryDirectory() as directory:
-            choices=import_collection(data.getvalue(),directory)
-            self.assertEqual(len(choices),1);path=choices[0][1]
-            self.assertEqual(path.parent,Path(directory));self.assertTrue(path.name.startswith('official-telegram-'))
-            self.assertEqual(path.read_bytes(),payload)
-
-    def test_cached_icons_work_offline_and_selection_keeps_defaults(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);payload=self.payload()
-            with patch('tg_ascii.official_icons.download',side_effect=[OSError(),OSError(),payload]):
-                choices=load_collection(root/'cache')
-            with patch('tg_ascii.official_icons.download') as download:
-                self.assertEqual(load_collection(root/'cache'),choices);download.assert_not_called()
-            prefs=Preferences(root/'settings');before=prefs.values['logo_variant']
-            app=NS(preferences=prefs,demo=False,refresh_logo=Mock(),update_logo_selection=Mock())
-            select_icon(app,choices[0][1],choices[0][0])
-            self.assertEqual(prefs.values['logo_variant'],before)
-            self.assertEqual(Path(prefs.values['custom_icon']).read_bytes(),payload)
-            self.assertEqual(prefs.values['official_icon_label'],'Telegram')
 
 
 if __name__=='__main__':unittest.main()

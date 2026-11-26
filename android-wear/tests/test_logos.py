@@ -141,14 +141,21 @@ class MobileLogoTests(IsolatedAsyncioTestCase):
         self.assertEqual(path, await self.core.brand_logo_file('telegraph-title', 'light', 'orange'))
         self.assertIsNone(await self.core.brand_logo_file('../other', 'light', 'orange'))
 
-    async def test_official_preview_only_accepts_files_in_its_catalogue(self):
+    async def test_official_telegram_artwork_is_not_offered(self):
+        # Telegram API terms 2.4: an unofficial client must not use the official logo.
         folder = self.core.root / 'mobile' / 'official-icons' / 'Telegram'
         folder.mkdir(parents=True)
         path = folder / 'official-telegram-sample.png'
-        path.touch()
-        self.assertEqual(self.core.official_logo_file('Telegram/' + path.name), path.resolve())
-        self.assertIsNone(self.core.official_logo_file('Telegram/../' + path.name))
-        self.assertIsNone(self.core.official_logo_file('Other/' + path.name))
+        path.touch()  # A cache left by an earlier version is never served.
+        self.assertIsNone(self.core.official_logo_file('Telegram/' + path.name))
+        self.assertFalse(hasattr(self.core, 'api_official_logos'))
+        with self.assertRaises(ValueError):
+            await self.core.api_appearance({'official_logo': 'Telegram/' + path.name})
+        self.assertEqual((await self.core.api_appearance({'official_logo': ''}))['official_logo'], '')
+
+    async def test_saved_official_logo_reverts_to_telegraph_logo(self):
+        self.core.save_appearance({**self.core.appearance(), 'official_logo': 'Android/mobile-0123456789abcdef01234567.png'})
+        self.assertEqual(self.core.appearance()['official_logo'], '')
 
     async def test_logo_photo_survives_unrelated_background_cleanup(self):
         from PIL import Image

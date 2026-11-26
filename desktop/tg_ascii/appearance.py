@@ -18,6 +18,10 @@ def app_palette(values):
         result.update(panel=blend(bg,fg,.05),selected=blend(bg,fg,.19),muted=blend(bg,fg,.70),line=blend(bg,fg,.30),strong=fg)
     if accent := values.get('accent_color'):
         result.update(strong=accent, selected=blend(result['bg'], accent, .35))
+    from .preferences import PALETTE_OVERRIDES
+    for key, role in PALETTE_OVERRIDES.items():
+        if color := values.get(key):
+            result[role] = color
     return result
 
 
@@ -123,6 +127,9 @@ def configure_effect_padding(root,style,values):
             'Treeview.Heading':'button','TEntry':'menu','TCombobox':'menu',
             'TSpinbox':'menu','TLabelframe':'menu'}
     if not hasattr(root,'_effect_original_padding'):root._effect_original_padding={}
+    x, y = values.get('button_padding_x', 7), values.get('button_padding_y', 4)
+    root._effect_original_padding['TButton'] = (x, y, x, y)
+    style.configure('TButton', padding=(x, y))
     for name,group in groups.items():
         border=values.get(f'{group}_border_width',0)
         shadow=values.get(f'{group}_shadow_size',0)

@@ -370,25 +370,20 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
         if self.demo:return
         account,backend=self.ui_account,self.service.backend
         peer=self.active if peer is None else peer
-        from .desktop_media_lifetime import export_blocked,source_message
+        from .desktop_media_lifetime import export_blocked
         if export_blocked(message,self,peer):
             self.show_error(PermissionError(tr('Protected content')))
             return
         target=self.preview_dir/f'{account}-{peer}-{message.id}-gallery.media'
-        async def fetch():
-            # Same private file as the in-app gallery, so both share downloads.
-            if target.is_file() and target.stat().st_size:return target
-            from telethon.errors import FileReferenceExpiredError,FileReferenceInvalidError,FileReferenceEmptyError
-            try:return await backend.download_media(message.media,target)
-            except (FileReferenceExpiredError,FileReferenceInvalidError,FileReferenceEmptyError):
-                media=await source_message(backend,peer,message.id)
-                if export_blocked(media,self,peer):raise PermissionError(tr('Protected content'))
-                return await backend.download_media(media,target)
         def loaded(path):
             from .native_open import open_with_system
             open_with_system(path,message.filename,on_error=self.native_open_failed)
             self.status.set(tr('Opened with the system viewer.'))
-        self.call(fetch(),loaded,tr('Downloading...'),timeout=300)
+        if target.is_file() and target.stat().st_size:
+            loaded(target)
+            return
+        from .desktop_downloads import enqueue
+        enqueue(self,message,peer,target,done=loaded)
 
     def link_inline_preview(self,mark):
         if getattr(self,'selection_kind',None)=='messages':return

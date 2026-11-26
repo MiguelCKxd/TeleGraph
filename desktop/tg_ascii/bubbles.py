@@ -269,7 +269,11 @@ class BubbleView(tk.Canvas):
         use_bubbles=self.app.preferences.values.get('bubbles',True)
         from .line_breaking import mode as line_mode, layout as break_layout
         break_mode=line_mode(self.app.preferences.values);break_language=self.app.preferences.values.get('language','en')
-        line=body.metrics('linespace')+3; width=max(120,self.winfo_width()); max_width=min(570,max(80,int(width*.76))) if use_bubbles else max(80,width-32); y=18
+        values = self.app.preferences.values
+        line=body.metrics('linespace')+3+values.get('message_line_spacing',0)
+        width=max(120,self.winfo_width())
+        max_width=min(width-32,values.get('bubble_width_limit',570),max(80,int(width*values.get('bubble_width_percent',76)/100))) if use_bubbles else max(80,width-32)
+        y=18
         context=(self.app.ui_account,self.app.active,width,tuple(sorted(self.app.preferences.values.items())),
                  tuple(sorted(c.items())),family,getattr(self.app,'selection_kind',None))
         if force or context!=getattr(self,'_render_context',None):
@@ -424,7 +428,7 @@ class BubbleView(tk.Canvas):
             if type(getattr(m,'reply_markup',None)).__name__=='ReplyInlineMarkup':
                 from .desktop_bot_buttons import paint_buttons
                 y=paint_buttons(self,self.app,m,x,y+4,bw,tag,self.interactive)
-            y+=14
+            y+=self.app.preferences.values.get('bubble_gap',14)
             self._nodes[m.id]={'signature':signature,'start':start,'height':y-start,
                               'bindings':self._bindings,'photos':[]}
         self._bindings=[binding for node in self._nodes.values() for binding in node['bindings']]

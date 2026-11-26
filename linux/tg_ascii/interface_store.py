@@ -8,7 +8,7 @@ import re
 import shutil
 import uuid
 
-from .preferences import MAX_SETTINGS_BYTES, read_json, write_json
+from .preferences import MAX_SETTINGS_BYTES, LAYOUT_RANGES, PALETTE_OVERRIDES, read_json, write_json
 from .contact_appearance import CONTACT_DEFAULTS
 
 SCHEMA = 1
@@ -20,6 +20,9 @@ APPEARANCE_KEYS = {
     'interface_background', 'animated_emoji', 'inline_media', 'photo_previews',
 }
 APPEARANCE_KEYS.update(CONTACT_DEFAULTS)
+APPEARANCE_KEYS.update(LAYOUT_RANGES)
+APPEARANCE_KEYS.update(PALETTE_OVERRIDES)
+APPEARANCE_KEYS.update(('bubble_in_color', 'bubble_out_color'))
 
 
 def write_layout(path, document):

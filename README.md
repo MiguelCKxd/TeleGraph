@@ -1,51 +1,59 @@
-# TeleGraph 3.4
+# TeleGraph 3.4.1 — candidato local
 
 TeleGraph es un cliente independiente de Telegram para ordenadores, teléfonos, tabletas y relojes. En Apple TV puedes leer las conversaciones que elijas compartir desde el iPhone.
 
-## Novedades de la 3.4
+**La 3.4.1 está retenida y no se ha publicado.** Falta confirmar la recepción real de notificaciones push con la aplicación cerrada en el iPhone. Las mejoras del registro y del diagnóstico no demuestran por sí solas que esa recepción funcione. La compilación iOS enviada para diagnóstico interno no se ofrece aquí como descarga ni como distribución externa. Este snapshot permite revisar y compilar las fuentes; no anuncia una versión lista para entregar.
 
-Compartido contigo permite ver fotos, vídeos o ambos y conserva ese filtro al recorrer la galería y cargar elementos anteriores. El visor reproduce vídeos por rangos, limita la memoria de sus cachés y cancela lecturas al cerrar. Si «Ir al mensaje» necesita conexión, conserva la imagen abierta y permite reintentarlo cuando vuelva la red.
+## Novedades del candidato 3.4.1
 
-En Funciones complejas puedes activar los originales del servidor en el visor; la opción empieza desactivada y las previsualizaciones siguen siendo reducidas. Los originales conservan los bytes disponibles en Telegram: no recuperan información que el remitente haya comprimido. Al enviar fotos puedes elegir SD, HD u Original como archivo; los vídeos conservan su archivo original, sin un nuevo selector de color HDR/SDR.
+El gestor de descargas muestra progreso y estados, permite cancelar y reintentar, y ofrece las acciones de abrir, guardar o compartir que admite cada plataforma. Limita las transferencias simultáneas y las colas, comprueba el contexto de la cuenta y respeta las restricciones de los archivos. Los reintentos empiezan desde cero; no se anuncia reanudación por bloques ni continuidad garantizada cuando el sistema suspende la aplicación.
 
-El gesto de volver en iOS admite empezar más adentro de la pantalla. Las transiciones mantienen el diseño estable al entrar en conversaciones y restaurar borradores. En iOS 26 o posterior puedes activar Liquid Glass nativo desde Funciones complejas; empieza apagado y respeta las opciones de accesibilidad del sistema.
+Apariencia y Personalización incorporan controles independientes de tamaño de texto, espaciado, disposición y colores. En móviles también puedes ajustar zonas de texto, interlineado, altura de controles, líneas de previsualización, alineación de burbujas y visibilidad de avatares, horas y contadores. Se conservan las vistas previas, la persistencia y el restablecimiento de ajustes.
 
-Apariencia incorpora opciones de composición, controles, navegación, colores, cabeceras, separadores y tamaños. Personalización conserva los ajustes existentes de forma: las fotos de perfil móviles vuelven a ser cuadradas inicialmente y los avatares sin foto mantienen su tratamiento habitual. Puedes restablecer Apariencia, Personalización o todos los ajustes sin cerrar tus cuentas.
+En iOS 26 o posterior, Liquid Glass nativo se amplía a más controles del compositor y de navegación. Sigue desactivado por defecto y respeta las preferencias de accesibilidad. Una opción independiente, también desactivada inicialmente, permite usar diálogos nativos compatibles en iOS y Android; los formularios que necesitan controles adicionales conservan su interfaz habitual.
 
-La revisión de recursos reduce conversiones de vídeo, limita las colas y elimina trabajo que seguía activo después de cerrar pantallas. También corrige respuestas tardías al cambiar de cuenta, transferencias canceladas, reintentos de mensajes secretos y la limpieza de medios temporales. Las notificaciones móviles reintentan el registro si falla, lo renuevan y permiten consultar su estado desde Ajustes.
+El indicador de desconexión ocupa un espacio estable en la cabecera y permite reintentar la conexión. Representa la conexión de la cuenta a Telegram, no el estado de APNs. La interfaz conserva mejor el texto, el foco y el desplazamiento durante las actualizaciones. En Android se corrige la reserva del espacio del teclado, tanto en la ventana principal como en las ventanas de chat.
 
-Se conservan los temas, debates vinculados, llamadas, ventanas y demás funciones de la versión anterior.
+La revisión reduce trabajo repetido en consultas, actualizaciones de geometría y progreso. Estas mejoras se han comprobado en recorridos y pruebas concretos; no equivalen a una reducción global medida de batería, CPU, memoria o tráfico de red.
+
+El selector de logos conserva los diseños propios de TeleGraph y las imágenes del usuario. Se ha retirado el catálogo de imágenes oficiales de Telegram; las selecciones antiguas de ese catálogo usan el logo propio. Los avatares conservan su comportamiento.
+
+Se mantienen los filtros de fotos/vídeos, originales opcionales, envío SD/HD o como archivo original, temas y debates vinculados, llamadas y demás funciones anteriores.
 
 ## Instalación e inicio de sesión
 
-En los paquetes de TeleGraph, abre la aplicación, introduce tu número con prefijo internacional y escribe el código que te envíe Telegram. Si tienes activada la verificación en dos pasos, introduce también tu contraseña. Cada dispositivo mantiene su propia sesión. [Descargas del proyecto](https://github.com/MiguelCKxd/TeleGraph/releases)
+Los candidatos 3.4.1 de este snapshot todavía no se distribuyen. Las instrucciones siguientes sirven para una distribución compilada y firmada con la configuración correspondiente. Las versiones ya publicadas se consultan en las [descargas del proyecto](https://github.com/MiguelCKxd/TeleGraph/releases).
+
+Abre la aplicación, introduce tu número con prefijo internacional y escribe el código que te envíe Telegram. Si tienes activada la verificación en dos pasos, introduce también tu contraseña. Cada dispositivo mantiene su propia sesión.
 
 | Plataforma | Paquete e instalación |
 | --- | --- |
-| Windows x64 | Ejecuta `TeleGraph-3.4.0-Setup.exe` o extrae el ZIP portátil completo y abre `TG-ASCII.exe`. El instalador carece de firma Authenticode. |
-| Mac con Apple Silicon | Extrae `TeleGraph-3.4.0-darwin-arm64.zip` y copia la aplicación a Aplicaciones. El paquete lleva firma ad hoc. |
-| Linux | Para Debian y Ubuntu, instala el DEB de tu arquitectura con `sudo apt install ./TeleGraph-3.4.0-linux-amd64.deb` o `sudo apt install ./TeleGraph-3.4.0-linux-arm64.deb`. También hay un ZIP portátil para cada arquitectura. |
-| Android | Instala `TeleGraph-Android-3.4.0-1.apk` en el teléfono o la tableta. |
-| Wear OS | Instala `TeleGraph-WearOS-3.4.0-1.apk` en el reloj. Utiliza la edición Legacy para actualizar una instalación anterior con el identificador `org.tgas.wear`. |
-| iPhone, iPad y Apple Watch | La compilación 3.4.0 (2) incluye el reloj. Para instalar el IPA por tu cuenta necesitas firma y perfiles de Apple válidos para tus dispositivos. La firma alternativa puede afectar al push y a las extensiones. Consulta los datos de compatibilidad en las notas de esta versión. |
+| Windows x64 | Ejecuta el instalador Setup o extrae el ZIP portátil completo y abre `TG-ASCII.exe`. El candidato actual carece de firma Authenticode. |
+| Mac con Apple Silicon | Extrae el ZIP `darwin-arm64` y copia la aplicación a Aplicaciones. El candidato actual lleva firma ad hoc. |
+| Linux | Para Debian y Ubuntu, instala el DEB de tu arquitectura con `sudo apt install ./TeleGraph-3.4.1-linux-amd64.deb` o `sudo apt install ./TeleGraph-3.4.1-linux-arm64.deb`. También se puede generar un ZIP portátil para cada arquitectura. |
+| Android | Instala el APK de teléfono o tableta que hayas compilado. Las actualizaciones requieren conservar la firma y el identificador de la aplicación. |
+| Wear OS | Instala el APK de reloj correspondiente. La edición Legacy permite actualizar una instalación anterior con el identificador `org.tgas.wear`, conservando su firma. |
+| iPhone, iPad y Apple Watch | El proyecto incluye la aplicación de reloj. Para instalar tu propia compilación necesitas firma y perfiles de Apple válidos para tus dispositivos. La configuración de firma y de APNs afecta a las notificaciones y a las extensiones. No se ofrece la IPA diagnóstica interna. |
 | Apple Vision Pro | Usa la edición compatible de iPad. |
-| Apple TV | La edición de tvOS requiere un iPhone con TeleGraph. Abre «Conectar con el iPhone» en el televisor y selecciona en el iPhone los chats que quieres compartir. El IPA de tvOS se firma para Apple TV. |
+| Apple TV | La edición de tvOS requiere un iPhone con TeleGraph. Abre «Conectar con el iPhone» en el televisor y selecciona en el iPhone los chats que quieres compartir. La compilación de tvOS se firma para Apple TV. |
 
 ## Compilar el proyecto
 
-| Plataforma | Fuente |
-| --- | --- |
-| Windows y macOS | [Escritorio](desktop/) |
-| Linux | [Edición Linux](linux/) |
-| Android y Wear OS | [Teléfono y reloj](android-wear/) |
-| iOS, iPadOS y watchOS | [Edición de Apple](apple/) |
-| tvOS | [Proyecto para Apple TV](apple/tv/) |
+Las cuatro carpetas proceden exclusivamente de las revisiones públicas indicadas en [SOURCE-REVISIONS.json](SOURCE-REVISIONS.json). Las guías de cada plataforma explican herramientas, dependencias y configuración de compilación.
 
-Si creas una distribución propia, registra tu aplicación en Telegram e incorpora su identidad al compilar. Las guías de plataforma detallan las herramientas y dependencias. [Registro de aplicaciones en Telegram](https://core.telegram.org/api/obtaining_api_id)
+| Plataforma | Fuente y guía |
+| --- | --- |
+| Windows y macOS | [Escritorio](desktop/README.md) |
+| Linux | [Edición Linux](linux/README.md) |
+| Android y Wear OS | [Teléfono y reloj](android-wear/README.md) |
+| iOS, iPadOS y watchOS | [Edición de Apple](apple/README.md) |
+| tvOS | [Proyecto para Apple TV](apple/tv/) y [guía de Apple](apple/README.md#apple-tv) |
+
+Si creas una distribución propia, registra tu aplicación en Telegram e incorpora su identidad al compilar. Guarda las credenciales, las claves de firma y la configuración del proveedor push fuera del repositorio. Las ramas de este candidato todavía son locales; para compilar antes de su publicación utiliza las carpetas del snapshot en lugar de intentar clonarlas desde el remoto. [Registro de aplicaciones en Telegram](https://core.telegram.org/api/obtaining_api_id)
 
 ## Licencias
 
-Consulta la [licencia del proyecto móvil](android-wear/LICENSE) y los [avisos de componentes de escritorio](desktop/third-party/).
+Consulta la [licencia del proyecto móvil](android-wear/LICENSE) y los [avisos de componentes de escritorio](desktop/third-party/). Las licencias y los avisos de las cuatro ediciones se conservan en sus carpetas.
 
 ## Privacidad y soporte
 

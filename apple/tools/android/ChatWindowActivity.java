@@ -6,6 +6,11 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.ViewGroup;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -68,7 +73,21 @@ public final class ChatWindowActivity extends Activity {
                 return true;
             }
         });
+        // Match the main window: one native inset reservation, also on API 35+.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         setContentView(web);
+        ViewCompat.setOnApplyWindowInsetsListener(web, (view, insets) -> {
+            Insets occupied = insets.getInsets(WindowInsetsCompat.Type.systemBars()
+                    | WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.ime());
+            ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
+            if (lp.leftMargin != occupied.left || lp.topMargin != occupied.top
+                    || lp.rightMargin != occupied.right || lp.bottomMargin != occupied.bottom) {
+                lp.setMargins(occupied.left, occupied.top, occupied.right, occupied.bottom);
+                view.setLayoutParams(lp);
+            }
+            return insets;
+        });
+        ViewCompat.requestApplyInsets(web);
         if (state != null) {
             web.restoreState(state);
         } else {

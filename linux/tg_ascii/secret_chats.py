@@ -1861,15 +1861,16 @@ class SecretChatManager:
         return await self._send_record(sess, msg_data, record)
 
     async def download_media(self, media: SecretMedia, destination, progress=None, thumbnail: bool = False) -> str | None:
+        from .transfers import owned_thread
         target = Path(destination)
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if thumbnail and media.thumb:
-            await asyncio.to_thread(target.write_bytes, media.thumb)
+            await owned_thread(target.write_bytes, media.thumb)
             return str(target)
         if media.local_token:
-            cached = await asyncio.to_thread(self.store.load_file, media.local_token)
+            cached = await owned_thread(self.store.load_file, media.local_token)
             if cached is not None:
-                await asyncio.to_thread(target.write_bytes, cached)
+                await owned_thread(target.write_bytes, cached)
                 return str(target)
         if media.external and media.file_id and media.access_hash:
             loc = t.InputDocumentFileLocation(
@@ -1877,21 +1878,21 @@ class SecretChatManager:
             )
             data = await self.client.download_file(loc, file=bytes, progress_callback=progress)
             if data:
-                await asyncio.to_thread(target.write_bytes, data)
+                await owned_thread(target.write_bytes, data)
                 return str(target)
             return None
         if not media.file_id or not media.access_hash or not media.key or not media.iv:
             if media.thumb:
-                await asyncio.to_thread(target.write_bytes, media.thumb)
+                await owned_thread(target.write_bytes, media.thumb)
                 return str(target)
             return None
         loc = t.InputEncryptedFileLocation(id=media.file_id, access_hash=media.access_hash)
         encrypted_bytes = await self.client.download_file(loc, file=bytes, progress_callback=progress)
-        decrypted = await asyncio.to_thread(
+        decrypted = await owned_thread(
             decrypt_file_bytes, encrypted_bytes, media.key, media.iv, media.size, media.key_fingerprint or None
         )
         del encrypted_bytes
-        token = await asyncio.to_thread(self.store.save_file, decrypted, media.local_token)
+        token = await owned_thread(self.store.save_file, decrypted, media.local_token)
         if token and not media.local_token:
             media.local_token = token
             sess = self.sessions.get(media.chat_id)
@@ -1900,7 +1901,7 @@ class SecretChatManager:
                     if m['id'] == media.msg_id and isinstance(m.get('media'), dict):
                         m['media']['local_token'] = token
                 self._save()
-        await asyncio.to_thread(target.write_bytes, decrypted)
+        await owned_thread(target.write_bytes, decrypted)
         return str(target)
 
     # -- Chat & History Queries ----------------------------------------------

@@ -71,14 +71,26 @@ if [[ -n "$(find "$phone/python/lib" -mindepth 2 -maxdepth 2 -type d -name test 
   echo "CPython regression tests were included in the release archive" >&2
   exit 1
 fi
+for launcher in fonttools pyftmerge pyftsubset ttx qr pyrsa-decrypt pyrsa-encrypt pyrsa-keygen pyrsa-priv2pub pyrsa-sign pyrsa-verify; do
+  if [[ -e "$phone/app_packages/bin/$launcher" || -L "$phone/app_packages/bin/$launcher" ]]; then
+    echo "Host-only console launcher was included in the release archive: $launcher" >&2
+    exit 1
+  fi
+done
 codesign --verify --deep --strict "$phone"
-if [[ ! -f "$phone/app/tg_ascii_mobile/web/native_glass.js" ]]; then
-  echo "Missing native glass web bridge"
-  exit 1
-fi
+for bridge in web/native_glass.js web/native_dialogs.js native_dialogs.py; do
+  if [[ ! -f "$phone/app/tg_ascii_mobile/$bridge" ]]; then
+    echo "Missing native UI bridge: $bridge"
+    exit 1
+  fi
+done
 executable=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$phone/Info.plist")
-if ! xcrun nm -gU "$phone/$executable" | awk '$NF == "_OBJC_CLASS_$_TGNativeGlass" { found = 1 } END { exit !found }'; then
-  echo "Missing native SwiftUI glass implementation"
+if ! xcrun nm -gU "$phone/$executable" | awk '
+  BEGIN { expected["_OBJC_CLASS_$_TGNativeGlass"] = 1; expected["_OBJC_CLASS_$_TGNativeDialogs"] = 1; expected["_OBJC_CLASS_$_TGNativeViewport"] = 1 }
+  $NF in expected { delete expected[$NF] }
+  END { for (symbol in expected) { print "Missing native UI class: " symbol; missing = 1 }; exit missing }
+'; then
+  echo "Incomplete native UI implementation"
   exit 1
 fi
 version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$phone/Info.plist")

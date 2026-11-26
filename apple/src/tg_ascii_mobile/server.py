@@ -323,7 +323,11 @@ class Server:
             window_account = headers.get('x-tg-window-account', query.get('window_account'))
             if name == 'state' and window_account is not None:
                 params['window_account'] = window_account
-            result = {'ok': True, 'result': await self.core.call(name, params)}
+            if name == 'native_dialog':
+                answer = await self.native_dialog_result(writer, params)
+            else:
+                answer = await self.core.call(name, params)
+            result = {'ok': True, 'result': answer}
         except LookupError:
             return await self.respond(writer, 404, b'')
         except TypeError as exc:
@@ -333,6 +337,24 @@ class Server:
             result = {'ok': False, 'error': error_message(exc)}
         data = json.dumps(result, ensure_ascii=False, default=str).encode('utf-8')
         return await self.respond(writer, 200, data, 'application/json; charset=utf-8')
+
+    async def native_dialog_result(self, writer, params):
+        """A system modal belongs to the page request that presented it."""
+        task = asyncio.create_task(self.core.call('native_dialog', params))
+        try:
+            while not task.done():
+                reader = getattr(writer, 'tg_reader', None)
+                if writer.is_closing() or (reader is not None and reader.at_eof()):
+                    # Propagate cancellation into DialogService, whose finally
+                    # dismisses UIKit/Android without executing a UI action.
+                    task.cancel()
+                    break
+                await asyncio.wait((task,), timeout=.25)
+            return await task
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
     async def upload(self, reader, writer, headers, query, length, reusable=False):
         """An attachment chosen in the page, streamed to the staging folder."""

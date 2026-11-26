@@ -48,3 +48,55 @@ html[data-no-bubble-border] .bubbles .msg:not(.service) { border-color: transpar
   display: grid; justify-items: center; gap: .15em; min-height: 44px; font-size: .68em; cursor: pointer; }
 .app-navigation button[aria-current=page] { color: var(--accent, var(--strong)); }
 .presentation-settings select { max-width: 55%; }
+
+/* Typography inherits the previous rules when its override is zero. */
+:root { --control: max(var(--ui-button-height, 44px), 2.6em); }
+.bar .title { font-size: var(--ui-header-font, inherit); }
+.row .name, .msg .who { font-size: var(--ui-name-font, inherit); }
+.row .preview { font-size: var(--ui-preview-font, inherit); }
+.row .when { font-size: var(--ui-metadata-font, .8em); }
+.bar .sub, .msg .meta { font-size: var(--ui-metadata-font, .75em); }
+.msg .header-clock { font-size: var(--ui-metadata-font, inherit); }
+.msg .meta .bubble-clock { font-size: inherit; }
+.msg:not(.service) > .text { font-size: var(--ui-message-font, inherit); line-height: var(--ui-message-line-height, 1.4); }
+.messages { gap: var(--ui-message-gap, .25em); }
+.msg:not(.service) { padding-inline: var(--ui-message-padding-x, .55em); padding-block: var(--ui-message-padding-y, .4em); }
+html[data-message-gap] .bubbles .msg:not(.service) { margin-block: 0; }
+.btn, .tab, .sheet .item, .app-navigation button, .keyboard .key { min-block-size: var(--ui-button-height, 44px); }
+.tab { min-block-size: max(var(--ui-button-height, 44px), 2.25em); }
+.sheet .item { min-block-size: max(var(--ui-button-height, 44px), 48px); }
+html[data-controls=icons] .btn[role=switch] { block-size: var(--ui-button-height, 44px); min-block-size: var(--ui-button-height, 44px); }
+html[data-controls=icons] .btn[role=switch]::before { inset-block-start: calc((var(--ui-button-height, 44px) - 32px) / 2); }
+html[data-controls=icons] .btn[role=switch]::after { inset-block-start: calc((var(--ui-button-height, 44px) - 26px) / 2); }
+html[data-preview-lines] :is(#chatlist, .presentation-preview-list) .preview {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--ui-preview-lines, 1);
+  white-space: normal; overflow-wrap: anywhere;
+}
+html[data-hide-list-avatars] :is(#chatlist, .presentation-preview-list) .chat-avatar-button,
+html[data-hide-list-avatars] :is(#chatlist, .presentation-preview-list) .row > .avatar,
+html[data-hide-list-times] :is(#chatlist, .presentation-preview-list) .row .when,
+html[data-hide-list-badges] :is(#chatlist, .presentation-preview-list) .row .badge { display: none; }
+html[data-bubble-alignment=start] .bubbles .msg:not(.service) { align-self: flex-start; }
+html[data-bubble-alignment=end] .bubbles .msg:not(.service) { align-self: flex-end; }
+html[data-bubble-alignment=center] .bubbles .msg:not(.service) { align-self: center; }
+html[data-incoming-text] .msg:not(.out):not(.service) > .text { color: var(--ui-incoming-text); }
+html[data-outgoing-text] .msg.out:not(.service) > .text { color: var(--ui-outgoing-text); }
+html[data-incoming-metadata] .msg:not(.out):not(.service):not(.pending):not(.failed) :is(.meta, .header-clock, .meta .mark) { color: var(--ui-incoming-metadata); }
+html[data-outgoing-metadata] .msg.out:not(.service):not(.pending):not(.failed) :is(.meta, .header-clock, .meta .mark) { color: var(--ui-outgoing-metadata); }
+
+.presentation-group { border-block-start: 1px solid var(--line); padding-block: .3em; }
+.presentation-group > summary { min-block-size: 44px; display: flex; align-items: center; gap: .5em; color: var(--strong); cursor: pointer; font-weight: 700; }
+.presentation-group > summary::before { content: '›'; }
+.presentation-group[open] > summary::before { content: '⌄'; }
+.presentation-preview { border: 1px solid var(--line); overflow: hidden; margin-block: .5em; }
+.presentation-preview .bar { padding-top: .45em; }
+.presentation-preview .messages { padding: .5em; }
+.presentation-preview .row { min-height: var(--ui-row-height, 0); }
+.presentation-preview .avatar { width: var(--ui-avatar-size, 2.6em); height: var(--ui-avatar-size, 2.6em); }
+.presentation-preview .preview { overflow-wrap: anywhere; }
+.presentation-settings .setting > span:first-child { min-width: 0; }
+.presentation-settings .numeric-slider { min-width: 8em; }
+@media (max-width: 480px) {
+  .presentation-settings .number-setting { flex-wrap: wrap; }
+  .presentation-settings .numeric-slider { flex-basis: 100%; }
+}
