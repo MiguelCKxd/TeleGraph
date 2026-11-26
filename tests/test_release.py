@@ -131,7 +131,7 @@ class DistributionTests(unittest.TestCase):
                 (source / 'tg_ascii' / name).write_text('must not be copied', encoding='utf-8')
             with patch.object(release, 'ROOT', source):
                 release.stage_source(staged, (12345, 'b' * 32))
-            files = {str(p.relative_to(staged)) for p in staged.rglob('*') if p.is_file()}
+            files = {p.relative_to(staged).as_posix() for p in staged.rglob('*') if p.is_file()}
             expected = {'tg_ascii/' + name for name in release.SOURCE_MODULES}
             expected |= {'run.py', 'tg_ascii/_app_credentials.py'}
             expected |= {'tg_ascii/assets/' + name for name in release.ASSETS}
