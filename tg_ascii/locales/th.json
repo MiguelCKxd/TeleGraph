@@ -1414,5 +1414,15 @@
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph ทำงานเหมือนแอปแชทที่ติดตั้งในเครื่อง: รูปโปรไฟล์ ข้อความล่าสุด ตัวอย่าง และข้อมูลผู้ติดต่อพร้อมใช้งานบนอุปกรณ์นี้ หน้าจอจึงเปิดได้ทันที จะขอใหม่เฉพาะสิ่งที่ใหม่จริงๆ ใช้พื้นที่และหน่วยความจำมากขึ้น",
   "Prepare content at startup": "เตรียมเนื้อหาเมื่อเริ่มแอป",
   "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "เมื่อรายการแชทโหลดแล้ว จะเตรียมรูปโปรไฟล์ ข้อความล่าสุดของแชทแรกๆ ตัวอย่าง และอีโมจิไว้เบื้องหลัง ใช้ข้อมูลและแบตเตอรี่มากขึ้นตอนเริ่มแอป",
-  "Accent color": "สีเน้น"
+  "Accent color": "สีเน้น",
+  "Choose a forum group.": "เลือกกลุ่มที่มีหัวข้อ",
+  "Invalid emoji.": "อีโมจิไม่ถูกต้อง",
+  "Invalid search.": "การค้นหาไม่ถูกต้อง",
+  "This topic is no longer available.": "หัวข้อนี้ไม่พร้อมใช้งานแล้ว",
+  "Invalid topic color.": "สีของหัวข้อไม่ถูกต้อง",
+  "Invalid topic settings.": "การตั้งค่าหัวข้อไม่ถูกต้อง",
+  "Telegram did not return the new topic. Refresh the topic list.": "Telegram ไม่ได้ส่งหัวข้อใหม่กลับมา โปรดรีเฟรชรายการหัวข้อ",
+  "This group must be upgraded to enable topics.": "เปลี่ยนกลุ่มนี้เป็นซูเปอร์กรุ๊ปเพื่อเปิดใช้งานหัวข้อ",
+  "Reopen this group to check its topic settings.": "เปิดกลุ่มอีกครั้งเพื่อตรวจสอบการตั้งค่าหัวข้อ",
+  "The call continues in the background.": "การโทรยังคงดำเนินต่อในเบื้องหลัง"
 }

@@ -320,10 +320,12 @@ class DesktopInteractions:
         for chat in targets:listing.insert('end',chat.name)
         def send():
             if self.busy or account!=self.ui_account or not listing.curselection():return
-            destination=targets[listing.curselection()[0]].id
+            chat=targets[listing.curselection()[0]];destination=chat.id
             if backend is not self.service.backend or not chat_capabilities(self,destination).writable:return
             def done(_):
                 if window.winfo_exists():window.destroy()
                 if (account,peer)==(self.ui_account,self.active):self.clear_selection()
+            from .desktop_forums import forward_to
+            if forward_to(self,account,backend,chat,peer,ids,done):return  # 3.3: choose the topic
             self.call(backend.forward_selected_messages(peer,ids,destination),done,tr('Enviando...'))
         ttk.Button(frame,text=tr('Enviar >'),command=send).pack(fill='x',pady=6)

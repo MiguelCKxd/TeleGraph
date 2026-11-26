@@ -1414,5 +1414,15 @@
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph funcționează ca o aplicație de mesagerie instalată: fotografiile de profil, mesajele recente, previzualizările și datele de contact rămân pregătite pe acest dispozitiv, iar ecranele se deschid imediat. Se cere din nou doar ce este cu adevărat nou. Folosește mai mult spațiu și memorie.",
   "Prepare content at startup": "Pregătește conținutul la pornire",
   "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "După încărcarea listei de chaturi, se pregătesc în fundal fotografiile de profil, ultimele mesaje ale primelor chaturi, previzualizările și emoji. La pornire folosește mai multe date și baterie.",
-  "Accent color": "Culoare de accent"
+  "Accent color": "Culoare de accent",
+  "Choose a forum group.": "Alege un grup cu subiecte.",
+  "Invalid emoji.": "Emoji nevalid.",
+  "Invalid search.": "Căutare nevalidă.",
+  "This topic is no longer available.": "Acest subiect nu mai este disponibil.",
+  "Invalid topic color.": "Culoarea subiectului nu este validă.",
+  "Invalid topic settings.": "Setările subiectului nu sunt valide.",
+  "Telegram did not return the new topic. Refresh the topic list.": "Telegram nu a returnat subiectul nou. Actualizează lista de subiecte.",
+  "This group must be upgraded to enable topics.": "Transformă acest grup într-un supergrup pentru a activa subiectele.",
+  "Reopen this group to check its topic settings.": "Redeschide grupul pentru a verifica setările subiectelor.",
+  "The call continues in the background.": "Apelul continuă în fundal."
 }

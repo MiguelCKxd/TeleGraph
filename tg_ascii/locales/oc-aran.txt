@@ -664,3 +664,13 @@
 663|{count} vòts
 664|{field}: utiliza entre 1 e {maximum} caractèrs.
 665|{title}\nDestinatari: {recipient}\nTotau: {amount} Telegram Stars\n\nConfirmar aguesta crompa?
+666|Triga un grop damb tèmas.
+667|Er emoji non ei valid.
+668|Era cèrca non ei valida.
+669|Aguest tèma ja non ei disponible.
+670|Era color deth tèma non ei valida.
+671|Es ajustaments deth tèma non son valids.
+672|Telegram non a retornat eth tèma nau. Met ath dia era lista de tèmas.
+673|Convertís aguest grop en un supergrop entà activar es tèmas.
+674|Torna a daurir eth grop entà verificar es ajustaments des tèmas.
+675|Era telefonada contunhe en rèireplan.

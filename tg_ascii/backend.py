@@ -20,6 +20,7 @@ from .telegram_drafts import TelegramDrafts
 from .peer_tools import PeerTools
 from .advanced_messaging import AdvancedMessagingMixin
 from .community_management import CommunityManagement
+from .forum_topics import ForumTopics
 
 
 def display(text):
@@ -54,6 +55,8 @@ class Chat:
     unread_mark: bool = False
     member: bool | None = None
     entity: object = field(default=None, repr=False, compare=False)
+    forum: bool = False
+    has_link: bool = False
 
 
 @dataclass
@@ -89,6 +92,7 @@ class Message:
     edited_at: datetime | None = None
     webpage: object = None  # a link preview (types.WebPage), not an attachment
     grouped_id: int | None = None
+    topic_id: int | None = None
 
 
 class DemoBackend(DemoFeatures):
@@ -133,7 +137,7 @@ class DemoBackend(DemoFeatures):
         return await self.send(chat_id, tr('[Archivo] ') + path.name + ('\n' + caption if caption else ''))
 
 
-class TelegramBackend(CommunityManagement, AdvancedMessagingMixin, PeerTools, BotButtons, TelegramFeatures, TelegramExtras, MessageTools, TelegramActions, MessagingFeatures, SyncedCustomization, TelegramDrafts):
+class TelegramBackend(ForumTopics, CommunityManagement, AdvancedMessagingMixin, PeerTools, BotButtons, TelegramFeatures, TelegramExtras, MessageTools, TelegramActions, MessagingFeatures, SyncedCustomization, TelegramDrafts):
     demo = False
 
     def __init__(self, client):
@@ -208,6 +212,25 @@ class TelegramBackend(CommunityManagement, AdvancedMessagingMixin, PeerTools, Bo
         getattr(self,'_sender_failures',{}).pop(peer_id,None)
         if len(self.names) > 4096:
             self.names.popitem(last=False)
+
+    def visible_edit_date(self, msg):
+        from telethon import utils
+        peer = getattr(msg, 'peer_id', None)
+        date = getattr(msg, 'edit_date', None)
+        hidden = bool(getattr(msg, 'edit_hide', False))
+        if peer is None:
+            return None if hidden else date
+        key = (utils.get_peer_id(peer), msg.id)
+        known = self.__dict__.setdefault('_visible_edits', OrderedDict())
+        if hidden or date is None:
+            return known.get(key)
+        previous = known.get(key)
+        if previous is None or date > previous:
+            known[key] = date
+        known.move_to_end(key)
+        if len(known) > 4096:
+            known.popitem(last=False)
+        return known[key]
 
     def message(self, msg):
         from telethon import types, utils
@@ -289,7 +312,7 @@ class TelegramBackend(CommunityManagement, AdvancedMessagingMixin, PeerTools, Bo
                        reply_markup=getattr(msg, 'reply_markup', None),
                        keyboard_applicable=not getattr(getattr(msg,'reply_markup',None),'selective',False)
                            or bool(getattr(msg,'is_private',False) or getattr(msg,'mentioned',False)),
-                       date=msg.date, edited_at=getattr(msg,'edit_date',None), protected=bool(getattr(msg,'noforwards',False)),
+                       date=msg.date, edited_at=self.visible_edit_date(msg), protected=bool(getattr(msg,'noforwards',False)),
                        via_bot_id=getattr(msg,'via_bot_id',None), service=getattr(msg,'action',None) is not None,
                        forwarded=getattr(msg,'fwd_from',None) is not None,
                        comments_count=getattr(msg.replies, 'replies', 0) if getattr(getattr(msg, 'replies', None), 'comments', False) else None,
@@ -297,7 +320,8 @@ class TelegramBackend(CommunityManagement, AdvancedMessagingMixin, PeerTools, Bo
                            if getattr(getattr(msg, 'replies', None), 'comments', False) and getattr(msg.replies, 'channel_id', None) else None,
                        thread_id=getattr(getattr(msg, 'reply_to', None), 'reply_to_top_id', None)
                            or getattr(getattr(msg, 'reply_to', None), 'reply_to_msg_id', None),
-                       webpage=preview, grouped_id=getattr(msg, 'grouped_id', None))
+                       webpage=preview, grouped_id=getattr(msg, 'grouped_id', None),
+                       topic_id=self.forum_message_topic(msg))
 
     async def resolve_missing_senders(self,messages):
         from .sender_identity import resolve
@@ -323,7 +347,8 @@ class TelegramBackend(CommunityManagement, AdvancedMessagingMixin, PeerTools, Bo
             chats.append(Chat(d.id, name, d.unread_count, bool(d.pinned), kind,
                               bool(getattr(d.entity, 'contact', False)), bool(d.archived), muted, getattr(getattr(d.entity,'emoji_status',None),'document_id',None),bool(getattr(d.dialog,'unread_mark',False)),
                               member=not bool(getattr(d.entity,'left',False) or getattr(d.entity,'kicked',False)) if kind in ('group','channel') else None,
-                              entity=d.entity))
+                              entity=d.entity, forum=bool(getattr(d.entity, 'forum', False)),
+                              has_link=bool(getattr(d.entity, 'has_link', False))))
         return chats
 
     async def history(self, chat_id):

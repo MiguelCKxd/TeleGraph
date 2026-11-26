@@ -1414,5 +1414,15 @@
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph ایک انسٹال شدہ میسجنگ ایپ کی طرح کام کرتا ہے: پروفائل تصاویر، حالیہ پیغامات، پیش منظر اور رابطوں کی معلومات اس آلے پر تیار رہتی ہیں اور اسکرینیں فوراً کھلتی ہیں۔ صرف واقعی نئی چیزیں دوبارہ مانگی جاتی ہیں۔ زیادہ اسٹوریج اور میموری استعمال ہوتی ہے۔",
   "Prepare content at startup": "شروع پر مواد تیار کریں",
   "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "چیٹ فہرست لوڈ ہونے کے بعد پروفائل تصاویر، پہلی چیٹس کے تازہ پیغامات، ان کے پیش منظر اور ایموجی پس منظر میں تیار کیے جاتے ہیں۔ شروع پر زیادہ ڈیٹا اور بیٹری خرچ ہوتی ہے۔",
-  "Accent color": "نمایاں رنگ"
+  "Accent color": "نمایاں رنگ",
+  "Choose a forum group.": "ایسا گروپ منتخب کریں جس میں موضوعات ہوں۔",
+  "Invalid emoji.": "ایموجی درست نہیں ہے۔",
+  "Invalid search.": "تلاش درست نہیں ہے۔",
+  "This topic is no longer available.": "یہ موضوع اب دستیاب نہیں ہے۔",
+  "Invalid topic color.": "موضوع کا رنگ درست نہیں ہے۔",
+  "Invalid topic settings.": "موضوع کی ترتیبات درست نہیں ہیں۔",
+  "Telegram did not return the new topic. Refresh the topic list.": "ٹیلی گرام نے نیا موضوع واپس نہیں بھیجا۔ موضوعات کی فہرست تازہ کریں۔",
+  "This group must be upgraded to enable topics.": "موضوعات فعال کرنے کے لیے اس گروپ کو سپر گروپ میں تبدیل کریں۔",
+  "Reopen this group to check its topic settings.": "موضوعات کی ترتیبات دیکھنے کے لیے گروپ دوبارہ کھولیں۔",
+  "The call continues in the background.": "کال پس منظر میں جاری ہے۔"
 }

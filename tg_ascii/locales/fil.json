@@ -1414,5 +1414,15 @@
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "Gumagana ang TeleGraph na parang naka-install na messaging app: handa sa device na ito ang mga profile photo, mga bagong mensahe, preview at detalye ng contact, kaya agad bumubukas ang mga screen. Ang talagang bago lang ang muling hinihingi. Mas malaki ang gamit sa storage at memorya.",
   "Prepare content at startup": "Ihanda ang nilalaman sa pagbukas",
   "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Pagkatapos mag-load ng listahan ng chat, inihahanda sa background ang mga profile photo, mga huling mensahe ng mga unang chat, ang kanilang preview at emoji. Mas malaki ang gamit sa data at baterya sa pagbukas.",
-  "Accent color": "Kulay ng diin"
+  "Accent color": "Kulay ng diin",
+  "Choose a forum group.": "Pumili ng grupong may mga paksa.",
+  "Invalid emoji.": "Hindi wasto ang emoji.",
+  "Invalid search.": "Hindi wasto ang paghahanap.",
+  "This topic is no longer available.": "Hindi na available ang paksang ito.",
+  "Invalid topic color.": "Hindi wasto ang kulay ng paksa.",
+  "Invalid topic settings.": "Hindi wasto ang mga setting ng paksa.",
+  "Telegram did not return the new topic. Refresh the topic list.": "Hindi ibinalik ng Telegram ang bagong paksa. I-refresh ang listahan ng mga paksa.",
+  "This group must be upgraded to enable topics.": "Gawing supergroup ang grupong ito para paganahin ang mga paksa.",
+  "Reopen this group to check its topic settings.": "Buksang muli ang grupo para tingnan ang mga setting ng mga paksa.",
+  "The call continues in the background.": "Nagpapatuloy ang tawag sa background."
 }

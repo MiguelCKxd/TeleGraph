@@ -59,13 +59,6 @@ def sync_tree_rows(widget,rows):
     widget._synced_tree_order=wanted
 
 
-def set_tree_label(widget,ident,label):
-    """Keep direct unread updates consistent with the last rendered row labels."""
-    widget.item(ident,text=label)
-    labels=vars(widget).get('_synced_tree_labels')
-    if labels is not None:labels[ident]=label
-
-
 def visible_tree_rows(widget,overscan=8):
     """Rows near the viewport only, including during geometry transitions."""
     if not widget.winfo_viewable() or widget.winfo_height()<2:return ()

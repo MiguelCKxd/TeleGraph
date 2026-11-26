@@ -11,7 +11,7 @@ def _rights(value):
 def _signature(entity):
     return (type(entity), *(getattr(entity, key, None) for key in (
         'left', 'kicked', 'deactivated', 'deleted', 'creator', 'bot', 'is_self',
-        'premium', 'broadcast', 'megagroup', 'join_to_send', 'noforwards',
+        'premium', 'broadcast', 'megagroup', 'forum', 'has_link', 'join_to_send', 'noforwards',
         'paid_reactions_available', 'blocked', 'voice_messages_forbidden',
         'can_pin_message', 'contact_require_premium', 'send_paid_messages_stars',
         'translations_disabled', 'read_dates_private', 'stargifts_available',

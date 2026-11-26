@@ -664,3 +664,13 @@
 663|{count} votos
 664|{field}: utilize entre 1 e {maximum} caracteres.
 665|{title}\nDestinatário: {recipient}\nTotal: {amount} Estrelas do Telegram\n\nConfirmar esta compra?
+666|Escolha um grupo com tópicos.
+667|Emoji inválido.
+668|Pesquisa inválida.
+669|Este tópico já não está disponível.
+670|A cor do tópico é inválida.
+671|As definições do tópico são inválidas.
+672|O Telegram não devolveu o novo tópico. Atualize a lista de tópicos.
+673|Para ativar os tópicos, converta este grupo num supergrupo.
+674|Volte a abrir o grupo para verificar as definições dos tópicos.
+675|A chamada continua em segundo plano.

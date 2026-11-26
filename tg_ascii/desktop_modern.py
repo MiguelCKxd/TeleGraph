@@ -423,7 +423,10 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
             from .interface_windows import navigate_from_chat_window
             navigate_from_chat_window(self, peer=peer, message=ident)
             return
-        if peer==self.active and self.jump_loaded(ident): return
+        if peer==self.active and self.jump_loaded(ident):
+            from .transitions import flash_message
+            self.root.after_idle(lambda:flash_message(self,ident))
+            return
         if self.busy or self.demo: return
         account,backend=self.ui_account,self.service.backend
         async def fetch():
@@ -437,7 +440,12 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
             from .backend import Chat
             if not any(c.id==peer for c in self.chats): self.chats.append(Chat(peer,data[1],entity=data[2]))
             self.active=peer; self.messages=data[0]; self._jumped=True
-            self.restore_draft(); self.render_messages(False); self.jump_loaded(ident)
+            self.restore_draft(); self.render_messages(False)
+            def reveal():
+                if self.active==peer and self.jump_loaded(ident):
+                    from .transitions import flash_message
+                    flash_message(self,ident)
+            self.root.after(120,reveal)
             self.compact_conversation=True; self.adapt_chat_layout()
         self.call(fetch(),loaded,tr('Loading...'))
 
