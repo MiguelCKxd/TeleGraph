@@ -27,7 +27,7 @@ En los paquetes de TeleGraph, abre la aplicación, introduce tu número con pref
 | Linux | Para Debian y Ubuntu, instala el DEB de tu arquitectura con `sudo apt install ./TeleGraph-3.4.0-linux-amd64.deb` o `sudo apt install ./TeleGraph-3.4.0-linux-arm64.deb`. También hay un ZIP portátil para cada arquitectura. |
 | Android | Instala `TeleGraph-Android-3.4.0-1.apk` en el teléfono o la tableta. |
 | Wear OS | Instala `TeleGraph-WearOS-3.4.0-1.apk` en el reloj. Utiliza la edición Legacy para actualizar una instalación anterior con el identificador `org.tgas.wear`. |
-| iPhone, iPad y Apple Watch | La compilación 3.4.0 (1) incluye el reloj. Para instalar el IPA por tu cuenta necesitas firma y perfiles de Apple válidos para tus dispositivos. La firma alternativa puede afectar al push y a las extensiones. Consulta los datos de compatibilidad en las notas de esta versión. |
+| iPhone, iPad y Apple Watch | La compilación 3.4.0 (2) incluye el reloj. Para instalar el IPA por tu cuenta necesitas firma y perfiles de Apple válidos para tus dispositivos. La firma alternativa puede afectar al push y a las extensiones. Consulta los datos de compatibilidad en las notas de esta versión. |
 | Apple Vision Pro | Usa la edición compatible de iPad. |
 | Apple TV | La edición de tvOS requiere un iPhone con TeleGraph. Abre «Conectar con el iPhone» en el televisor y selecciona en el iPhone los chats que quieres compartir. El IPA de tvOS se firma para Apple TV. |
 

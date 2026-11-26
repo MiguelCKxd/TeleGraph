@@ -3,7 +3,7 @@
   "sources": {
     "desktop": "2a672f6dac6915083f9081e844f2b0c1478649c7",
     "linux": "7a8d154ee39aa3f01b7a25dc2215c1d130998ae7",
-    "android-wear": "d73bc0126d4c614f7380800b2a3f3c672e62a654",
-    "apple": "a37515242e6e26d7ebf157b7059692617d30ae38"
+    "android-wear": "fa1df967e64c1a8399bbdfbfa50f3ca8147a3644",
+    "apple": "6524fd8bafea29a276c825bbe915758d3ec1d463"
   }
 }

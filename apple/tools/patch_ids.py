@@ -20,13 +20,17 @@ platform = sys.argv[1].lower()
 # Briefcase writes the version only when it creates a project; keep it in
 # step with pyproject.toml on every build.
 import tomllib
-VERSION = tomllib.loads((Path(__file__).resolve().parents[1] / 'pyproject.toml').read_text())['tool']['briefcase']['version']
+CONFIG = tomllib.loads((Path(__file__).resolve().parents[1] / 'pyproject.toml').read_text())['tool']['briefcase']
+VERSION = CONFIG['version']
 major, minor, patch = (int(part) for part in VERSION.split('.')[:3])
 # build-number: raised for every published mobile build of the same version
 # (Android needs a higher versionCode, TestFlight a new CFBundleVersion).
 BUILD = int((Path(__file__).resolve().parents[1] / 'build-number').read_text().strip() or 1)
 VERSION_CODE = major * 1000000 + minor * 10000 + patch * 100 + BUILD   # Briefcase's scheme + build
-IOS_BUILD = str(BUILD)
+# Reuse Briefcase's native Info.plist override for an iOS-only rebuild.
+IOS_BUILD = str(CONFIG['app']['tg_ascii_mobile'].get('iOS', {}).get('info', {}).get('CFBundleVersion', BUILD))
+if not re.fullmatch(r'[1-9][0-9]{0,3}', IOS_BUILD):
+    raise ValueError('Invalid iOS CFBundleVersion')
 # Alternative launcher icons (tools/make_alt_icons.py), chosen in Settings.
 # Privacy manifest: no tracking, no data collected; file timestamps are read
 # only inside the app's container (Python's os.stat), boot-relative time for
@@ -637,4 +641,6 @@ elif platform == 'ios':
     configure_siri(build / 'ios' / 'xcode')
     from add_notification_target import add_notification_target
     add_notification_target(build / 'ios' / 'xcode', VERSION, IOS_BUILD, IOS_ID)
+    from prune_ios_support import prune_ios_support
+    print('iOS Python support:', prune_ios_support(build / 'ios' / 'xcode'))
     print('iOS id ->', IOS_ID, VERSION, IOS_BUILD)

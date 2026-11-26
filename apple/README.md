@@ -1,6 +1,6 @@
 # TeleGraph 3.4 para móviles, relojes y Apple TV
 
-Las aplicaciones de teléfono y reloj comparten el núcleo de escritorio de TeleGraph. El proyecto tvOS muestra los chats que se eligen en un iPhone o iPad vinculado. Esta rama corresponde a la versión 3.4.0, compilación 1.
+Las aplicaciones de teléfono y reloj comparten el núcleo de escritorio de TeleGraph. El proyecto tvOS muestra los chats que se eligen en un iPhone o iPad vinculado. Esta rama corresponde a la versión 3.4.0: compilación 2 para iPhone, iPad y Apple Watch, y compilación 1 para Android, Wear OS y Apple TV.
 
 ## Preparar el código
 
@@ -8,7 +8,7 @@ Desde una misma carpeta, clona el escritorio y esta rama. El sincronizador selec
 
 ```sh
 git clone --branch escritorio-v3.4 https://github.com/MiguelCKxd/TeleGraph escritorio
-git clone --branch apple-v3.4-build1 https://github.com/MiguelCKxd/TeleGraph movil
+git clone --branch apple-v3.4-build2 https://github.com/MiguelCKxd/TeleGraph movil
 cd movil
 export TG_ASCII_DESKTOP="$PWD/../escritorio"
 ```

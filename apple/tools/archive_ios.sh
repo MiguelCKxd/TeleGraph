@@ -67,6 +67,10 @@ xcrun nm -gU "$calls/TeleGraphCalls" | awk '
   $NF == "_PyInit_ntgcalls" { found = 1 }
   END { if (!found) { print "Missing calls engine Python entry point" > "/dev/stderr"; exit 1 } }
 '
+if [[ -n "$(find "$phone/python/lib" -mindepth 2 -maxdepth 2 -type d -name test -print -quit)" ]]; then
+  echo "CPython regression tests were included in the release archive" >&2
+  exit 1
+fi
 codesign --verify --deep --strict "$phone"
 if [[ ! -f "$phone/app/tg_ascii_mobile/web/native_glass.js" ]]; then
   echo "Missing native glass web bridge"
