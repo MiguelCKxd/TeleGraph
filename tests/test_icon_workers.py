@@ -8,7 +8,6 @@ import unittest
 from unittest.mock import Mock,patch
 from PIL import Image
 from tg_ascii.custom_icon import IconWork,load_icon_source
-from tg_ascii.official_icons import open_official_icons
 
 
 class CustomIconWorkerTests(unittest.TestCase):
@@ -64,51 +63,3 @@ class CustomIconWorkerTests(unittest.TestCase):
             path=Path(directory)/'source.png';Image.new('RGB',(3000,2000),'red').save(path);before=path.read_bytes()
             image=load_icon_source(path)
             self.assertLessEqual(max(image.size),2048);self.assertEqual(path.read_bytes(),before);image.close()
-
-
-class OfficialIconWorkerTests(unittest.TestCase):
-    def fixture(self):
-        window=Mock();window.winfo_exists.return_value=True
-        frame=Mock();grid=Mock();grid.winfo_children.return_value=[]
-        platform=Mock();platform.get.return_value='Telegram'
-        buttons=[]
-        def button(*args,**kwargs):
-            result=Mock();result.arguments=kwargs;result.winfo_exists.return_value=True;buttons.append(result);return result
-        app=NS(dialog=Mock(return_value=(window,frame)),demo=True,preview_dir=Path('/unused'),
-               worker=NS(submit=Mock(return_value=Mock())),request_photo=Mock(),preferences=NS(save=Mock()),
-               refresh_logo=Mock(),update_logo_selection=Mock(),show_error=Mock())
-        return app,window,grid,platform,buttons,button
-
-    def test_thumbnails_use_async_request_and_old_platform_results_are_rejected(self):
-        app,window,grid,platform,buttons,button=self.fixture()
-        with patch('tg_ascii.scrolling.FlowFrame',return_value=grid),patch('tg_ascii.app_dialogs.scrollable'), \
-             patch('tg_ascii.app_dialogs.Choice',return_value=platform),patch('tkinter.ttk.Button',side_effect=button), \
-             patch('tkinter.ttk.Label'),patch('tg_ascii.official_icons.load_collection',return_value=[]):
-            open_official_icons(app)
-            operation,loaded,failed=app.worker.submit.call_args.args;operation.close()
-            loaded([('Icon',Path('/cached/icon.png'))])
-            path,size,callback=app.request_photo.call_args.args;options=app.request_photo.call_args.kwargs
-            self.assertEqual(size,(120,120));self.assertFalse(options['enabled']);self.assertTrue(options['valid']())
-            callback('image');buttons[-1].configure.assert_called_with(image='image')
-            platform.bind.call_args.args[1]()
-            self.assertFalse(options['valid']())
-            app.worker.submit.call_args.args[0].close()
-            before=len(buttons);loaded([('Old',Path('/cached/old.png'))]);self.assertEqual(len(buttons),before)
-
-    def test_copy_runs_off_ui_and_closed_selector_cannot_change_preferences(self):
-        app,window,grid,platform,buttons,button=self.fixture();threads=[];main=threading.get_ident()
-        def copied(*args):threads.append(threading.get_ident());return Path('/cached/chosen.png')
-        with patch('tg_ascii.scrolling.FlowFrame',return_value=grid),patch('tg_ascii.app_dialogs.scrollable'), \
-             patch('tg_ascii.app_dialogs.Choice',return_value=platform),patch('tkinter.ttk.Button',side_effect=button), \
-             patch('tkinter.ttk.Label'),patch('tg_ascii.official_icons.copy_icon',side_effect=copied) as copy:
-            open_official_icons(app);operation,loaded,_=app.worker.submit.call_args.args;operation.close()
-            loaded([('Icon',Path('/cached/icon.png'))]);buttons[-1].arguments['command']()
-            copy.assert_not_called();app.preferences.save.assert_not_called()
-            operation,selected,_=app.worker.submit.call_args.args;target=asyncio.run(operation)
-            self.assertEqual(len(threads),1);self.assertNotEqual(threads[0],main)
-            window.bind.call_args.args[1](NS(widget=window));selected(target)
-            app.preferences.save.assert_not_called();app.refresh_logo.assert_not_called()
-            app.worker.submit.return_value.cancel.assert_called_once()
-
-
-if __name__=='__main__':unittest.main()

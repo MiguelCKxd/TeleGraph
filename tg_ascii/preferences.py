@@ -18,6 +18,14 @@ def shows_preview(values, kind):
 # 3.2: wider limits, shared with the mobile settings.
 FONT_SIZE_RANGE = (8, 40)
 RADIUS_RANGE = (0, 48)
+LAYOUT_RANGES = {
+    'button_padding_x': (0, 48, 7), 'button_padding_y': (0, 32, 4),
+    'chat_row_height': (0, 180, 0), 'message_line_spacing': (0, 40, 0),
+    'bubble_gap': (0, 80, 14), 'bubble_width_percent': (40, 100, 76),
+    'bubble_width_limit': (200, 2000, 570),
+}
+PALETTE_OVERRIDES = {'panel_color': 'panel', 'secondary_text_color': 'muted',
+                     'divider_color': 'line', 'title_color': 'strong'}
 
 DEFAULTS = {'interface_background':'', 'custom_icon':'', 'official_icon_label':'', 'animated_emoji':True, 'reduce_animations':False, 'telegram_backgrounds':False, 'text_color':'', 'background_color':'', 'accent_color':'', 'bubble_in_color':'', 'bubble_out_color':'', 'app_display_name':'', 'button_radius':0, 'menu_radius':0, 'bubble_radius':0, 'language': 'en', 'font_size': 12, 'ascii_text': False,
             'enter_send': True, 'compact': False, 'inline_media': True, 'photo_previews': True, 'local_pins': False,
@@ -26,6 +34,8 @@ DEFAULTS = {'interface_background':'', 'custom_icon':'', 'official_icon_label':'
             'font_family': '', 'background_notifications': True, 'logo_variant': 'title-short', 'logo_color': 'default', 'bubbles': False, 'quick_reaction': '👍'}
 DEFAULTS.update(EFFECT_DEFAULTS)
 DEFAULTS.update(CONTACT_DEFAULTS)
+DEFAULTS.update({key: bounds[2] for key, bounds in LAYOUT_RANGES.items()})
+DEFAULTS.update({key: '' for key in PALETTE_OVERRIDES})
 DEFAULTS['sync_customizations'] = True
 DEFAULTS['ask_account_startup'] = True
 # 1.5.3: keep a copy of the chat list and recent messages to open offline.
@@ -166,17 +176,24 @@ class Preferences:
         name = values.get('app_display_name', '')
         if isinstance(name, str) and len(name) <= 64 and name.isprintable():
             result['app_display_name'] = name.strip()
-        for key in ('text_color','background_color','accent_color','bubble_in_color','bubble_out_color'):
+        for key in ('text_color','background_color','accent_color','bubble_in_color','bubble_out_color',*PALETTE_OVERRIDES):
             color=values.get(key,'')
             if isinstance(color,str) and re.fullmatch(r'#[0-9a-fA-F]{6}',color):result[key]=color.lower()
         for key in ('button_radius','menu_radius','bubble_radius'):
             value=values.get(key,0)
             if type(value) is int and RADIUS_RANGE[0]<=value<=RADIUS_RANGE[1]:result[key]=value
+        for key, (low, high, default) in LAYOUT_RANGES.items():
+            value = values.get(key, default)
+            if type(value) is int and low <= value <= high:
+                result[key] = value
         for key in ('interface_background','custom_icon'):
             path=values.get(key,'')
             if isinstance(path,str) and len(path)<=4096 and not any(ord(c)<32 for c in path):result[key]=path
+        # Telegram API terms (core.telegram.org/api/terms, 2.4): an unofficial client must
+        # not use the official Telegram logo. A copy chosen before 3.4.1 reverts to TeleGraph's.
         label=values.get('official_icon_label','')
-        if isinstance(label,str) and len(label)<=160 and not any(ord(c)<32 for c in label):result['official_icon_label']=label
+        if isinstance(label,str) and label:result['custom_icon']=''
+        result['official_icon_label']=''
         size = values.get('font_size', 12)
         result['font_size'] = size if type(size) is int and FONT_SIZE_RANGE[0] <= size <= FONT_SIZE_RANGE[1] else 12
         from .menu_style import validated_custom

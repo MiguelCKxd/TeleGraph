@@ -89,15 +89,43 @@ class DesktopSettings:
         color_options = {
             'text_color': (tr('Text color'), 'text'), 'background_color': (tr('Background color'), 'bg'),
             'accent_color': (tr('Accent color'), 'strong'),
+            'panel_color': (caption('Panel color', 'Color de los paneles'), 'panel'),
+            'secondary_text_color': (caption('Secondary text color', 'Color del texto secundario'), 'muted'),
+            'divider_color': (caption('Divider color', 'Color de los separadores'), 'line'),
+            'title_color': (caption('Title color', 'Color de los títulos'), 'strong'),
             'bubble_in_color': (caption('Incoming bubble color', 'Color de burbujas recibidas'), 'panel'),
             'bubble_out_color': (caption('Outgoing bubble color', 'Color de burbujas enviadas'), 'selected'),
         }
         colors={key:tk.StringVar(value=self.preferences.values.get(key,'')) for key in color_options}
         from .appearance import app_palette
         preview=tk.Label(appearance,text=f'{APP_NAME}  > Hello / Hola',padx=12,pady=18);preview.pack(fill='x',pady=8)
+        sample=tk.Canvas(appearance,height=170,highlightthickness=0)
+        sample.pack(fill='x',pady=(0,8))
+        from .preferences import LAYOUT_RANGES
+        dimensions={key:tk.IntVar(value=self.preferences.values.get(key,bounds[2])) for key,bounds in LAYOUT_RANGES.items()}
         def preview_colors():
             values={**self.preferences.values,**{k:v.get() for k,v in colors.items()},'theme':('dark','light','system')[choices['theme'].current()]}
             palette=app_palette(values);preview.configure(bg=palette['bg'],fg=palette['text'])
+            try:spacing={key:max(LAYOUT_RANGES[key][0],min(LAYOUT_RANGES[key][1],value.get())) for key,value in dimensions.items()}
+            except tk.TclError:return
+            sample.configure(bg=palette['bg']);sample.delete('all')
+            width=max(200,sample.winfo_width())
+            row_height=min(70,max(26,spacing['chat_row_height'] or (26 if self.preferences.values.get('compact') else 38)))
+            sample.create_rectangle(0,0,width,row_height,fill=palette['panel'],outline='')
+            sample.create_text(10,8,anchor='nw',text=APP_NAME,fill=palette['strong'])
+            sample.create_line(0,row_height,width,row_height,fill=palette['line'])
+            bubble=min(width-20,spacing['bubble_width_limit'],max(100,int(width*spacing['bubble_width_percent']/100)))
+            top=row_height+8
+            bottom=top+min(65,35+spacing['message_line_spacing'])
+            sample.create_rectangle(10,top,bubble,bottom,fill=values.get('bubble_in_color') or palette['panel'],outline=palette['line'])
+            sample.create_text(18,top+5,anchor='nw',text=caption('Message preview','Vista previa del mensaje'),fill=palette['text'])
+            sample.create_text(18,min(bottom-12,top+20+spacing['message_line_spacing']),anchor='nw',text='12:34 ✓✓',fill=palette['muted'])
+            pad_x,pad_y=spacing['button_padding_x'],spacing['button_padding_y']
+            start=bottom+min(25,spacing['bubble_gap'])
+            sample.create_rectangle(10,start,70+pad_x*2,start+18+pad_y*2,fill=palette['panel'],outline=palette['line'])
+            sample.create_text(40+pad_x,start+9+pad_y,text=caption('Send','Enviar'),fill=palette['text'])
+            sample.configure(height=max(170,start+22+pad_y*2))
+        sample.bind('<Configure>',lambda _:preview_colors())
         def pick_color(key):
             palette=app_palette(self.preferences.values)
             value=colorchooser.askcolor(color=colors[key].get() or palette[color_options[key][1]],parent=self.root,title=color_options[key][0])[1]
@@ -107,6 +135,21 @@ class DesktopSettings:
             ttk.Button(row,text=label,command=lambda k=key:pick_color(k)).pack(side='left')
             ttk.Button(row,text=tr('Default'),command=lambda k=key:(colors[k].set(''),preview_colors())).pack(side='left')
         choices['theme'].bind('<<ComboboxSelected>>',lambda _:preview_colors());preview_colors()
+        dimension_labels={
+            'button_padding_x':caption('Button horizontal padding','Espacio horizontal de los botones'),
+            'button_padding_y':caption('Button vertical padding','Espacio vertical de los botones'),
+            'chat_row_height':caption('Minimum chat row height (0: automatic)','Altura mínima de cada chat (0: automática)'),
+            'message_line_spacing':caption('Extra line spacing','Espacio extra entre líneas'),
+            'bubble_gap':caption('Space between message bubbles','Separación entre burbujas de mensajes'),
+            'bubble_width_percent':caption('Maximum bubble width (%)','Ancho máximo de burbujas (%)'),
+            'bubble_width_limit':caption('Maximum bubble width (pixels)','Ancho máximo de burbujas (píxeles)'),
+        }
+        for key,(low,high,default) in LAYOUT_RANGES.items():
+            ttk.Label(appearance,text=dimension_labels[key]).pack(anchor='w',pady=(6,2))
+            row=FlowFrame(appearance);row.pack(fill='x')
+            ttk.Spinbox(row,from_=low,to=high,textvariable=dimensions[key],width=7).pack(side='left')
+            ttk.Button(row,text=tr('Default'),command=lambda k=key,d=default:dimensions[k].set(d)).pack(side='left',padx=6)
+            dimensions[key].trace_add('write',lambda *_:preview_colors())
         background=tk.StringVar(value=self.preferences.values.get('interface_background',''))
         background_preview=ttk.Label(appearance);background_preview.pack(fill='x',pady=4)
         def background_changed(path):
@@ -315,8 +358,6 @@ class DesktopSettings:
             for label,action in entries:ttk.Button(sections[section],text=tr(label),command=action).pack(fill='x',pady=4)
         for parent,label in [(chats,'Local pins affect only this app. Turning them off restores Telegram order.'),(account,'Las cuentas permanecen conectadas al alternar. Cerrar la app conserva las sesiones.'),(sections['Notifications'],'Quit stops notifications. Closing the window keeps the app running.')]:
             ttk.Label(parent,text=tr(label),wraplength=480).pack(fill='x',pady=10)
-        from .official_icons import open_official_icons
-        ttk.Button(logos,text=tr('Official Telegram icons'),command=lambda:open_official_icons(self)).pack(fill='x',pady=5)
         from .custom_icon import choose_icon,reset_icon
         ttk.Button(logos,text=tr('Custom app icon'),command=lambda:choose_icon(self)).pack(fill='x',pady=5)
         ttk.Button(logos,text=tr('Restore TeleGraph icon'),command=lambda:reset_icon(self)).pack(fill='x',pady=5)
@@ -325,6 +366,8 @@ class DesktopSettings:
             if self.busy:return
             try:
                 values={**effects.read_values(),**{k:v.get() for k,v in flags.items()},**{k:v.get() for k,v in colors.items()},**{k:v.get() for k,v in radii.items()},**{k:('dark','light','system')[v.current()] for k,v in choices.items()},'font_size':size.get(),'font_family':families[font_choice.current()-1] if font_choice.current()>0 else ''}
+                values.update({key:value.get() for key,value in dimensions.items()})
+                if any(not low<=values[key]<=high for key,(low,high,_) in LAYOUT_RANGES.items()):raise ValueError(tr('Value out of range.'))
                 if not FONT_SIZE_RANGE[0]<=values['font_size']<=FONT_SIZE_RANGE[1] or any(not RADIUS_RANGE[0]<=values[k]<=RADIUS_RANGE[1] for k in radii):raise ValueError(tr('Value out of range.'))
                 name = display_name.get().strip()
                 if len(name) > 64 or (name and not name.isprintable()):

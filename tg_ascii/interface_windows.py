@@ -848,6 +848,7 @@ class LinkedChatWindow(DesktopAdvancedMixin, DesktopTools):
         self.update_topic_state()
 
     def render(self):
+        self.history.configure(spacing2=self.preferences.values.get('message_line_spacing',0))
         if not self.visible():
             return
         from .appearance import app_palette
@@ -1215,8 +1216,8 @@ class LinkedChatWindow(DesktopAdvancedMixin, DesktopTools):
         name = message.filename.replace('\\', '/').split('/')[-1] or 'attachment'
         target = filedialog.asksaveasfilename(parent=self.window, initialfile=name)
         if target:
-            self.call(self.backend.download_media(message.media, Path(target)),
-                      lambda _: self.status.set(tr('Archivo guardado.')), timeout=None)
+            from .desktop_downloads import enqueue
+            enqueue(self,message,self.peer,Path(target),done=lambda _:self.status.set(tr('Archivo guardado.')))
 
     def close(self, destroy=True, discard_draft=False):
         if self.closed:

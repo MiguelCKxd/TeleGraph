@@ -18,7 +18,7 @@ from typing import NamedTuple
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_MODULES = ['windows_launcher.py','recovery.py','ui_work.py','sticker_search.py','translations_search.py','composer.py','message_translation.py','pin_order.py','translation_queue.py','mobile_icons.py','sender_identity.py','free_crop.py','official_icons.py','translations_editing.py','animated_emojis.py','animation.py','interface_background.py','telegram_wallpapers.py','wallpaper_render.py','custom_icon.py','translations_visual.py','translated_view.py','shared_media.py','appearance.py','desktop_settings.py','attachments.py','translations_customization.py','translations_profiles.py', 'profile_details.py', 'desktop_profile.py', '__init__.py', '__main__.py', 'auth.py', 'backend.py', 'desktop.py', 'typography.py', 'notifications.py', 'translations_v092.py', 'translations_v010.py', 'bot_buttons.py', 'desktop_bot_buttons.py', 'folder_features.py', 'desktop_folders.py', 'rich_preview.py', 'sticker_picker.py', 'image_gestures.py', 'interactions.py',
+SOURCE_MODULES = ['windows_launcher.py','recovery.py','ui_work.py','sticker_search.py','translations_search.py','composer.py','message_translation.py','pin_order.py','translation_queue.py','sender_identity.py','free_crop.py','translations_editing.py','animated_emojis.py','animation.py','interface_background.py','telegram_wallpapers.py','wallpaper_render.py','custom_icon.py','translations_visual.py','translated_view.py','shared_media.py','appearance.py','desktop_settings.py','attachments.py','translations_customization.py','translations_profiles.py', 'profile_details.py', 'desktop_profile.py', '__init__.py', '__main__.py', 'auth.py', 'backend.py', 'desktop.py', 'typography.py', 'notifications.py', 'translations_v092.py', 'translations_v010.py', 'bot_buttons.py', 'desktop_bot_buttons.py', 'folder_features.py', 'desktop_folders.py', 'rich_preview.py', 'sticker_picker.py', 'image_gestures.py', 'interactions.py',
                   'desktop_service.py', 'i18n.py', 'preferences.py', 'accounts.py', 'transfers.py',
                   'telegram_features.py', 'desktop_features.py', 'media_viewer.py', 'demo_features.py', 'windows_drop.py', 'app_dialogs.py', 'desktop_plus.py',
                   'telegram_extras.py', 'translations.py', 'local_state.py', 'updater.py', 'themes.py', 'message_tools.py', 'desktop_tools.py', 'audio_engine.py', 'background.py', 'instance.py', 'scrolling.py', 'logos.py', 'desktop_actions.py', 'telegram_actions.py', 'links.py', 'video_metadata.py', 'translations_extra.py', 'messaging_features.py', 'desktop_modern.py', 'bubbles.py', 'image_tools.py', 'native_emoji.py', 'translations_v08.py', 'translations_v09.py']
@@ -61,7 +61,7 @@ SOURCE_MODULES += ['forum_topics.py', 'translations_forums.py', 'translations_v3
 SOURCE_MODULES += ['community_management.py', 'desktop_community.py', 'timestamps.py', 'call_outcomes.py', 'notification_history.py', 'conference_invitations.py', 'desktop_conference.py', 'push_macos.py']
 SOURCE_MODULES += ['desktop_call_pip.py', 'mac_call_pip.py']
 SOURCE_MODULES += ['flood_control.py', 'media_cache.py', 'tk_safety.py', 'media_quality.py']
-SOURCE_MODULES += ['desktop_media_lifetime.py']
+SOURCE_MODULES += ['desktop_media_lifetime.py', 'desktop_downloads.py']
 SOURCE_MODULES += ['day_separators.py', 'gift_preview.py', 'native_open.py', 'device_contacts.py', 'contact_sync.py',
                    'desktop_contacts.py', 'app_lifecycle.py', 'attachment_preview.py', 'chat_menus.py', 'chat_activity.py',
                    'contact_tools.py', 'contact_list_view.py', 'article_carousel.py', 'translations_v14.py',
@@ -95,7 +95,7 @@ def stage_source(destination, credentials):
         shutil.copyfile(ROOT / 'tg_ascii' / name, package / name)
     for asset in ASSETS:
         target = package / 'assets' / asset
-        target.parent.mkdir(exist_ok=True)
+        target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / 'tg_ascii' / 'assets' / asset, target)
     for name in LOCALE_FILES:
         target = package / 'locales' / name
