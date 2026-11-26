@@ -664,5 +664,15 @@
   "{count} Telegram Stars",
   "{count} votes",
   "{field}: use between 1 and {maximum} characters.",
-  "{title}\nRecipient: {recipient}\nTotal: {amount} Telegram Stars\n\nConfirm this purchase?"
+  "{title}\nRecipient: {recipient}\nTotal: {amount} Telegram Stars\n\nConfirm this purchase?",
+  "Choose a forum group.",
+  "Invalid emoji.",
+  "Invalid search.",
+  "This topic is no longer available.",
+  "Invalid topic color.",
+  "Invalid topic settings.",
+  "Telegram did not return the new topic. Refresh the topic list.",
+  "This group must be upgraded to enable topics.",
+  "Reopen this group to check its topic settings.",
+  "The call continues in the background."
 ]

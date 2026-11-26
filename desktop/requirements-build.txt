@@ -1,7 +1,6 @@
 # Publisher / CI only. End users do not install these tools.
 pyinstaller==6.22.3
 Telethon==1.45.0
-prompt-toolkit==3.0.53
 Pillow==13.0.0
 tkinterdnd2==0.6.4
 sounddevice==0.5.6

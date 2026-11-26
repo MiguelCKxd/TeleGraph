@@ -10,6 +10,30 @@ from functools import lru_cache
 import unicodedata
 
 MOBILE = {
+    'Compartir con Apple TV': 'Share with Apple TV',
+    'Abrir tema': 'Open topic',
+    'Activar temas': 'Enable topics',
+    'Buscar temas': 'Search topics',
+    'Cambiar nombre': 'Rename',
+    'Cargar más': 'Load more',
+    'Crear tema': 'New topic',
+    'Debate vinculado': 'Linked discussion',
+    'Desactivar temas': 'Disable topics',
+    'Elegir tema': 'Choose a topic',
+    'Eliminar tema': 'Delete topic',
+    'Eliminar tema y todos sus mensajes': 'Delete this topic and all its messages?',
+    'No puedes enviar mensajes a este tema': 'You cannot write in this topic.',
+    'Nombre del tema': 'Topic name',
+    'Oculto': 'Hidden',
+    'Organizar el grupo por temas': 'Organize the group into topics',
+    'Organizar este grupo por temas. Un grupo básico se convertirá en supergrupo.': 'Organize this group into topics. A basic group will be upgraded to a supergroup.',
+    'Tema cerrado': 'This topic is closed.',
+    'Todos los temas': 'All topics',
+    'Volver a mostrar todos los mensajes juntos': 'Show all messages together again',
+    'Reabrir tema': 'Reopen topic',
+    'Cerrar tema': 'Close topic',
+    'Mostrar tema': 'Show General',
+    'Ocultar tema': 'Hide General',
     'Menú del chat': 'Chat menu',
     'Archivo de audio': 'Audio file',
     'Marcar como leído o no leído': 'Mark as read or unread',
@@ -120,7 +144,7 @@ def web_keys():
     import re
     from pathlib import Path
     script = (Path(__file__).resolve().parent / 'web' / 'app.js').read_text('utf-8')
-    for feature_script in ('stories.js', 'wallpapers.js', 'media_gallery.js', 'mobile_controls.js'):
+    for feature_script in ('stories.js', 'wallpapers.js', 'media_gallery.js', 'mobile_controls.js', 'forums.js'):
         script += (Path(__file__).resolve().parent / 'web' / feature_script).read_text('utf-8')
     start = script.index('const KEYS = [')
     block = script[start:script.index('];', start)]

@@ -1,4 +1,5 @@
 import ast
+import asyncio
 from datetime import datetime, timedelta
 import hashlib
 import importlib.util
@@ -9,10 +10,11 @@ import sys
 import tempfile
 from types import ModuleType, SimpleNamespace
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import zipfile
 
-from tg_ascii.auth import get_credentials, SetupError
+from tg_ascii.auth import SetupError
+from tg_ascii.desktop_service import DesktopService
 from tg_ascii.i18n import detect_language, set_language, tr
 
 spec = importlib.util.spec_from_file_location('build_release', Path(__file__).resolve().parents[1] / 'tools' / 'build_release.py')
@@ -55,24 +57,32 @@ class DistributionTests(unittest.TestCase):
     def test_bundled_app_does_not_ask_friends_for_api_keys(self):
         module = ModuleType('tg_ascii._app_credentials')
         module.API_ID, module.API_HASH = 12345, 'a' * 32
+        client = SimpleNamespace(connect=AsyncMock(), is_user_authorized=AsyncMock(return_value=False))
         with tempfile.TemporaryDirectory() as folder, patch.dict(sys.modules, {module.__name__: module}):
-            def unexpected(_):
-                self.fail('A distributed app must not ask for developer keys')
-            self.assertEqual(get_credentials(Path(folder), read=unexpected, secret=unexpected), ((12345, 'a' * 32), False))
+            service = DesktopService(root=folder, client_factory=Mock(return_value=client))
+            self.assertEqual(asyncio.run(service.connect()), 'phone')
+            self.assertEqual(service.credentials, (module.API_ID, module.API_HASH))
             self.assertFalse((Path(folder) / 'config.json').exists())
 
     def test_incomplete_binary_does_not_ask_for_developer_keys(self):
-        with patch.object(sys, 'frozen', True, create=True), patch('tg_ascii.auth.bundled_credentials', return_value=None):
+        with tempfile.TemporaryDirectory() as folder, patch.object(sys, 'frozen', True, create=True), \
+                patch('tg_ascii.desktop_service.bundled_credentials', return_value=None), \
+                patch('tg_ascii.desktop_service.USER_API', False):
+            service = DesktopService(root=folder, client_factory=Mock())
             with self.assertRaises(SetupError):
-                get_credentials(Path('unused'), read=lambda _: self.fail('Unexpected prompt'))
+                asyncio.run(service.connect())
+            service.client_factory.assert_not_called()
 
     def test_public_build_accepts_user_api_without_publisher_identity(self):
         credentials = ('43210', 'c' * 32)
+        client = SimpleNamespace(connect=AsyncMock(), is_user_authorized=AsyncMock(return_value=False))
         with tempfile.TemporaryDirectory() as directory, patch.object(sys, 'frozen', True, create=True), \
-                patch('tg_ascii.auth.USER_API', True), patch.dict(os.environ, {'TG_API_ID': 'invalid'}, clear=True):
-            answers = iter([credentials[0], 'n'])
-            result = get_credentials(Path(directory), read=lambda _: next(answers), secret=lambda _: credentials[1], write=lambda _: None)
-            self.assertEqual(result, ((43210, credentials[1]), False))
+                patch('tg_ascii.auth.USER_API', True), patch('tg_ascii.desktop_service.USER_API', True), \
+                patch.dict(os.environ, {'TG_API_ID': 'invalid'}, clear=True):
+            service = DesktopService(root=directory, client_factory=Mock(return_value=client))
+            self.assertEqual(asyncio.run(service.connect()), 'credentials')
+            self.assertEqual(asyncio.run(service.connect(credentials)), 'phone')
+            self.assertEqual(service.credentials, (43210, credentials[1]))
             self.assertFalse((Path(directory) / 'config.json').exists())
 
     def test_runtime_tls_policy_is_included_only_when_present(self):

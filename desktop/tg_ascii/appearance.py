@@ -31,16 +31,6 @@ def rounded_points(x,y,width,height,radius):
     return points
 
 
-def control_image(radius,fill,border,background,scale=3):
-    # ttk tiles the centre instead of stretching it. A 2px centre turns a
-    # large panel into hundreds of thousands of native image draws.
-    size=2*(radius+3)+128
-    image=Image.new('RGB',(size*scale,size*scale),background)
-    draw=ImageDraw.Draw(image)
-    draw.rounded_rectangle((scale,scale,(size-1)*scale,(size-1)*scale),radius=radius*scale,fill=fill,outline=border,width=scale)
-    return image.resize((size,size),Image.Resampling.LANCZOS)
-
-
 def _surface_image(radius, fill, border, background, border_width=0,
                    shadow_size=0, shadow_color='#000000', narrow=False):
     """Stable nine-patch dimensions allow updating photos instead of elements.

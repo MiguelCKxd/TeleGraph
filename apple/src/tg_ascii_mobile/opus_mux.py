@@ -140,10 +140,6 @@ def _read_ogg(data):
     return audio, channels, pre_skip, remainder
 
 
-def read_ogg(data):
-    return _read_ogg(data)[:3]
-
-
 # -- CAF ----------------------------------------------------------------------
 def _varint(value):
     out = [value & 0x7F]
@@ -207,10 +203,6 @@ def _read_caf(data):
         packets.append(bytes(audio[position:position + size]))
         position += size
     return packets, channels or 1, max(0, pre_skip), max(0, remainder)
-
-
-def read_caf(data):
-    return _read_caf(data)[:3]
 
 
 def write_caf(packets, channels=1, pre_skip=312, remainder=0):

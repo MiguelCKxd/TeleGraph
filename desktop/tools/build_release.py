@@ -27,8 +27,10 @@ sys.path.insert(0, str(ROOT))
 SOURCE_MODULES += ['default_avatar.py', 'sender_runs.py', 'account_photos.py', 'number_input.py',
                    'startup_look.py', 'launcher_names.py', 'recent_search_ui.py', 'recent_searches.py',
                    'settings_search.py', 'back_gesture.py']
+# 3.3 (Claude): forum topics and discussions UI, short transitions.
+SOURCE_MODULES += ['desktop_forums.py', 'transitions.py']
 SOURCE_MODULES += ['account_profile.py', 'customization_sync.py', 'desktop_customization.py',
-                   'contact_appearance.py', 'contact_profile.py', 'contact_settings.py', 'ui.py',
+                   'contact_appearance.py', 'contact_profile.py', 'contact_settings.py',
                    'drafts.py', 'emoji_documents.py', 'interface_editor.py', 'interface_layout.py',
                    'interface_store.py', 'interface_windows.py', 'motion.py', 'profile_customization.py',
                    'telegram_drafts.py', 'text_layout.py', 'translations_effects.py', 'visual_effects.py', 'startup_accounts.py']
@@ -55,6 +57,7 @@ SOURCE_MODULES += ['calls_rpc_codec.py', 'calls_group_native.py', 'calls_group_w
 SOURCE_MODULES += ['calls_group.py', 'calls_group_media.py', 'calls_source_volume.py']
 SOURCE_MODULES += ['mac_camera.py', 'channel_calls.py', 'desktop_channel_calls.py']
 SOURCE_MODULES += ['mac_media_access.py']
+SOURCE_MODULES += ['forum_topics.py', 'translations_forums.py']
 SOURCE_MODULES += ['community_management.py', 'desktop_community.py', 'timestamps.py', 'call_outcomes.py', 'notification_history.py', 'conference_invitations.py', 'desktop_conference.py', 'push_macos.py']
 SOURCE_MODULES += ['desktop_call_pip.py', 'mac_call_pip.py']
 SOURCE_MODULES += ['flood_control.py', 'media_cache.py', 'tk_safety.py']

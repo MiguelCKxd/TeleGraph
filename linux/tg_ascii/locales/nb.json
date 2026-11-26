@@ -1414,5 +1414,15 @@
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph fungerer som en installert meldingsapp: profilbilder, nylige meldinger, forhåndsvisninger og kontaktinfo ligger klare på enheten, og skjermene åpnes med dem med en gang. Bare det som virkelig er nytt, hentes på nytt. Bruker mer lagring og minne.",
   "Prepare content at startup": "Forbered innhold ved oppstart",
   "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Når chattelisten er lastet, forberedes profilbilder, de siste meldingene i de første chattene, forhåndsvisningene og emojiene deres i bakgrunnen. Bruker mer data og batteri ved oppstart.",
-  "Accent color": "Aksentfarge"
+  "Accent color": "Aksentfarge",
+  "Choose a forum group.": "Velg en gruppe med emner.",
+  "Invalid emoji.": "Ugyldig emoji.",
+  "Invalid search.": "Ugyldig søk.",
+  "This topic is no longer available.": "Dette emnet er ikke lenger tilgjengelig.",
+  "Invalid topic color.": "Ugyldig farge for emnet.",
+  "Invalid topic settings.": "Ugyldige emneinnstillinger.",
+  "Telegram did not return the new topic. Refresh the topic list.": "Telegram returnerte ikke det nye emnet. Oppdater emnelisten.",
+  "This group must be upgraded to enable topics.": "Gjør gruppen om til en supergruppe for å aktivere emner.",
+  "Reopen this group to check its topic settings.": "Åpne gruppen på nytt for å sjekke emneinnstillingene.",
+  "The call continues in the background.": "Samtalen fortsetter i bakgrunnen."
 }

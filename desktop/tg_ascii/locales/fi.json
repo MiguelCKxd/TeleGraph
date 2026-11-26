@@ -1414,5 +1414,15 @@
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph toimii kuin asennettu viestisovellus: profiilikuvat, viimeisimmät viestit, esikatselut ja yhteystiedot pysyvät valmiina tällä laitteella, ja näkymät avautuvat niistä heti. Vain todella uusi pyydetään uudelleen. Käyttää enemmän tallennustilaa ja muistia.",
   "Prepare content at startup": "Valmistele sisältö käynnistyksessä",
   "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Kun keskustelulista on ladattu, profiilikuvat, ensimmäisten keskustelujen viimeisimmät viestit, niiden esikatselut ja emojit valmistellaan taustalla. Käynnistyksessä kuluu enemmän dataa ja akkua.",
-  "Accent color": "Korostusväri"
+  "Accent color": "Korostusväri",
+  "Choose a forum group.": "Valitse ryhmä, jossa on aiheita.",
+  "Invalid emoji.": "Virheellinen emoji.",
+  "Invalid search.": "Virheellinen haku.",
+  "This topic is no longer available.": "Tämä aihe ei ole enää saatavilla.",
+  "Invalid topic color.": "Aiheen väri ei kelpaa.",
+  "Invalid topic settings.": "Aiheen asetukset eivät kelpaa.",
+  "Telegram did not return the new topic. Refresh the topic list.": "Telegram ei palauttanut uutta aihetta. Päivitä aiheluettelo.",
+  "This group must be upgraded to enable topics.": "Muunna ryhmä superryhmäksi, jotta voit ottaa aiheet käyttöön.",
+  "Reopen this group to check its topic settings.": "Avaa ryhmä uudelleen ja tarkista aiheiden asetukset.",
+  "The call continues in the background.": "Puhelu jatkuu taustalla."
 }

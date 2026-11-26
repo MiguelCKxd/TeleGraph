@@ -76,6 +76,8 @@ def forward_chat_change(app, account, kind, payload):
                 window.account_change((account, kind, payload))
     for window in tuple(getattr(app, '_chat_windows', ())):
         window.change(account, kind, payload)
+    for browser in tuple(getattr(app, '_topic_browsers', ())):
+        browser.change(account, kind, payload)
 
 
 def close_chat_windows(app):
@@ -89,6 +91,9 @@ def close_chat_windows(app):
 class LinkedChatWindow(DesktopTools):
     thread = None
     thread_id = None
+    topic = None
+    topic_id = None
+    _history_revision = 0
     attachment_bar = None
 
     @property
@@ -115,10 +120,13 @@ class LinkedChatWindow(DesktopTools):
     def preferences(self, value):
         self._preferences = value
 
-    def __init__(self, app, account, peer, *, thread=None):
+    def __init__(self, app, account, peer, *, thread=None, topic=None):
         self.app, self.account, self.peer = app, account, peer
         self.thread = thread
         self.thread_id = thread['root_id'] if thread else None
+        # 3.3: a forum topic (contract of forum_topics.py) is a paged, scoped view.
+        self.topic = dict(topic) if topic else None
+        self.topic_id = topic['id'] if topic else None
         self.backend = pinned_backend(app, account)
         self.closed = self.busy = self.loading = False
         self.messages = ([thread['root']] if thread else
@@ -137,6 +145,8 @@ class LinkedChatWindow(DesktopTools):
         self.dirty = True
         self.follow = True
         self.window = tk.Toplevel(app.root)
+        from .transitions import fade_in
+        fade_in(app, self.window)
         # A scoped Composer adapter: no operation consults the main window's
         # current account after this window has been opened.
         self.ui_account, self.active = account, peer
@@ -184,6 +194,8 @@ class LinkedChatWindow(DesktopTools):
         chat = next((chat for chat in getattr(app, 'chats', ()) if chat.id == peer), None)
         labels = getattr(getattr(app, 'service', None), 'labels', {})
         self.window.title(f'{chat.name if chat else peer} · {labels.get(account, account)} · {APP_NAME}')
+        if self.topic:
+            self.window.title(f'# {self.topic.get("title") or self.topic_id} · {chat.name if chat else peer} · {APP_NAME}')
         self.window.geometry('640x650')
         self.window.minsize(360, 300)
         toolbar = ttk.Frame(self.window, padding=6)
@@ -192,9 +204,15 @@ class LinkedChatWindow(DesktopTools):
         from .advanced_features import feature_enabled
         if feature_enabled(self.app, 'chat_translation'):
             ttk.Button(toolbar, text=tr('Translate chat'), command=self.translation_dialog).pack(side='left', padx=4)
-        if thread:
+        if thread or topic:
             ttk.Button(toolbar, text=tr('Previous page'), command=self.older_comments).pack(side='left')
-            ttk.Label(toolbar, text=tr('Comment drafts stay on this device.')).pack(side='left', padx=6)
+            if thread:
+                ttk.Label(toolbar, text=tr('Comment drafts stay on this device.')).pack(side='left', padx=6)
+            else:
+                # 3.3: search and scheduled messages inside the topic.
+                from .desktop_forums import topic_search, topic_scheduled
+                ttk.Button(toolbar, text=tr('Search'), command=lambda: topic_search(self)).pack(side='left', padx=4)
+                ttk.Button(toolbar, text=tr('Scheduled messages'), command=lambda: topic_scheduled(self)).pack(side='left')
             self._thread_offset, self._thread_more = 0, False
         ttk.Button(toolbar, text=tr('Close'), command=self.close).pack(side='right')
         body = ttk.Frame(self.window)
@@ -240,14 +258,15 @@ class LinkedChatWindow(DesktopTools):
         self.draft_job = FrameJob(self.window, self.persist_draft, delay=600)
         self.draft_store = getattr(getattr(app, 'draft_manager', None), 'store', None)
         used = {getattr(window, 'draft_account', '') for window in getattr(app, '_chat_windows', ()) if window.peer == peer}
-        self.draft_account = f'thread:{account}:{self.thread_id}' if thread else f'linked:{account}'
+        self.draft_account = (f'topic:{account}:{self.topic_id}' if topic else
+                              f'thread:{account}:{self.thread_id}' if thread else f'linked:{account}')
         prefix = self.draft_account
         slot = 1
         while self.draft_account in used:
             self.draft_account = f'{prefix}:{slot}'
             slot += 1
         record = self.draft_store.get(self.draft_account, peer) if self.draft_store else None
-        if record is None and self.draft_store and not thread:
+        if record is None and self.draft_store and not thread and not topic:
             record = self.draft_store.get(account, peer)
         if record:
             self.editor.insert('1.0', record['text'])
@@ -459,7 +478,7 @@ class LinkedChatWindow(DesktopTools):
         Other window slots keep their private drafts and cannot overwrite a
         newer edit merely because the window closes or regains visibility.
         """
-        if self.thread_id or self.app.demo or not self.valid() or not self.composer_focused() or not self._draft_edited:
+        if self.thread_id or self.topic_id or self.app.demo or not self.valid() or not self.composer_focused() or not self._draft_edited:
             return
         if self._draft_saving:
             self._draft_again = record
@@ -559,31 +578,108 @@ class LinkedChatWindow(DesktopTools):
         self.loading = True
         self.history_changes = []
         self.status.set(tr('Cargando mensajes...'))
+        revision = self.next_history_revision()
         def loaded(messages):
             from .telegram_extras import reconcile_history
+            if revision != self._history_revision:
+                return  # A later load (a jump to a message) owns the history now.
             self.loading = False
             incoming = [item for kind, (peer, item) in self.history_changes if kind == 'new' and peer == self.peer]
             root = [self.thread['root']] if self.thread else []
             self.messages = reconcile_history([*root, *messages, *incoming], self.history_changes, self.peer)[-200:]
-            if self.thread:
+            if self.thread or self.topic_id:
                 self._thread_offset, self._thread_more = messages.next_offset, messages.more
             self.history_changes = []
             self.status.set('')
+            self.update_topic_state()
             self.request_render()
             self.schedule_translations()
         def failed(error):
             from .auth import error_message
+            if revision != self._history_revision:
+                return
             self.loading = False
             self.status.set(error_message(error))
-        self.call(self.backend.discussion_history(self.peer, self.thread_id) if self.thread else self.backend.history(self.peer), loaded, failed)
+        self.call(self.history_page() if (self.thread or self.topic_id) else self.backend.history(self.peer), loaded, failed)
 
-    def older_comments(self):
-        if not self.thread or self.loading or not self._thread_more or not self.valid():
+    def next_history_revision(self):
+        """Every history request gets a number; only the newest one is applied."""
+        self._history_revision = self._history_revision + 1
+        return self._history_revision
+
+    def history_page(self, before=0):
+        """One page of this window's thread or topic, ending before ``before``."""
+        if self.topic_id:
+            return self.backend.forum_history(self.peer, self.topic_id, before)
+        return self.backend.discussion_history(self.peer, self.thread_id, before)
+
+    def update_topic_state(self):
+        """A closed topic or one without send rights keeps the composer read-only."""
+        if not self.topic or not hasattr(self, 'send_button'):
+            return
+        writable = self.topic.get('can_send', True) is not False
+        self.send_button.state(['!disabled'] if writable else ['disabled'])
+        self.attach_button.state(['!disabled'] if writable else ['disabled'])
+        if not writable:
+            from .interface_layout import caption
+            self.status.set(caption('This topic is closed.', 'Este tema está cerrado.') if self.topic.get('closed')
+                            else caption('You cannot write in this topic.', 'No puedes escribir en este tema.'))
+
+    def reveal_message(self, ident):
+        """Show and highlight a message, loading its page when it is not here (3.3)."""
+        if not self.valid():
+            return
+        if self.jump(ident):
+            self.highlight(ident)
             return
         self.loading = True
         self.history_changes = []
+        revision = self.next_history_revision()
         def loaded(page):
             from .telegram_extras import reconcile_history
+            if revision != self._history_revision or not self.valid():
+                return
+            self.loading = False
+            root = [self.thread['root']] if self.thread else []
+            self.messages = reconcile_history([*root, *page], self.history_changes, self.peer)
+            if self.thread or self.topic_id:
+                self._thread_offset = getattr(page, 'next_offset', 0)
+                self._thread_more = getattr(page, 'more', False)
+            self.history_changes = []
+            self.follow = False
+            self.request_render(follow=False)
+            self.window.after(120, lambda: self.highlight(ident) if self.jump(ident) else None)
+        def failed(error):
+            from .auth import error_message
+            if revision != self._history_revision:
+                return
+            self.loading = False
+            self.status.set(error_message(error))
+        if self.topic_id:
+            # 3.3 core: a page centred on the message within its topic.
+            operation = self.backend.forum_history(self.peer, self.topic_id, 0, around=ident)
+        elif self.thread and hasattr(self.backend, 'discussion_around'):
+            operation = self.backend.discussion_around(self.peer, self.thread_id, ident)
+        elif self.thread:
+            operation = self.history_page(ident + 1)
+        else:
+            operation = self.backend.message_context(self.peer, ident)
+        self.call(operation, loaded, failed)
+
+    def highlight(self, ident):
+        from .transitions import flash_message
+        flash_message(self, ident)
+
+    def older_comments(self):
+        if not (self.thread or self.topic_id) or self.loading or not self._thread_more or not self.valid():
+            return
+        self.loading = True
+        self.history_changes = []
+        revision = self.next_history_revision()
+        def loaded(page):
+            from .telegram_extras import reconcile_history
+            if revision != self._history_revision:
+                return
             self.loading = False
             self._thread_more = page.more and page.next_offset != self._thread_offset
             self._thread_offset = page.next_offset
@@ -592,11 +688,15 @@ class LinkedChatWindow(DesktopTools):
             self.request_render()
             self.schedule_translations()
         def failed(error):
+            if revision != self._history_revision:
+                return
             self.loading = False
             self.app.show_error(error)
-        self.call(self.backend.discussion_history(self.peer, self.thread_id, self._thread_offset), loaded, failed)
+        self.call(self.history_page(self._thread_offset), loaded, failed)
 
     def belongs(self, message):
+        if self.topic_id:
+            return (getattr(message, 'topic_id', None) or 1) == self.topic_id
         return (not self.thread_id or message.id == self.thread_id
                 or getattr(message, 'thread_id', None) == self.thread_id
                 or message.reply_to_id == self.thread_id)
@@ -622,8 +722,18 @@ class LinkedChatWindow(DesktopTools):
             self.status.set(tr('Connected' if payload == 'online' else 'Sin conexion'))
             return
         if kind == 'draft':
-            if not self.thread_id and payload[0] == self.peer:
+            if not self.thread_id and not self.topic_id and payload[0] == self.peer:
                 self.remote_draft(payload[1])
+            return
+        if kind == 'forum_topics':
+            if (self.topic_id and payload and payload[0] == self.peer and payload[1] in (None, self.topic_id)
+                    and getattr(self, '_topic_job', None) is None):
+                # One request per burst: the core reports every new forum message.
+                def fetch():
+                    self._topic_job = None
+                    if self.valid():
+                        self.call(self.backend.forum_topic(self.peer, self.topic_id), self.topic_changed, self.topic_failed)
+                self._topic_job = self.window.after(1500, fetch)
             return
         if kind not in ('edit', 'advanced_media', 'delete', 'read', 'reaction'):
             return
@@ -649,6 +759,24 @@ class LinkedChatWindow(DesktopTools):
             if not changed:
                 return
         self.request_render()
+
+    def topic_failed(self, error):
+        """A deleted topic stops accepting messages; a network error changes nothing."""
+        from .forum_topics import ForumTopicUnavailable
+        if not isinstance(error, ForumTopicUnavailable) or not self.valid():
+            return
+        self.topic = dict(self.topic or {}, can_send=False, deleted=True)
+        self.update_topic_state()
+        from .interface_layout import caption
+        self.status.set(caption('This topic was deleted.', 'Este tema se ha borrado.'))
+
+    def topic_changed(self, row):
+        if not isinstance(row, dict) or not self.valid():
+            return
+        self.topic = dict(row)
+        chat = next((chat for chat in getattr(self.app, 'chats', ()) if chat.id == self.peer), None)
+        self.window.title(f'# {row.get("title") or self.topic_id} · {chat.name if chat else self.peer} · {APP_NAME}')
+        self.update_topic_state()
 
     def render(self):
         if not self.visible():
@@ -804,7 +932,8 @@ class LinkedChatWindow(DesktopTools):
             self.acknowledge()
         def failed(_):
             self.read_pending = False
-        self.call(self.backend.read_discussion(self.peer, self.thread_id, latest)
+        self.call(self.backend.forum_mark_read(self.peer, self.topic_id, latest) if self.topic_id
+                  else self.backend.read_discussion(self.peer, self.thread_id, latest)
                   if self.thread_id else self.backend.mark_read(self.peer, latest), done, failed)
 
     def reply(self, message):
@@ -896,6 +1025,9 @@ class LinkedChatWindow(DesktopTools):
     def send(self):
         if self.busy or not self.valid():
             return
+        if self.topic and self.topic.get('can_send', True) is False:
+            self.update_topic_state()
+            return
         text = self.editor.get('1.0', 'end-1c')
         from .attachments import paths_in
         paths = paths_in(self.attachment)
@@ -911,7 +1043,13 @@ class LinkedChatWindow(DesktopTools):
         self.attach_button.state(['disabled'])
         self.status.set(tr('Enviando...'))
         reply_to = self.reply_to or self.thread_id
-        if self.app.demo:
+        if self.topic_id and not self.app.demo:
+            single = paths[0] if len(paths) == 1 else None
+            operation = self.backend.forum_send(
+                self.peer, self.topic_id, text, self.snapshot_formats(), self.editor.snapshot_custom(),
+                paths=tuple(paths), reply_to=self.reply_to,
+                as_photo=bool(single and single.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')))
+        elif self.app.demo:
             path = paths[0] if paths else None
             operation = self.backend.send_attachment(self.peer, path, caption=text) if path else self.backend.send(self.peer, text)
         else:
@@ -1010,7 +1148,7 @@ class LinkedChatWindow(DesktopTools):
             if not hasattr(self.app, '_suppressed_thread_peers'):
                 self.app._suppressed_thread_peers = set()
             self.app._suppressed_thread_peers.add(self.peer)
-        publish = not self.thread_id and not discard_draft and not self.app.demo and self.valid() and self.composer_focused()
+        publish = not self.thread_id and not self.topic_id and not discard_draft and not self.app.demo and self.valid() and self.composer_focused()
         if not discard_draft:
             try:
                 self.persist_draft(capture_only=True)

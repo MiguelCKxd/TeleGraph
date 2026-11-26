@@ -16,6 +16,7 @@ from telethon import types as t
 from telethon import utils
 
 from .i18n import tr
+from .forum_topics import input_reply
 from .sticker_search import cached
 
 
@@ -200,7 +201,7 @@ class AdvancedMessagingMixin:
     async def _structured_sent(self, request):
         updates = await self.client(request)
         messages = [update.message for update in getattr(updates, 'updates', ())
-                    if isinstance(update, (t.UpdateNewMessage, t.UpdateNewChannelMessage))]
+                    if isinstance(update, (t.UpdateNewMessage, t.UpdateNewChannelMessage, t.UpdateNewScheduledMessage))]
         mapping = next((update.id for update in getattr(updates, 'updates', ())
                         if isinstance(update, t.UpdateMessageID) and update.random_id == request.random_id), None)
         if mapping is not None:
@@ -217,7 +218,7 @@ class AdvancedMessagingMixin:
     async def _send_structured(self, peer, media, *, reply_to=None, silent=False, schedule=None):
         request = f.messages.SendMediaRequest(
             await self.client.get_input_entity(peer), media, '', silent=silent,
-            reply_to=t.InputReplyToMessage(reply_to) if reply_to is not None else None,
+            reply_to=input_reply(reply_to),
             schedule_date=schedule)
         return await self._structured_sent(request)
 
@@ -582,7 +583,7 @@ class AdvancedMessagingMixin:
         from .rich_articles import article_input
         rich = article_input(source, format=format, rtl=rtl, noautolink=noautolink)
         request = f.messages.SendMessageRequest(await self.client.get_input_entity(peer), '', rich_message=rich,
-                                                reply_to=t.InputReplyToMessage(reply_to) if reply_to is not None else None)
+                                                reply_to=input_reply(reply_to))
         return await self._structured_sent(request)
 
     async def article_state(self, peer, ident):

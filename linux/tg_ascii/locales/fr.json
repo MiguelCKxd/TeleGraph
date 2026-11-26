@@ -1414,5 +1414,15 @@
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph fonctionne comme une app de messagerie installée : photos de profil, messages récents, aperçus et coordonnées restent prêts sur cet appareil et les écrans s’ouvrent aussitôt avec eux. Seul ce qui est vraiment nouveau est redemandé. Utilise plus de stockage et de mémoire.",
   "Prepare content at startup": "Préparer le contenu au démarrage",
   "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Une fois la liste des chats chargée, les photos de profil, les derniers messages des premiers chats, leurs aperçus et emoji sont préparés en arrière-plan. Consomme plus de données et de batterie au démarrage.",
-  "Accent color": "Couleur d’accentuation"
+  "Accent color": "Couleur d’accentuation",
+  "Choose a forum group.": "Choisissez un groupe avec des sujets.",
+  "Invalid emoji.": "Émoji non valide.",
+  "Invalid search.": "Recherche non valide.",
+  "This topic is no longer available.": "Ce sujet n’est plus disponible.",
+  "Invalid topic color.": "La couleur du sujet n’est pas valide.",
+  "Invalid topic settings.": "Les paramètres du sujet ne sont pas valides.",
+  "Telegram did not return the new topic. Refresh the topic list.": "Telegram n’a pas renvoyé le nouveau sujet. Actualisez la liste des sujets.",
+  "This group must be upgraded to enable topics.": "Convertissez ce groupe en supergroupe pour activer les sujets.",
+  "Reopen this group to check its topic settings.": "Rouvrez le groupe pour vérifier les paramètres des sujets.",
+  "The call continues in the background.": "L’appel se poursuit en arrière-plan."
 }

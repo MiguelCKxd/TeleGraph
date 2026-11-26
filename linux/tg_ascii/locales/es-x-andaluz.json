@@ -1414,5 +1414,15 @@
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph funciona como una app de mensajería instalá: fotoh de perfil, mensaheh recienteh, vihtah previah y datoh de contahto se quean lihtoh en ehte dihpositivo y lah pantallah s’abren al ihtante con ellah. Solo se vuelve a pedí lo que eh nuevo de verdá. Usa má almacenamiento y memoria.",
   "Prepare content at startup": "Prepará contenío al empezá",
   "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Cuando carga la lihta de chats, se preparan de fondo lah fotoh de perfil, loh úrtimoh mensaheh de tuh primeroh chats, suh vihtah previah y emoji. Usa má datoh y batería al empezá.",
-  "Accent color": "Color de realce"
+  "Accent color": "Color de realce",
+  "Choose a forum group.": "Elige un grupo con temas.",
+  "Invalid emoji.": "Ese emoji no vale.",
+  "Invalid search.": "La búsqueda no es válida.",
+  "This topic is no longer available.": "Este tema ya no está disponible.",
+  "Invalid topic color.": "El color del tema no es válido.",
+  "Invalid topic settings.": "Los ajustes del tema no son válidos.",
+  "Telegram did not return the new topic. Refresh the topic list.": "Telegram no devolvió el tema nuevo. Actualiza la lista de temas.",
+  "This group must be upgraded to enable topics.": "Convierte el grupo en supergrupo para activar los temas.",
+  "Reopen this group to check its topic settings.": "Vuelve a abrir el grupo para comprobar los ajustes de los temas.",
+  "The call continues in the background.": "La llamada sigue en segundo plano."
 }

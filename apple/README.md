@@ -1,25 +1,25 @@
-# TeleGraph 3.2 para móviles, relojes y Apple TV
+# TeleGraph 3.3 para móviles, relojes y Apple TV
 
-Las aplicaciones de teléfono y reloj comparten el núcleo de escritorio de TeleGraph. El proyecto tvOS muestra los chats que se eligen en un iPhone o iPad vinculado. Esta rama corresponde a la versión 3.2.0, compilación 1.
+Las aplicaciones de teléfono y reloj comparten el núcleo de escritorio de TeleGraph. El proyecto tvOS muestra los chats que se eligen en un iPhone o iPad vinculado. Esta rama corresponde a la versión 3.3.0, compilación 1.
 
 ## Preparar el código
 
 Desde una misma carpeta, clona el escritorio y esta rama. El sincronizador selecciona la revisión de núcleo usada por esta versión.
 
 ```sh
-git clone --branch escritorio-v3.2 https://github.com/MiguelCKxd/TeleGraph escritorio
-git clone --branch apple-v3.2-build1 https://github.com/MiguelCKxd/TeleGraph movil
+git clone --branch escritorio-v3.3 https://github.com/MiguelCKxd/TeleGraph escritorio
+git clone --branch apple-v3.3-build1 https://github.com/MiguelCKxd/TeleGraph movil
 cd movil
 export TG_ASCII_DESKTOP="$PWD/../escritorio"
 ```
 
-Prepara Briefcase en `../beeware-venv/`. Indica con `TG_ASCII_DESKTOP_PYTHON` el intérprete que contiene PyTgCalls 3.0.0. El sincronizador copia el núcleo y esa dependencia al directorio de compilación. Para contribuir al proyecto desde otro clon del escritorio, usa `TG_ASCII_DESKTOP`. La revisión predeterminada es `32a1d27580b49cc50107e11c355c4af9d6afb82e`.
+Prepara Briefcase en `../beeware-venv/`. Indica con `TG_ASCII_DESKTOP_PYTHON` el intérprete que contiene PyTgCalls 3.0.0. El sincronizador copia el núcleo y esa dependencia al directorio de compilación. Para contribuir al proyecto desde otro clon del escritorio, usa `TG_ASCII_DESKTOP`. La revisión predeterminada es `fcefec4b5789724f57f1afc6fe05e5d434173268`.
 
 Para generar tu propio cliente, registra tu aplicación en Telegram y guarda los campos `id` y `hash` en un JSON privado. El sincronizador lo lee desde `TELEGRAPH_API_CONFIG` o desde `~/.tg-ascii-lite/api.json`. Para configurar otra identidad en iPhone, usa `TELEGRAPH_IOS_API_CONFIG`. Quien instala la aplicación compilada introduce su teléfono, el código de Telegram y, si procede, su contraseña de verificación en dos pasos. [Registro de aplicaciones en Telegram](https://core.telegram.org/api/obtaining_api_id)
 
 ## Android y Wear OS
 
-Configura `ANDROID_HOME` con la ubicación del Android SDK y comprueba que `python3.22` está en el `PATH` para Chaquopy. Las ruedas adicionales de Python están en `wheels/`. Puedes compilar los dos destinos desde la carpeta móvil.
+Configura `ANDROID_HOME` con la ubicación del Android SDK y comprueba que `python3.12` está en el `PATH` para Chaquopy. Las ruedas adicionales de Python están en `wheels/`. Puedes compilar los dos destinos desde la carpeta móvil.
 
 ```sh
 tools/build.sh android debug

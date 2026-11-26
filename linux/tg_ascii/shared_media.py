@@ -192,5 +192,7 @@ class SharedMediaBrowser:
         if kind=='similar':
             self.app.call(self.backend.resolve_chat(message.id),lambda chat:self.app.open_resolved(chat) if self.valid() else None,tr('Cargando...'))
             return
-        if jump or not message.media:self.app.jump_message(message.id,self.peer)
+        if jump or not message.media:
+            from .desktop_forums import reveal_in_context
+            reveal_in_context(self.app,self.peer,message.id,getattr(message,'topic_id',None))
         else:self.app.view_message_media(message,self.peer)

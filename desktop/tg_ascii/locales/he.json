@@ -1414,5 +1414,15 @@
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph פועלת כמו אפליקציית הודעות מותקנת: תמונות פרופיל, הודעות אחרונות, תצוגות מקדימות ופרטי אנשי קשר נשמרים מוכנים במכשיר זה והמסכים נפתחים מיד. רק מה שבאמת חדש מתבקש שוב. משתמשת ביותר אחסון וזיכרון.",
   "Prepare content at startup": "הכנת תוכן בעת ההפעלה",
   "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "לאחר טעינת רשימת הצ׳אטים מוכנים ברקע תמונות פרופיל, ההודעות האחרונות של הצ׳אטים הראשונים, התצוגות המקדימות והאימוג׳י שלהם. בעת ההפעלה צורכת יותר נתונים וסוללה.",
-  "Accent color": "צבע הדגשה"
+  "Accent color": "צבע הדגשה",
+  "Choose a forum group.": "יש לבחור קבוצה עם נושאים.",
+  "Invalid emoji.": "האמוג׳י אינו תקין.",
+  "Invalid search.": "החיפוש אינו תקין.",
+  "This topic is no longer available.": "הנושא הזה כבר אינו זמין.",
+  "Invalid topic color.": "צבע הנושא אינו תקין.",
+  "Invalid topic settings.": "הגדרות הנושא אינן תקינות.",
+  "Telegram did not return the new topic. Refresh the topic list.": "טלגרם לא החזירה את הנושא החדש. יש לרענן את רשימת הנושאים.",
+  "This group must be upgraded to enable topics.": "כדי להפעיל נושאים, יש להפוך את הקבוצה לקבוצת־על.",
+  "Reopen this group to check its topic settings.": "יש לפתוח שוב את הקבוצה כדי לבדוק את הגדרות הנושאים.",
+  "The call continues in the background.": "השיחה ממשיכה ברקע."
 }

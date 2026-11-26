@@ -247,6 +247,8 @@ class DesktopFeatures(DesktopCalls, DesktopPeerTools, DesktopCustomization, Atta
         window.minsize(320,260)
         window.transient(self.root)
         window.bind('<Escape>', lambda _: window.destroy())
+        from .transitions import fade_in
+        fade_in(self, window)
         # 3.2: swipe right (or Command-[ / Alt-Left) closes the dialog, like going back.
         from .back_gesture import install as install_back
         install_back(window, window.destroy)

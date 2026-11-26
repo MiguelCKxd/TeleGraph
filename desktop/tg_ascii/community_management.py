@@ -51,7 +51,7 @@ def merge_restrictions(before, changes):
 
 
 class CommunityManagement:
-    async def community_info(self, peer):
+    async def community_info(self, peer, *, allow_left=False):
         entity=await self.client.get_entity(peer)
         if isinstance(entity,t.Channel):
             response=await self.client(f.channels.GetFullChannelRequest(entity))
@@ -61,7 +61,7 @@ class CommunityManagement:
         # get_entity may return a cached entity with revoked rights. Full RPCs
         # carry the authoritative version alongside full_chat.
         entity=next((c for c in getattr(response,'chats',()) if c.id==entity.id),entity)
-        if getattr(entity,'left',False) or getattr(entity,'kicked',False):
+        if getattr(entity,'kicked',False) or getattr(entity,'left',False) and not allow_left:
             raise ValueError(tr('Telegram does not allow this action for your account.'))
         return entity,response.full_chat
 
@@ -69,15 +69,17 @@ class CommunityManagement:
     def community_can(entity, right):
         return bool(entity.creator or getattr(getattr(entity,'admin_rights',None),right,False))
 
-    async def create_community(self,title,about='',broadcast=False):
+    async def create_community(self,title,about='',broadcast=False, *, forum=False):
         from .backend import Chat
         if type(broadcast) is not bool or not isinstance(title,str) or not title.strip() or len(title.strip())>128:
             raise ValueError(tr('Invalid chat title.'))
         if not isinstance(about,str) or len(about)>255:raise ValueError(tr('Description is too long.'))
-        result=await self.client(f.channels.CreateChannelRequest(title.strip(),about,broadcast=broadcast,megagroup=not broadcast))
+        if type(forum) is not bool or forum and broadcast:
+            raise ValueError(tr('Choose a forum group.'))
+        result=await self.client(f.channels.CreateChannelRequest(title.strip(),about,broadcast=broadcast,megagroup=not broadcast,forum=forum))
         entity=next((c for c in result.chats if isinstance(c,t.Channel) and bool(c.broadcast)==broadcast),None)
         if entity is None:raise ValueError(tr('Telegram no devolvio el grupo. Actualiza antes de reintentar.'))
-        return Chat(utils.get_peer_id(entity),entity.title,kind='channel' if broadcast else 'group',member=True,entity=entity)
+        return Chat(utils.get_peer_id(entity),entity.title,kind='channel' if broadcast else 'group',member=True,entity=entity,forum=bool(entity.forum),has_link=bool(entity.has_link))
 
     async def discussion_groups(self, peer):
         entity,full=await self.community_info(peer)

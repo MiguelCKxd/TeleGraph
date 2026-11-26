@@ -284,6 +284,7 @@ async def _handle(body):
     global _client, _qr, _secret_mgr
     from telethon import errors
     op = body.get('op')
+    os.environ['TGWATCH_LANGUAGE'] = 'es' if body.get('interface_language') == 'es' else 'en'
     client = await _ensure_client()
     if op == 'status':
         authorized = await client.is_user_authorized()
@@ -345,10 +346,38 @@ async def _handle(body):
         for dialog in dialogs:
             kind = 'channel' if dialog.is_channel and not dialog.is_group else ('group' if dialog.is_group else 'user')
             items.append({'pinned': bool(dialog.pinned), 'id': dialog.id, 'name': dialog.name or '', 'unread': dialog.unread_count or 0,
-                          'preview': _text(dialog.message) if dialog.message else '', 'kind': kind})
+                          'preview': _text(dialog.message) if dialog.message else '', 'kind': kind,
+                          'forum': bool(getattr(dialog.entity, 'forum', False)), 'has_link': bool(getattr(dialog.entity, 'has_link', False))})
         return sorted(items, key=lambda chat: not chat.get('pinned', False))
-    if op == 'messages':
+    if op == 'linked_discussion':
+        from .forum_client import WatchForums
+        link = await WatchForums.for_client(client).linked_discussion(int(body['peer']))
+        return {'chat': None if not link else {'id': link['peer'], 'name': link['title'], 'kind': link['kind'],
+                                               'forum': link['forum'], 'unread': 0, 'preview': ''}}
+    if op in ('topics', 'messages', 'send'):
         peer = int(body['peer'])
+        topic = body.get('topic_id')
+        if op == 'topics' or topic is not None:
+            from .forum_client import WatchForums
+        if op == 'topics':
+            return await WatchForums.for_client(client).forum_topics(peer, cursor=body.get('cursor'), limit=30)
+        if topic is not None:
+            if type(topic) is not int or not 0 < topic <= 0x7fffffff:
+                raise ValueError('Invalid topic.')
+            forums = WatchForums.for_client(client)
+            if op == 'send':
+                await forums.send_text(peer, topic, str(body.get('text', ''))[:4096])
+                return {'ok': True}
+            page = await forums.forum_history(peer, topic, limit=25)
+            if page:
+                await forums.forum_mark_read(peer, topic, page[-1].id)
+            return [dict(id=m.id, sender=forums.names.get(m.raw.sender_id) or ('Tú' if m.outgoing else ''),
+                         sender_id=m.raw.sender_id, text=_text(m.raw), time=_clock(m.raw.date), out=m.outgoing,
+                         date=m.raw.date.timestamp(), edited_at=m.raw.edit_date.timestamp() if m.raw.edit_date and not m.raw.edit_hide else None,
+                         read=m.read, translatable=bool((m.raw.message or '').strip())) for m in page if not m.raw.action]
+        if -2_000_000_000_000 <= peer <= -1_000_000_000_000 and getattr(await client.get_entity(peer), 'forum', False):
+            raise ValueError('Selecciona un tema. / Choose a topic.')
+    if op == 'messages':
         if _secret_mgr and peer < -2_000_000_000_000:
             await _secret_mgr.mark_read(peer)
             return [{'id': m.id, 'sender': m.sender, 'text': m.text, 'time': m.time,
@@ -378,7 +407,7 @@ async def _handle(body):
             result.append({'id': message.id, 'sender': utils.get_display_name(who) if who else ('Tú' if message.out else ''),
                            'sender_id': sender_id, 'color': getattr(getattr(who, 'color', None), 'color', None),
                            'text': _text(message), 'time': _clock(message.date), 'out': bool(message.out),
-                           'date': message.date.timestamp(), 'edited_at': message.edit_date.timestamp() if message.edit_date else None,
+                           'date': message.date.timestamp(), 'edited_at': message.edit_date.timestamp() if message.edit_date and not message.edit_hide else None,
                            'read': read_max is not None and message.id <= read_max if message.out else None,
                            'translatable': bool((message.message or '').strip())})
         return result

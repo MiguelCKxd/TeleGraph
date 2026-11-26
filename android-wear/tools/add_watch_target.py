@@ -12,6 +12,7 @@ Run by tools/patch_ids.py for iOS on every build: it removes what it added
 before (ids starting with 7A7C4A5C) and adds it again, so it stays current.
 """
 from pathlib import Path
+import ast
 import json
 import plistlib
 import re
@@ -91,6 +92,7 @@ def copy_python():
     shutil.copytree(PYTHON_SOURCE, target / 'app', ignore=ignore_bytecode)
     for module in ('message_translation.py', 'pin_order.py'):
         shutil.copy2(ROOT / 'src' / 'tg_ascii' / module, target / 'app' / 'tgwatch' / module)
+    copy_forum_core(ROOT / 'src' / 'tg_ascii', target / 'app' / 'tg_ascii')
     # patch_ids.py has already selected the Apple client's identity for this build.
     iphone_app = XCODE / 'TGASCII' / 'app'
     shutil.copy2(iphone_app / 'tg_ascii' / '_app_credentials.py', target / 'app' / '_app_credentials.py')
@@ -103,6 +105,38 @@ def copy_python():
             shutil.copytree(info, target / 'app_packages' / info.name)
 
     return device_architectures
+
+
+def copy_forum_core(shared, watch_shared):
+    # The standalone target shares the phone's forum semantics. Its application
+    # is a Python zip, so it cannot read the desktop's filesystem-based locales.
+    # Build the small English/Spanish catalogue from the existing translations.
+    watch_shared.mkdir()
+    (watch_shared / '__init__.py').touch()
+    modules = ('forum_topics', 'peer_tools', 'community_management', 'profile_details', 'sticker_search',
+               'capability_cache', 'transfers')
+    keys = set()
+    for name in modules:
+        source = shared / (name + '.py')
+        shutil.copy2(source, watch_shared / source.name)
+        keys.update(node.args[0].value for node in ast.walk(ast.parse(source.read_text()))
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'tr'
+                    and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str))
+    sys.path.insert(0, str(shared.parent))
+    try:
+        from tg_ascii.i18n import get_language, set_language, tr
+        original = get_language()
+        labels = {}
+        try:
+            for language in ('en', 'es'):
+                set_language(language)
+                labels[language] = {key: tr(key) for key in sorted(keys)}
+        finally:
+            set_language(original)
+    finally:
+        sys.path.pop(0)
+    (watch_shared / 'forum_labels.py').write_text('LABELS = ' + repr(labels) + '\n', encoding='utf-8')
+    shutil.copy2(PYTHON_SOURCE / 'tgwatch' / 'compact_i18n.py', watch_shared / 'i18n.py')
 
 
 def copy_logos(target):

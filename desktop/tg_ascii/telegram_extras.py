@@ -99,9 +99,15 @@ class TelegramExtras:
         from .secret_chats import is_secret_peer
         if is_secret_peer(peer):
             return await self.secret_chats.send_sticker(peer, document, reply_to=reply_to)
-        from telethon import errors
+        from telethon import errors, utils
+        async def send(item):
+            if isinstance(reply_to, types.InputReplyToMessage):
+                request = functions.messages.SendMediaRequest(await self.client.get_input_entity(peer),
+                    utils.get_input_media(item), '', reply_to=reply_to)
+                return await self._structured_sent(request)
+            return self.message(await self.client.send_file(peer, item, force_document=False, reply_to=reply_to))
         try:
-            sent=await self.client.send_file(peer, document, force_document=False, reply_to=reply_to)
+            return await send(document)
         except (errors.FileReferenceExpiredError,errors.FileReferenceInvalidError,errors.FileReferenceEmptyError):
             # Telegram rejects expired references before sending. Refresh this exact
             # sticker once; never retry timeouts or other ambiguous send failures.
@@ -114,8 +120,7 @@ class TelegramExtras:
                 documents=result.stickers
             refreshed=next((d for d in documents if d.id==document.id),None)
             if refreshed is None: raise
-            sent=await self.client.send_file(peer,refreshed,force_document=False,reply_to=reply_to)
-        return self.message(sent)
+            return await send(refreshed)
 
     @tracked_transfer
     async def send_custom(self, peer, text, spans, path=None, progress=None):
@@ -253,6 +258,7 @@ class TelegramExtras:
     async def state_event(self, update):
         from telethon.utils import get_peer_id
         self.process_advanced_update(update)
+        self.forum_update(update)
         if isinstance(update, types.UpdateNotifySettings):
             self.invalidate_notification_policy()
         if self.on_change:

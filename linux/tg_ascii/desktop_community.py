@@ -47,9 +47,16 @@ def create_community(app,broadcast=False):
     panel=Panel(app,'New channel' if broadcast else 'Nuevo grupo','500x350')
     ttk.Label(panel.body,text=tr('Title')).pack(anchor='w');title=ttk.Entry(panel.body);title.pack(fill='x',pady=5)
     ttk.Label(panel.body,text=tr('Description')).pack(anchor='w');about=ttk.Entry(panel.body);about.pack(fill='x',pady=5)
+    # 3.3: a new group can start as a forum with topics.
+    from .interface_layout import caption
+    forum=tk.BooleanVar(master=panel.window,value=False)
+    if not broadcast:
+        ttk.Checkbutton(panel.body,text=caption('Topics (forum)','Temas (foro)'),variable=forum).pack(anchor='w',pady=5)
     def created(chat):
         panel.window.destroy();app.open_resolved(chat)
-    panel.button('Create',lambda:panel.run(lambda:panel.backend.create_community(title.get(),about.get(),broadcast),created),panel.footer)
+        from .desktop_forums import chat_flags,open_topics
+        if chat_flags(chat)[0]:open_topics(app,chat.id)
+    panel.button('Create',lambda:panel.run(lambda:panel.backend.create_community(title.get(),about.get(),broadcast,forum=bool(forum.get()) and not broadcast),created),panel.footer)
 
 
 def discussion_settings(app,peer):

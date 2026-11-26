@@ -77,6 +77,11 @@ def in_chat_entries(app, peer, *, include_pin=True):
         entries.append((tr('Calls and video'), wrap(app.channel_call_settings)))
     if caps.allows('wallpaper'):
         entries.append((tr('Chat background'), wrap(app.choose_wallpaper)))
+    # 3.3: the owner can turn a group's topics on or off.
+    from .desktop_forums import topics_toggle_entry
+    toggle = topics_toggle_entry(app, peer) if caps.kind == 'group' else None
+    if toggle:
+        entries.append(toggle)
     if active:
         # Bot shortcuts depend on the open chat's header state.
         for label, callback in [('Bot commands', app.commands_menu), ('Open Mini App', app.open_bot_app)]:

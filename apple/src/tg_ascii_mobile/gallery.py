@@ -4,7 +4,7 @@ from collections import OrderedDict
 from pathlib import Path
 from types import SimpleNamespace
 
-from telethon import functions, types
+from telethon import errors, functions, types, utils
 from tg_ascii.profile_media import compose_profile, photo_markup, prepare_profile_photo, profile_history
 
 
@@ -13,6 +13,51 @@ class ProfileGallery:
         if self.locked or not account or self.account != account or self.backend is None:
             raise PermissionError('The active account changed.')
         return self.backend
+
+    async def api_gallery_origin(self, peer, id, account):
+        """Resolve a shared-media item's topic or verified channel discussion."""
+        from tg_ascii.secret_chats import is_secret_peer
+        peer, ident = int(peer), int(id)
+        backend = self.gallery_backend(account)
+        origin = {'account': account, 'peer': peer, 'id': ident}
+        if is_secret_peer(peer):
+            return origin
+
+        async def read(request):
+            result = await asyncio.wait_for(request, 30)
+            if self.gallery_backend(account) is not backend:
+                raise PermissionError('The active account changed.')
+            return result
+
+        message = await read(backend.checked_message(peer, ident))
+        topic = backend.forum_message_topic(message)
+        if topic or self.is_forum_chat(peer):
+            return {**origin, 'topic': topic or 1}
+        if not isinstance(message.peer_id, types.PeerChannel):
+            return origin
+        reply = getattr(message, 'reply_to', None)
+        replied_peer = getattr(reply, 'reply_to_peer_id', None)
+        if replied_peer and utils.get_peer_id(replied_peer) != peer:
+            return origin
+        root_id = getattr(reply, 'reply_to_top_id', None) or getattr(reply, 'reply_to_msg_id', None) or ident
+        try:
+            root = message if root_id == ident else await read(backend.checked_message(peer, root_id))
+            forward = getattr(root, 'fwd_from', None)
+            sender, post = getattr(forward, 'from_id', None), getattr(forward, 'channel_post', None)
+            if not isinstance(sender, types.PeerChannel) or not post:
+                return origin
+            source = utils.get_peer_id(sender)
+            # An ordinary forward from a channel has the same header as the
+            # automatic copy. Only Telegram's actual discussion root is a route.
+            found = await read(backend.discussion_message(source, post))
+        except (ValueError, errors.ChannelPrivateError, errors.ChannelInvalidError,
+                errors.MsgIdInvalidError, errors.PeerIdInvalidError):
+            self.gallery_backend(account)
+            return origin
+        if (found['peer'], found['root_id']) != (peer, root_id):
+            return origin
+        return {**origin, 'source': source, 'post': post, 'root': root_id,
+                'source_name': self.text(backend.names.get(source, ''))}
 
     async def api_profile_photos(self, peer, account, offset=0):
         backend = self.gallery_backend(account)

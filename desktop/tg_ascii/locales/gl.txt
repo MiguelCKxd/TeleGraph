@@ -664,3 +664,13 @@
 663|{count} votos
 664|{field}: usa entre 1 e {maximum} caracteres.
 665|{title}\nDestinatario: {recipient}\nTotal: {amount} estrelas de Telegram\n\nConfirmar esta compra?
+666|Escolle un grupo con temas.
+667|A emoticona non é válida.
+668|A busca non é válida.
+669|Este tema xa non está dispoñible.
+670|A cor do tema non é válida.
+671|Os axustes do tema non son válidos.
+672|Telegram non devolveu o novo tema. Actualiza a lista de temas.
+673|Converte este grupo nun supergrupo para activar os temas.
+674|Volve abrir o grupo para comprobar os axustes dos temas.
+675|A chamada continúa en segundo plano.

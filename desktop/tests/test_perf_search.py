@@ -191,15 +191,15 @@ class SearchTests(IsolatedAsyncioTestCase):
 class RoundedLayoutTests(TestCase):
     def test_large_control_fill_is_not_tiled_in_two_pixel_patches(self):
         import math
-        from tg_ascii.appearance import control_image
-        for radius in (1,8,24):
-            image=control_image(radius,'#123456','#789abc','#000000')
-            border=radius+3;centre=image.width-2*border
-            self.assertEqual(centre,128)
-            self.assertEqual(image.getpixel((image.width//2,image.height//2)),(18,52,86))
-            calls=math.ceil((1000-2*border)/centre)*math.ceil((700-2*border)/centre)
-            self.assertLessEqual(calls,48)  # Central tiles, not a wall-clock benchmark.
-            self.assertGreater(math.ceil((1000-2*border)/2)*math.ceil((700-2*border)/2),150000)
+        from tg_ascii.appearance import _surface_image
+        for narrow, border in ((False, 40), (True, 12)):
+            for radius in (1, 8, 24):
+                image = _surface_image(radius, '#123456', '#789abc', '#000000', border_width=1, narrow=narrow)
+                centre = image.width - 2 * border
+                self.assertEqual(centre, 128)
+                self.assertEqual(image.getpixel((image.width // 2, image.height // 2)), (18, 52, 86))
+                calls = math.ceil((1000 - 2 * border) / centre) * math.ceil((700 - 2 * border) / centre)
+                self.assertLessEqual(calls, 48)
 
     def test_style_art_is_shared_and_does_not_set_giant_minimum_widget_sizes(self):
         from tg_ascii.appearance import configure_shapes

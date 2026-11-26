@@ -75,7 +75,9 @@ final class Engine: ObservableObject {
             guard linked && Local.available else {
                 throw PhoneError.failed(L("Vincula la cuenta del reloj en Ajustes.", "Link the watch account in Settings."))
             }
-            result = try await Local.shared.request(body, as: type)
+            var request = body
+            request["interface_language"] = Locale.current.language.languageCode?.identifier ?? "en"
+            result = try await Local.shared.request(request, as: type)
         } else {
             result = try await Phone.shared.request(body, as: type)
         }

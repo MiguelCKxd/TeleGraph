@@ -664,3 +664,13 @@
 663|{count} boto
 664|{field}: erabili 1 eta {maximum} karaktere artean.
 665|{title}\nHartzailea: {recipient}\nGuztira: {amount} Telegram Stars\n\nErosketa hau berretsi?
+666|Aukeratu gaiak dituen talde bat.
+667|Emojia baliogabea da.
+668|Bilaketa baliogabea da.
+669|Gai hau jada ez dago erabilgarri.
+670|Gaiaren kolorea baliogabea da.
+671|Gaiaren ezarpenak baliogabeak dira.
+672|Telegramek ez du gai berria itzuli. Freskatu gaien zerrenda.
+673|Gaiak gaitzeko, bihurtu talde hau supertalde.
+674|Ireki berriro taldea gaien ezarpenak egiaztatzeko.
+675|Deiak atzeko planoan jarraitzen du.

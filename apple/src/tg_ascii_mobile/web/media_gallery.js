@@ -1,6 +1,6 @@
 // One fullscreen surface serves chat and profile galleries. A history update
 // changes the strip and arrows without replacing the image being pinched.
-function presentGallery({layer, title, items, selected, source, olderStep, hasMore, loadPage, exportItem, active, onSelected}) {
+function presentGallery({layer, title, items, selected, source, olderStep, hasMore, loadPage, exportItem, active, onSelected, goToMessage}) {
   let current = selected, pending = null, moveRevision = 0, exporting = false;
   const tiles = new Map();
   const titleNode = h('span', {});
@@ -13,6 +13,7 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
   const next = symbolButton('›', t('Next page'), () => go(1));
   const save = symbolButton('↓', t('Save'), () => send('save'));
   const share = symbolButton('↗', t('Share'), () => send('share'));
+  const jump = goToMessage ? button(t('Go to message'), reveal, 'gallery-jump') : null;
   const bar = h('div', {class: 'bar gallery-bar'}, symbolButton('×', t('Close'), () => layer.close()),
     h('div', {class: 'title'}, titleNode, info), previous, next, save, share);
   const live = () => layer.open && active();
@@ -129,6 +130,22 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
     try { await exportItem(current, action, status); }
     finally { exporting = false; if (live()) drawControls(); }
   }
+  async function reveal() {
+    if (!live() || jump.disabled) return;
+    const item = current;
+    jump.disabled = true;
+    try {
+      await goToMessage(item, () => {
+        if (!live() || current !== item) return false;
+        layer.close();
+        return true;
+      });
+    } catch (error) {
+      if (live() && current === item) status(error.message);
+    } finally {
+      jump.disabled = false;
+    }
+  }
   const settingsChanged = () => { if (live()) drawControls(); };
   document.addEventListener('appearancechange', settingsChanged);
   layer.addEventListener('close', () => {
@@ -141,7 +158,59 @@ function presentGallery({layer, title, items, selected, source, olderStep, hasMo
       event.preventDefault(); go(galleryStep(event.key === 'ArrowRight'));
     }
   });
-  layer.replaceChildren(bar, stage, caption, notice, strip);
+  layer.replaceChildren(bar, stage, caption, notice, ...(jump ? [jump] : []), strip);
   if (!layer.open) layer.showModal();
   select(selected);
+}
+
+// A shared-media list spans the whole peer. Its active thumbnail can belong
+// to a different forum topic or channel discussion than the chat underneath.
+async function revealGalleryMessage(item, {account, peer, chat, thread, floating}, close) {
+  let topic = thread?.topic ? thread.root : item.topic_id;
+  let discussion = thread && !thread.topic ? thread : null;
+  if (!thread && !topic && state.connection !== 'offline' &&
+      (chat.forum || !chat.kind || (chat.kind === 'group' && (item.thread_root || item.forwarded)))) {
+    const origin = await api('gallery_origin', {account, peer, id: item.id});
+    topic = origin.topic;
+    if (origin.source) discussion = origin;
+  }
+  // Closing a gallery, changing its active photo, locking, or switching
+  // accounts while resolving the route all cancel this particular tap.
+  if (!close()) return;
+  const revision = state.accountRevision, sourceView = state.view;
+  const current = () => state.account === account && state.accountRevision === revision && !state.locked;
+  const destinationOpen = () => {
+    const open = state.open;
+    if (open?.peer !== peer || open.forumList) return false;
+    if (discussion) return !open.topic && open.thread?.root === discussion.root &&
+      open.thread.source === discussion.source && open.thread.post === discussion.post;
+    if (topic) return open.topic?.id === topic;
+    return !open.thread;
+  };
+  if (!topic && !discussion && floating) {
+    const node = floating.nodeCache?.nodes.get(item.id)?.node;
+    if (node?.isConnected) { focusMessageNode(node); return; }
+  }
+  if (!destinationOpen()) {
+    if (discussion) {
+      const channel = discussion.channel || state.chats.find(row => row.id === discussion.source) ||
+        {id: discussion.source, name: discussion.source_name || String(discussion.source), kind: 'channel'};
+      await loadComments(discussion.source, discussion.post, channel);
+    } else if (topic) {
+      await openForumTopic(chat, {id: topic});
+    } else {
+      await openChat(peer, true, chat);
+    }
+  }
+  if (!current() || !destinationOpen() || (state.view !== sourceView && state.view !== 'chat')) return;
+  if (state.view !== 'chat') go('chat');
+  await jumpTo(item.id);
+}
+
+function focusMessageNode(node) {
+  node.focus({preventScroll: true});
+  node.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
+  node.classList.add('flash');
+  clearTimeout(node.flashTimer);
+  node.flashTimer = setTimeout(() => node.classList.remove('flash'), 1600);
 }

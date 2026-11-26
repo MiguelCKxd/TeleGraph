@@ -16,6 +16,7 @@ class GalleryItem:
     media:object
     caption:str=''
     filename:str=''
+    topic_id:int|None=None  # 3.3: forum topic of the message, for "Go to message"
 
 
 class ProfileSource:
@@ -56,7 +57,7 @@ class ChatSource:
         rows=await self.backend.client.get_messages(self.peer,limit=1,filter=types.InputMessagesFilterPhotos(),**options)
         if not rows:return None
         message=self.backend.message(rows[0])
-        return GalleryItem(message.id,message.media,message.text,message.filename)
+        return GalleryItem(message.id,message.media,message.text,message.filename,getattr(message,'topic_id',None))
 
 
 class MediaGallery:
@@ -84,7 +85,9 @@ class MediaGallery:
     def closed(self,event):
         if event.widget is self.window:self.requests.close()
     def go_to(self):
-        if self.valid():self.app.jump_message(self.item.ident,self.peer)
+        if self.valid():
+            from .desktop_forums import reveal_in_context
+            reveal_in_context(self.app,self.peer,self.item.ident,getattr(self.item,'topic_id',None))
     def save(self):
         if not self.valid() or self.path is None:return
         path=self.path
@@ -149,5 +152,5 @@ def open_profile_gallery(app,peer,profile,path=None):
 
 
 def open_chat_gallery(app,message,peer=None):
-    item=GalleryItem(message.id,message.media,message.text,message.filename)
+    item=GalleryItem(message.id,message.media,message.text,message.filename,getattr(message,'topic_id',None))
     return MediaGallery(app,app.active if peer is None else peer,item)

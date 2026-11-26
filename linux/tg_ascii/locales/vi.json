@@ -1414,5 +1414,15 @@
   "TeleGraph works like an installed messaging app: profile photos, recent messages, previews and contact details stay ready on this device and screens open from them at once. Only what is really new is asked again. Uses more storage and memory.": "TeleGraph hoạt động như một ứng dụng nhắn tin đã cài đặt: ảnh đại diện, tin nhắn gần đây, bản xem trước và thông tin liên hệ được giữ sẵn trên thiết bị này để các màn hình mở ngay lập tức. Chỉ những gì thực sự mới mới được tải lại. Tốn thêm bộ nhớ và dung lượng.",
   "Prepare content at startup": "Chuẩn bị nội dung khi khởi động",
   "Once the chat list loads, profile photos, the latest messages of your first chats, their previews and emoji are prepared in the background. Uses more data and battery at startup.": "Sau khi danh sách trò chuyện tải xong, ảnh đại diện, tin nhắn mới nhất của các cuộc trò chuyện đầu tiên, bản xem trước và emoji sẽ được chuẩn bị ở chế độ nền. Tốn thêm dữ liệu và pin khi khởi động.",
-  "Accent color": "Màu nhấn"
+  "Accent color": "Màu nhấn",
+  "Choose a forum group.": "Chọn một nhóm có chủ đề.",
+  "Invalid emoji.": "Biểu tượng cảm xúc không hợp lệ.",
+  "Invalid search.": "Truy vấn tìm kiếm không hợp lệ.",
+  "This topic is no longer available.": "Chủ đề này không còn khả dụng.",
+  "Invalid topic color.": "Màu của chủ đề không hợp lệ.",
+  "Invalid topic settings.": "Cài đặt chủ đề không hợp lệ.",
+  "Telegram did not return the new topic. Refresh the topic list.": "Telegram không trả về chủ đề mới. Hãy làm mới danh sách chủ đề.",
+  "This group must be upgraded to enable topics.": "Chuyển nhóm này thành siêu nhóm để bật chủ đề.",
+  "Reopen this group to check its topic settings.": "Mở lại nhóm để kiểm tra cài đặt chủ đề.",
+  "The call continues in the background.": "Cuộc gọi vẫn tiếp tục trong nền."
 }
