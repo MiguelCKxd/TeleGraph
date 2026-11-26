@@ -361,6 +361,8 @@ def lock_app(app,show=True):
         try:getattr(menu,'_dismiss',menu.destroy)()
         except tk.TclError:pass
     owner._app_locked=True;owner._locked_windows=[];owner._after_unlock=None
+    from .desktop_media_lifetime import revoke
+    revoke(owner)
     owner._lock_covers=[];owner._lock_bindings=[];owner._lock_errors=[]
     def hide(widget):
         for child in widget.winfo_children():hide(child)

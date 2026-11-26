@@ -264,7 +264,8 @@ class TelegramFeatures(ProfileDetails, FolderFeatures):
         return results
 
     @tracked_transfer
-    async def download_media(self, media, destination, progress=None, thumbnail=False):
+    async def download_media(self, media, destination, progress=None, thumbnail=False, *, quality='original'):
+        if quality not in ('original', 'display'):raise ValueError('Unknown media quality')
         from .secret_chats import SecretMedia
         if isinstance(media, SecretMedia) and hasattr(self, 'secret_chats'):
             async with transfer_timeout(progress, DOWNLOAD_IDLE_TIMEOUT) as report:
@@ -272,6 +273,9 @@ class TelegramFeatures(ProfileDetails, FolderFeatures):
         target = Path(destination)
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         thumb=None
+        if not thumbnail and quality=='display':
+            from .media_quality import photo_variant
+            thumb=photo_variant(media)
         if thumbnail:
             from .media_formats import original_thumbnail_supported
             document=getattr(media,'document',None) or getattr(media,'photo',None) or media
@@ -349,8 +353,8 @@ class TelegramFeatures(ProfileDetails, FolderFeatures):
         result=await read_with_flood_wait(self,'download',attempt)
         if cache_entry is not None:
             from . import media_cache
-            await asyncio.to_thread(media_cache.store,cache_entry,result)
-            await media_cache.prune_once(self)
+            added=await asyncio.to_thread(media_cache.store,cache_entry,result)
+            await media_cache.prune_once(self,added)
         return result
 
     async def view_story(self, story):

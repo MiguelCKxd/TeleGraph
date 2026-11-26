@@ -27,6 +27,8 @@ def valid_record(record):
     text = record.get('text', '')
     result = {'text': text, 'files': [], 'custom': [], 'formats': [], 'reply': None,
               'pending': record.get('pending') is True, 'unsupported': record.get('unsupported') is True}
+    if 'photo_quality' in record and record['photo_quality'] in (None, 'sd', 'hd', 'original'):
+        result['photo_quality'] = record['photo_quality']
     files = record.get('files', [])
     if isinstance(files, list):
         result['files'] = [p for p in files if isinstance(p, str) and len(p)<=4096 and '\0' not in p]
@@ -388,6 +390,9 @@ class DraftManager:
             'files': files, 'custom': app.snapshot_custom(), 'formats': app.snapshot_formats(),
             'reply': getattr(app, 'reply_drafts', {}).get((app.ui_account, app.active)),
             'unsupported': bool(old and old['unsupported'])}
+        if files:
+            from .attachments import photo_quality_for
+            record['photo_quality']=photo_quality_for(app)
         self.store.put(app.ui_account, app.active, record)
         if hasattr(app, 'drafts'):
             app.drafts[app.active] = (record['text'], getattr(app, 'attachment', None))
@@ -407,21 +412,24 @@ class DraftManager:
             return
         self._persist_running = True
         self._persist_requested = False
+        persisted = False
         async def flush():
+            nonlocal persisted
             await asyncio.to_thread(self.store.flush)
+            persisted = True
             await self.sync_pending()
         def finished(error=None):
             self._persist_running = False
             if error is not None:
-                self.failed(error)
+                self.failed(error, local=not persisted)
             if self._persist_requested and not self.app.closed and not self.app.closing:
                 self.persist_async()
         self.app.worker.submit(flush(), lambda _: finished(), finished)
 
-    def failed(self, exc):
+    def failed(self, exc, *, local=False):
         from .interface_layout import caption
         from .pending_actions import transport_failure
-        if transport_failure(exc):
+        if not local and transport_failure(exc):
             # 1.5.3: offline. The draft is already saved on this device and is
             # synchronised with Telegram when the connection returns.
             self.app.status.set(caption('Draft saved on this device; it syncs when the connection returns.',
@@ -575,6 +583,7 @@ class DraftManager:
             return  # A newer local edit is still waiting to be sent.
         if old:
             checked['files'] = old['files']
+            if 'photo_quality' in old:checked['photo_quality']=old['photo_quality']
         self.store.put(account, peer, checked, pending=False)
         files = [Path(p) for p in checked['files'] if Path(p).is_file()]
         draft = (checked['text'], files[0] if len(files)==1 else tuple(files) if files else None)

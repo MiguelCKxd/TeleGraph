@@ -171,7 +171,8 @@ class TelegramExtras:
             source, file=str(destination), download_big=False))
         if path and entry is not None:
             from . import media_cache
-            await asyncio.to_thread(media_cache.store, entry, path)
+            added = await asyncio.to_thread(media_cache.store, entry, path)
+            await media_cache.prune_once(self, added)
         return str(path) if path else None
 
     async def notification_settings(self):

@@ -674,5 +674,12 @@
   "Telegram did not return the new topic. Refresh the topic list.",
   "This group must be upgraded to enable topics.",
   "Reopen this group to check its topic settings.",
-  "The call continues in the background."
+  "The call continues in the background.",
+  "Original media in the viewer",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.",
+  "Photos and videos",
+  "SD · Standard",
+  "HD · High quality",
+  "Original as file",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents."
 ]

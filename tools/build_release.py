@@ -37,7 +37,7 @@ SOURCE_MODULES += ['account_profile.py', 'customization_sync.py', 'desktop_custo
 SOURCE_MODULES += ['advanced_editor.py','advanced_features.py','advanced_messaging.py','article_view.py',
                    'desktop_advanced.py','desktop_peer_tools.py','expandable_text.py','link_navigation.py',
                    'media_formats.py','media_gallery.py','media_retry.py','peer_tools.py','profile_media.py',
-                   'profile_tabs.py','rich_articles.py','video_frames.py','advanced_updates.py',
+                   'profile_tabs.py','rich_articles.py','video_frames.py','video_stream.py','advanced_updates.py',
                    'app_lock.py','native_auth.py','translations_v11.py','chat_capabilities.py',
                    'capability_cache.py','poll_attachments.py','poll_attachment_editor.py']
 SOURCE_MODULES += ['calls.py', 'calls_native.py', 'calls_crypto.py', 'calls_process.py', 'calls_worker.py', 'desktop_calls.py',
@@ -57,10 +57,11 @@ SOURCE_MODULES += ['calls_rpc_codec.py', 'calls_group_native.py', 'calls_group_w
 SOURCE_MODULES += ['calls_group.py', 'calls_group_media.py', 'calls_source_volume.py']
 SOURCE_MODULES += ['mac_camera.py', 'channel_calls.py', 'desktop_channel_calls.py']
 SOURCE_MODULES += ['mac_media_access.py']
-SOURCE_MODULES += ['forum_topics.py', 'translations_forums.py']
+SOURCE_MODULES += ['forum_topics.py', 'translations_forums.py', 'translations_v34.py']
 SOURCE_MODULES += ['community_management.py', 'desktop_community.py', 'timestamps.py', 'call_outcomes.py', 'notification_history.py', 'conference_invitations.py', 'desktop_conference.py', 'push_macos.py']
 SOURCE_MODULES += ['desktop_call_pip.py', 'mac_call_pip.py']
-SOURCE_MODULES += ['flood_control.py', 'media_cache.py', 'tk_safety.py']
+SOURCE_MODULES += ['flood_control.py', 'media_cache.py', 'tk_safety.py', 'media_quality.py']
+SOURCE_MODULES += ['desktop_media_lifetime.py']
 SOURCE_MODULES += ['day_separators.py', 'gift_preview.py', 'native_open.py', 'device_contacts.py', 'contact_sync.py',
                    'desktop_contacts.py', 'app_lifecycle.py', 'attachment_preview.py', 'chat_menus.py', 'chat_activity.py',
                    'contact_tools.py', 'contact_list_view.py', 'article_carousel.py', 'translations_v14.py',

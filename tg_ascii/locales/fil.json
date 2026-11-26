@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "Hindi ibinalik ng Telegram ang bagong paksa. I-refresh ang listahan ng mga paksa.",
   "This group must be upgraded to enable topics.": "Gawing supergroup ang grupong ito para paganahin ang mga paksa.",
   "Reopen this group to check its topic settings.": "Buksang muli ang grupo para tingnan ang mga setting ng mga paksa.",
-  "The call continues in the background.": "Nagpapatuloy ang tawag sa background."
+  "The call continues in the background.": "Nagpapatuloy ang tawag sa background.",
+  "Original media in the viewer": "Mga orihinal sa viewer",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "Ipakita ang mga larawan sa pinakamataas na kalidad na available sa Telegram, nang walang muling compression. Maliit pa rin ang mga preview. Gumagamit ng mas maraming data at memory.",
+  "Photos and videos": "Mga larawan at video",
+  "SD · Standard": "SD · Karaniwan",
+  "HD · High quality": "HD · Mataas na kalidad",
+  "Original as file": "Orihinal bilang file",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "Idinadagdag ang caption sa unang file. Bumubuo ng album ang mga larawan at video; ipinapadala bilang mga dokumento ang iba pang magkakahalong file."
 }

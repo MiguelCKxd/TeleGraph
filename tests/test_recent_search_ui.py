@@ -62,6 +62,25 @@ class RecentSearchStripTests(unittest.TestCase):
         strip.refresh(force=True)
         self.assertTrue(strip.shown)
 
+    def test_destroy_cancels_hide_and_ignores_late_suggestions(self):
+        strip, _, _ = self.strip('global')
+        strip.suggested([('Ana', lambda: None)])
+        strip.refresh(force=True)
+        strip.hide_later()
+        timer = strip._hide_job
+        strip.frame.destroy()
+        self.assertNotIn(timer, self.root.tk.call('after', 'info'))
+        strip.suggested([('Llega tarde', lambda: None)])
+        self.assertFalse(strip.shown)
+
+    def test_repeated_focus_out_keeps_one_hide_timer(self):
+        strip, _, _ = self.strip()
+        strip.hide_later()
+        first = strip._hide_job
+        strip.hide_later()
+        self.assertNotIn(first, self.root.tk.call('after', 'info'))
+        self.assertIn(strip._hide_job, self.root.tk.call('after', 'info'))
+
 
 if __name__ == '__main__':
     unittest.main()

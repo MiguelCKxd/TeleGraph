@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "Telegram ไม่ได้ส่งหัวข้อใหม่กลับมา โปรดรีเฟรชรายการหัวข้อ",
   "This group must be upgraded to enable topics.": "เปลี่ยนกลุ่มนี้เป็นซูเปอร์กรุ๊ปเพื่อเปิดใช้งานหัวข้อ",
   "Reopen this group to check its topic settings.": "เปิดกลุ่มอีกครั้งเพื่อตรวจสอบการตั้งค่าหัวข้อ",
-  "The call continues in the background.": "การโทรยังคงดำเนินต่อในเบื้องหลัง"
+  "The call continues in the background.": "การโทรยังคงดำเนินต่อในเบื้องหลัง",
+  "Original media in the viewer": "สื่อต้นฉบับในตัวแสดง",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "แสดงรูปภาพด้วยคุณภาพสูงสุดที่มีใน Telegram โดยไม่บีบอัดซ้ำ ภาพตัวอย่างยังคงมีขนาดเล็ก ใช้ข้อมูลและหน่วยความจำมากขึ้น",
+  "Photos and videos": "รูปภาพและวิดีโอ",
+  "SD · Standard": "SD · มาตรฐาน",
+  "HD · High quality": "HD · คุณภาพสูง",
+  "Original as file": "ต้นฉบับเป็นไฟล์",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "คำบรรยายแนบกับไฟล์แรก รูปภาพและวิดีโอรวมเป็นอัลบั้ม ส่วนไฟล์ประเภทอื่นที่ปะปนกันจะส่งเป็นเอกสาร"
 }

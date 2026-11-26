@@ -131,27 +131,40 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
         elif getattr(self,'_canvas_chat_view',self.preferences.values['bubbles']): self.bubble_view.yview_moveto(1)
         else: self.history.see('end')
     def load_older(self):
-        if self.busy or self.demo or not self.messages or getattr(self,'_older_pending',False): return
+        if self.busy or self.demo or not self.messages: return
+        account,peer,backend=self.ui_account,self.active,self.service.backend
+        visit=getattr(self,'_history_request_token',None)
+        scope=(account,peer,backend,visit)
+        if getattr(self,'_older_scope',None)!=scope:
+            previous=getattr(self,'_older_job',None)
+            if previous is not None:previous.cancel()
+            self._older_scope=scope;self._older_pending=False;self._older_retry_at=0
+        if getattr(self,'_older_pending',False):return
         # After a failed page (offline, rate limit) every scroll event at the
         # top used to repeat the request immediately. Back off briefly instead.
         if time.monotonic()<getattr(self,'_older_retry_at',0): return
-        account,peer,backend=self.ui_account,self.active,self.service.backend
         before=min(m.id for m in self.messages)
         if getattr(self,'_oldest_loaded',None)==(account,peer,before): return
         self._older_pending=True
+        token=self._older_token=object()
+        def current():
+            return (token is self._older_token and (account,peer)==(self.ui_account,self.active)
+                    and backend is self.service.backend and visit is getattr(self,'_history_request_token',None)
+                    and not getattr(self,'closed',False) and not getattr(self,'closing',False))
         def loaded(items):
-            self._older_pending=False
-            if (account,peer)!=(self.ui_account,self.active): return
+            if not current():return
+            self._older_pending=False;self._older_job=None
             if not items: self._oldest_loaded=(account,peer,before); return
-            old=self.messages[0].id
+            old=self.messages[0].id if self.messages else before
             self.messages=sorted({m.id:m for m in items+self.messages}.values(),key=lambda m:m.id)
             self.render_messages(False); self.jump_loaded(old)
         def failed(exc):
-            self._older_pending=False
+            if not current():return
+            self._older_pending=False;self._older_job=None
             from .flood_control import FLOOD_ERRORS,wait_seconds
             delay=wait_seconds(exc) if isinstance(exc,FLOOD_ERRORS) else 3
             self._older_retry_at=time.monotonic()+min(delay,60)
-        self.worker.submit(backend.older_messages(peer,before),loaded,failed)
+        self._older_job=self.worker.submit(backend.older_messages(peer,before),loaded,failed)
 
     def update_modern_view(self,follow):
         from .interface_background import chat_backdrop
@@ -190,7 +203,7 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
         self.bot_row.pack_forget()
         for button in self.bot_buttons.values(): button.flow_hidden=True; button.pack_forget(); button.place_forget()
         def loaded(info):
-            if (account,peer)!=(self.ui_account,self.active) or not widget.winfo_exists(): return
+            if not avatar_current():return
             from .telegram_actions import peer_activity
             status=peer_activity(info['activity_entity'],self.preferences.values.get('show_seconds',False)) if info.get('activity_entity') is not None else info['status']
             self.activity.set(status); self.header_base_status=status
@@ -202,7 +215,8 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
             if info['emoji']: self.label_emoji(self.header_status_emoji,info['emoji'],account,backend)
         self.worker.submit(backend.chat_header(peer),loaded,lambda _:None)
         def avatar_current():
-            return (account,peer)==(self.ui_account,self.active) and bool(widget.winfo_exists()) and widget is self.header_avatar and widget._avatar_request is avatar_token
+            return ((account,peer)==(self.ui_account,self.active) and backend is self.service.backend
+                    and bool(widget.winfo_exists()) and widget is self.header_avatar and widget._avatar_request is avatar_token)
         def avatar(path):
             if path and avatar_current():
                 def painted(photo):widget.image=photo;widget.configure(image=photo or '')
@@ -245,10 +259,11 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
             for callback in listeners:
                 try:callback(None)
                 except tk.TclError:pass
-        coroutine=operation()
         async def bounded():
             # A silent connection must not hold an art slot forever (1.4.1).
-            return await asyncio.wait_for(coroutine,ART_TIMEOUT)
+            # Create it only after the worker starts this wrapper. Cancelling
+            # before start must not leave an inner coroutine unawaited.
+            return await asyncio.wait_for(operation(),ART_TIMEOUT)
         self.worker.submit(bounded(),loaded,failed)
 
     def emoji_art(self,document,account,backend,callback,valid=None):
@@ -312,6 +327,8 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
     def canvas_media(self,canvas,item,message,epoch,size):
         if self.demo:return
         account,peer,backend=self.ui_account,self.active,self.service.backend
+        from .desktop_media_lifetime import private_preview
+        if private_preview(self,message,peer):return
         async def fetch():
             if message.media_kind=='sticker':
                 from .animation import emoji_file
@@ -338,7 +355,8 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
         if message.media_kind=='sticker': return self.show_document_pack(getattr(message.media,'document',message.media))
         if message.media_kind not in ('image','sticker'): return self.view_message_media(message,peer)
         if message.size>40*1024*1024: return self.view_message_media(message,peer)
-        if __import__('tg_ascii.menu_style',fromlist=['x']).uses_system('image_viewer') and message.media_kind=='image':
+        from .desktop_media_lifetime import export_blocked
+        if __import__('tg_ascii.menu_style',fromlist=['x']).uses_system('image_viewer') and message.media_kind=='image' and not export_blocked(message,self,self.active if peer is None else peer):
             return self.open_message_natively(message,peer)
         from .media_gallery import open_chat_gallery
         return open_chat_gallery(self,message,peer)
@@ -352,6 +370,10 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
         if self.demo:return
         account,backend=self.ui_account,self.service.backend
         peer=self.active if peer is None else peer
+        from .desktop_media_lifetime import export_blocked,source_message
+        if export_blocked(message,self,peer):
+            self.show_error(PermissionError(tr('Protected content')))
+            return
         target=self.preview_dir/f'{account}-{peer}-{message.id}-gallery.media'
         async def fetch():
             # Same private file as the in-app gallery, so both share downloads.
@@ -359,7 +381,8 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
             from telethon.errors import FileReferenceExpiredError,FileReferenceInvalidError,FileReferenceEmptyError
             try:return await backend.download_media(message.media,target)
             except (FileReferenceExpiredError,FileReferenceInvalidError,FileReferenceEmptyError):
-                media=await backend.media_message(peer,message.id)
+                media=await source_message(backend,peer,message.id)
+                if export_blocked(media,self,peer):raise PermissionError(tr('Protected content'))
                 return await backend.download_media(media,target)
         def loaded(path):
             from .native_open import open_with_system
@@ -1097,6 +1120,8 @@ class DesktopModern(DesktopBotButtons, DesktopInteractions, DesktopActions):
                 records.extend(items)
                 for item in items:
                     button=ttk.Button(grid,text='…',width=15,command=lambda m=item:self.open_image_message(m,peer) if account==self.ui_account else None); button.pack(side='left',padx=3,pady=3)
+                    from .desktop_media_lifetime import private_preview
+                    if private_preview(self,item,peer):continue
                     async def download(m=item): return await backend.download_media(m.media,self.preview_dir/f'{account}-{peer}-{m.id}-mosaic.jpg',thumbnail=True)
                     def thumb(path,b=button):
                         if b.winfo_exists() and path:

@@ -241,12 +241,14 @@ class LinuxCenter:
         self.ids = OrderedDict()      # key -> notification id
         self.waiting = OrderedDict()  # key -> process waiting for a click
         self.privacy_locked = False
+        self.privacy_generation = 0
 
     def set_locked(self, locked):
-        self.privacy_locked = bool(locked)
-        if not locked:
-            return
         with self.lock:
+            self.privacy_locked = bool(locked)
+            self.privacy_generation += 1
+            if not locked:
+                return
             ids, self.ids = list(self.ids.values()), OrderedDict()
             waiting, self.waiting = list(self.waiting.values()), OrderedDict()
         for process in waiting:
@@ -274,6 +276,9 @@ class LinuxCenter:
         clean = lambda value: ''.join(c for c in str(value) if c >= ' ' or c in '\n\t')
         command = [self.tool, f'--app-name={APP_NAME}', f'--icon={self.icon}', '--print-id']
         with self.lock:
+            generation = self.privacy_generation
+            if self.privacy_locked:
+                title, body = APP_NAME, tr('New message')
             previous = self.ids.get(key)
             old = self.waiting.pop(key, None)
         if previous:
@@ -304,16 +309,21 @@ class LinuxCenter:
             ident = process.stdout.readline().strip()
             if ident.isdigit():
                 with self.lock:
-                    self.ids[key] = ident
-                    self.ids.move_to_end(key)
-                    while len(self.ids) > 64:
-                        self.ids.popitem(last=False)
+                    stale = generation != self.privacy_generation
+                    if not stale:
+                        self.ids[key] = ident
+                        self.ids.move_to_end(key)
+                        while len(self.ids) > 64:
+                            self.ids.popitem(last=False)
+                if stale:
+                    self._close(ident)
             action = process.stdout.readline().strip() if activate is not None else ''
             code = process.wait()
             with self.lock:
                 if self.waiting.get(key) is process:
                     self.waiting.pop(key, None)
-            if action == 'default' and activate is not None and not self.privacy_locked:
+            if (action == 'default' and activate is not None and not self.privacy_locked
+                    and generation == self.privacy_generation):
                 activate()
             elif code not in (0, -15) and not ident:
                 report('Linux: ' + (process.stderr.read().strip()[:200] or f'notify-send {code}'))

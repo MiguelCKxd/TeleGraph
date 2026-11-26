@@ -59,14 +59,27 @@ def detected_extension(path):
 def viewable_copy(path, name=APP_NAME):
     source = Path(path)
     stem = ''.join(ch for ch in Path(name or APP_NAME).stem if ch.isalnum() or ch in ' -_')[:60].strip() or APP_NAME
+    return _unique_copy(source, stem, detected_extension(source))
+
+
+def _unique_copy(source, stem, suffix):
+    """Reserve the destination before copying; concurrent viewers never share it."""
     folder = _private_folder()
-    target = folder / (stem + detected_extension(source))
-    number = 1
-    while target.exists():
-        target = folder / f'{stem} ({number}){target.suffix}'
-        number += 1
-    shutil.copyfile(source, target)
-    return target
+    number = 0
+    while True:
+        target = folder / (f'{stem} ({number}){suffix}' if number else stem + suffix)
+        try:
+            output = target.open('xb')
+        except FileExistsError:
+            number += 1
+            continue
+        try:
+            with output, source.open('rb') as incoming:
+                shutil.copyfileobj(incoming, output, 1024 * 1024)
+            return target
+        except BaseException:
+            target.unlink(missing_ok=True)
+            raise
 
 
 def launch(path):
@@ -81,15 +94,22 @@ def launch(path):
                          stderr=subprocess.DEVNULL, close_fds=True)
 
 
-def open_with_system(path, name=APP_NAME, on_error=None):
-    """Copy + launch in a background thread so Tk never waits on disk or the OS."""
+def open_with_system(path, name=APP_NAME, on_error=None, on_done=None):
+    """Copy + launch off Tk; optional completion runs on that same worker thread."""
     def work():
         try:
             launch(viewable_copy(path, name))
         except Exception as error:  # Reported to the caller's Tk-safe handler.
             if on_error is not None:
                 on_error(error)
-    threading.Thread(target=work, name='tg-open-native', daemon=True).start()
+        finally:
+            if on_done is not None:on_done()
+    try:threading.Thread(target=work, name='tg-open-native', daemon=True).start()
+    except Exception as error:
+        try:
+            if on_error is not None:on_error(error)
+        finally:
+            if on_done is not None:on_done()
 
 
 # ---------------------------------------------------------------- 1.4 editing
@@ -109,14 +129,7 @@ def media_kind(path):
 def editable_copy(path):
     """Private copy the system editor may overwrite; the original stays intact."""
     source = Path(path)
-    folder = _private_folder()
-    target = folder / source.name
-    number = 1
-    while target.exists():
-        target = folder / f'{source.stem} ({number}){source.suffix}'
-        number += 1
-    shutil.copyfile(source, target)
-    return target
+    return _unique_copy(source, source.stem, source.suffix)
 
 
 def launch_editor(path):

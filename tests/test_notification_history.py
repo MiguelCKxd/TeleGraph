@@ -27,7 +27,7 @@ class HistoryTests(unittest.TestCase):
             path = Path(root) / 'history.sqlite'
             journal = NotificationHistory(path)
             long_text = 'A' * 300
-            journal.record('received', 'live', 'event_id', long_text)
+            journal.record('in_app', 'live', 'event_id', long_text)
             journal.record('submitted', 'push', 'event_id2', 'Short text')
             rows = journal.rows()
             self.assertEqual(len(rows), 2)
@@ -45,11 +45,28 @@ class HistoryTests(unittest.TestCase):
 
     def test_memory_fallback_retains_content(self):
         journal = NotificationHistory(None)
-        journal.record('received', 'system', 'event1', 'Fallback message')
+        journal.record('in_app', 'system', 'event1', 'Fallback message')
         rows = journal.rows()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][4], 'Fallback message')
         journal.close()
+
+    def test_pre_policy_diagnostics_never_keep_text_and_legacy_rows_are_redacted(self):
+        import sqlite3
+        from contextlib import closing
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / 'history.sqlite'
+            journal = NotificationHistory(path)
+            for phase in ('received', 'duplicate', 'suppressed', 'failed'):
+                journal.record(phase, 'live', 'opaque', 'private before policy')
+            self.assertTrue(all(row[4] == '' for row in journal.rows()))
+            journal.close()
+            with closing(sqlite3.connect(path)) as db, db:
+                db.execute("UPDATE history SET content='legacy private' WHERE phase='received'")
+            journal = NotificationHistory(path)
+            self.assertTrue(all(row[4] == '' for row in journal.rows()))
+            self.assertEqual(len(journal.rows()), 4)
+            journal.close()
 
     def test_history_ui_displays_seconds(self):
         import asyncio

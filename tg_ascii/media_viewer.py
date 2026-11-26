@@ -40,6 +40,9 @@ class ImageFrames:
             if self.count==1:self.image.close()
         return self.frame
 
+    def viewport(self,size,scale=1):
+        if self.video is not None:self.video.viewport(size,scale)
+
     def close(self):
         if self.video is not None:self.video.close();return
         if self.frame is not None:self.frame.close();self.frame=None
@@ -95,6 +98,8 @@ class FrameRenderer:
         if self.source is None:
             self.source=ImageFrames(self.path)
             self.count=self.source.count
+        viewport=getattr(self.source,'viewport',None)
+        if viewport is not None:viewport(size,scale)
         frame=self.source.get(index)
         self.count=getattr(self.source,'count',1)
         w,h=size;fit=min(w/frame.width,h/frame.height,1)*scale
@@ -124,6 +129,8 @@ class FrameRenderer:
     def close(self):
         if self.closed:return
         self.closed=True;self.pending=None
+        abort=getattr(self.source,'abort',None)
+        if abort is not None:abort()
         future,self.future=self.future,None
         def close_source():
             self._release_levels()
@@ -204,6 +211,8 @@ def show_image(parent, path, caption='', preview_only=False, *, navigate=None, n
             if timer is None and renderer.count>1:
                 timer=window.after(max(40,duration),advance)
         except (EOFError, OSError, ValueError, ImportError, tk.TclError) as error:
+            handler=getattr(window,'_media_error',None)
+            if handler is not None and handler(error):return
             from .app_dialogs import messagebox
             if window.winfo_exists():messagebox.showerror(tr('Visor de archivos'),str(error),parent=window)
             close()
@@ -274,6 +283,8 @@ def show_image(parent, path, caption='', preview_only=False, *, navigate=None, n
     gestures=ImageGestures(label,scale,pan,zoom,interactive,reset)
     gestures.controls(controls)
     def open_native():
+        handler=getattr(window,'_open_native',None)
+        if handler is not None:return handler()
         if current_path[0] is None:return
         from .native_open import open_with_system
         open_with_system(current_path[0],name or caption,on_error=on_error)
@@ -294,18 +305,20 @@ def show_image(parent, path, caption='', preview_only=False, *, navigate=None, n
         cancel_timers()
         if renderer is not None:renderer.close()
         label.image=None
-    def replace_media(path,caption=''):
+    def replace_media(path,caption='',*,preserve_view=False):
         nonlocal renderer,frame_number
         if closed:return
         repaint.cancel()
         cancel_timers()
         if renderer is not None:renderer.close()
-        renderer=FrameRenderer(path);frame_number=0;scale[0]=1.;pan[:]=[0,0]
+        renderer=FrameRenderer(path) if path is not None else None;frame_number=0
+        if not preserve_view:scale[0]=1.;pan[:]=[0,0]
         shown_pan[:]=[0,0];shown_scale[0]=1.;current_path[0]=path
         label.image=None;label.delete('picture')
         caption_label.configure(text=caption)
         repaint.request()
     window._set_media=replace_media
+    window._reset_media_view=lambda:(scale.__setitem__(0,1.),pan.__setitem__(slice(None),[0,0]))
     window._media_canvas=label
     def close():
         cleanup()

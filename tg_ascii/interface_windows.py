@@ -19,6 +19,7 @@ import weakref
 from . import APP_NAME
 from .i18n import tr
 from .desktop_tools import DesktopTools
+from .desktop_advanced import DesktopAdvancedMixin
 from .ui_work import FrameJob, bind_text_action, clear_text_actions
 from .preferences import animated_emoji_enabled
 
@@ -88,7 +89,7 @@ def close_chat_windows(app):
         window.close()
 
 
-class LinkedChatWindow(DesktopTools):
+class LinkedChatWindow(DesktopAdvancedMixin, DesktopTools):
     thread = None
     thread_id = None
     topic = None
@@ -161,6 +162,8 @@ class LinkedChatWindow(DesktopTools):
         self.text_display = getattr(app, 'text_display', lambda t, *_: t)
         self.open_link = getattr(app, 'open_link', None)
         self.preview_dir = getattr(app, 'preview_dir', None)
+        self.media_temps = getattr(app, 'media_temps', [])
+        self.audio_jobs = getattr(app, 'audio_jobs', [])
         self.show_error = getattr(app, 'show_error', None)
         self.chat_translations = getattr(app, 'chat_translations', {})
         self.translated = getattr(app, 'translated', {})
@@ -392,38 +395,88 @@ class LinkedChatWindow(DesktopTools):
             self.app.draw_bubble_wallpaper(canvas)
 
     def view_message_media(self, message, peer=None):
-        if hasattr(self.app, 'view_message_media'):
-            self.app.view_message_media(message, peer or self.peer)
+        if not self.valid() or self.busy:
+            return
+        peer = self.peer if peer is None else peer
+        if message.media_kind in ('poll', 'checklist', 'location', 'contact', 'gift', 'article'):
+            return self.open_advanced_message(message, peer)
+        if message.media_kind == 'conference':
+            from .desktop_calls import DesktopCalls
+            return DesktopCalls.join_conference_message(self, message, peer)
+        if message.media_kind in ('image', 'video'):
+            return self.open_image_message(message, peer)
+        from .desktop_features import DesktopFeatures
+        return DesktopFeatures.view_message_media(self, message, peer)
+
+    def media_dialog(self, *args, **kwargs):
+        from .desktop_features import DesktopFeatures
+        return DesktopFeatures.media_dialog(self, *args, **kwargs)
+
+    def field(self, *args, **kwargs):
+        from .desktop_features import DesktopFeatures
+        return DesktopFeatures.field(self, *args, **kwargs)
+
+    def start_group_call(self, **kwargs):
+        from .desktop_calls import DesktopCalls
+        return DesktopCalls.start_group_call(self, **kwargs)
+
+    @property
+    def _linked_owner(self):
+        return getattr(self.app, '_linked_owner', None) or self.app
 
     def canvas_emoji(self, canvas, item, document, epoch, size, keep_text=False):
-        if hasattr(self.app, 'canvas_emoji'):
-            self.app.canvas_emoji(canvas, item, document, epoch, size, keep_text=keep_text)
+        from .desktop_modern import DesktopModern
+        return DesktopModern.canvas_emoji(self, canvas, item, document, epoch, size, keep_text=keep_text)
 
     def canvas_media(self, canvas, item, message, epoch, size):
-        if hasattr(self.app, 'canvas_media'):
-            self.app.canvas_media(canvas, item, message, epoch, size)
+        from .desktop_modern import DesktopModern
+        return DesktopModern.canvas_media(self, canvas, item, message, epoch, size)
 
-    def open_image_message(self, message):
-        if hasattr(self.app, 'open_image_message'):
-            self.app.open_image_message(message)
+    def open_image_message(self, message, peer=None):
+        peer = self.peer if peer is None else peer
+        if message.media_kind not in ('image', 'video'):
+            return self.view_message_media(message, peer)
+        from .custom_menus import handled
+        from .menu_style import uses_system
+        kind = 'video_player' if message.media_kind == 'video' else 'image_viewer'
+        if handled(kind, self, message, peer):
+            return
+        if uses_system(kind):
+            return self.open_message_natively(message, peer)
+        from .media_gallery import open_chat_gallery
+        return open_chat_gallery(self, message, peer)
+
+    def open_message_natively(self, message, peer=None):
+        from .desktop_modern import DesktopModern
+        return DesktopModern.open_message_natively(self, message, self.peer if peer is None else peer)
+
+    def native_open_failed(self, error):
+        self.worker.events.put((self.show_error, error))
 
     def open_sender_profile(self, message, scope=None):
         if hasattr(self.app, 'open_sender_profile'):
             self.app.open_sender_profile(message, scope)
 
     def send_reaction(self, message, value):
-        if hasattr(self.app, 'send_reaction'):
-            self.app.send_reaction(message, value)
-        else:
-            self.react(message)
+        if not self.valid() or self.busy or self.app.demo:
+            return
+        from .chat_capabilities import chat_capabilities
+        if not chat_capabilities(self).allows_message('react', message):
+            return
+        def updated(result):
+            self.messages = [result if item.id == result.id else item for item in self.messages]
+            self.request_render()
+        self.call(self.backend.react(self.peer, message.id, value), updated)
 
     def jump(self, ident):
         if getattr(self, '_canvas_chat_view', False) and hasattr(self, 'bubble_view') and self.bubble_view.winfo_exists():
             return self.bubble_view.jump(ident)
         return False
 
-    def jump_message(self, ident):
-        return self.jump(ident)
+    def jump_message(self, ident, peer=None):
+        if peer is not None and peer != self.peer:
+            return False
+        return self.reveal_message(ident)
 
     def message_selected(self, ident):
         return False
@@ -458,6 +511,9 @@ class LinkedChatWindow(DesktopTools):
             'text': self.editor.get('1.0', 'end-1c'),
             'files': [str(p) for p in paths_in(self.attachment)],
             'custom': self.editor.snapshot_custom(), 'formats': self.snapshot_formats(), 'reply': self.reply_to}
+        if record['files']:
+            from .attachments import photo_quality_for
+            record['photo_quality']=photo_quality_for(self)
         previous = self.draft_store.get(self.draft_account, self.peer)
         if previous is None or draft_content(previous) != draft_content(record):
             self._draft_edited = True
@@ -518,8 +574,10 @@ class LinkedChatWindow(DesktopTools):
             self.reply_label.configure(text=f'↪ #{self.reply_to}' if self.reply_to else '')
             self.editor.edit_modified(False)
             if self.draft_store:
+                from .attachments import paths_in, photo_quality_for
                 self.draft_store.put(self.draft_account, self.peer, {**record,
-                    'files': [str(self.attachment)] if self.attachment else []}, pending=False)
+                    'files': [str(path) for path in paths_in(self.attachment)],
+                    'photo_quality': photo_quality_for(self)}, pending=False)
         finally:
             self._draft_applying = False
 
@@ -534,7 +592,16 @@ class LinkedChatWindow(DesktopTools):
         if self.visible():
             self.job.request()
 
-    def call(self, operation, success, failure=None, timeout=90):
+    def call(self, operation, success, status_or_failure=None, timeout=90, *, failure=None):
+        # Shared media controls use Desktop.call's status label; existing
+        # window callers pass their error callback as the third argument.
+        if callable(status_or_failure):
+            failure = status_or_failure
+        elif isinstance(status_or_failure, str):
+            self.status.set(status_or_failure)
+        if callable(timeout):
+            # Desktop's inspector contract supplies its error callback fourth.
+            failure, timeout = timeout, 90
         if not self.valid():
             operation.close()
             if not self.closed:
@@ -751,6 +818,8 @@ class LinkedChatWindow(DesktopTools):
             if self.loading:
                 self.history_changes.append((kind, payload))
             self.messages = reconcile_history(self.messages, [(kind, payload)], self.peer)
+            if kind != 'delete':
+                self.advanced_media_changed(account, self.peer, payload[1])
         elif kind == 'read' and payload[0] == self.peer:
             changed = False
             for message in self.messages:
@@ -900,6 +969,8 @@ class LinkedChatWindow(DesktopTools):
     def media_preview(self, message, marker, tag, epoch):
         if self.app.demo:
             return
+        from .desktop_media_lifetime import private_preview
+        if private_preview(self,message,self.peer):return
         backend, app, account, peer = self.backend, self.app, self.account, self.peer
         async def fetch():
             if message.media_kind == 'sticker':
@@ -992,6 +1063,8 @@ class LinkedChatWindow(DesktopTools):
         bar = getattr(self, 'attachment_bar', None)
         from .attachments import paths_in
         paths = paths_in(self.attachment)
+        from .attachments import update_quality_control
+        update_quality_control(self,paths)
         if paths:
             name = (tr('[Archivo] ') + paths[0].name) if len(paths) == 1 else (tr('Attachments') + f' ({len(paths)})')
             if hasattr(self, 'attachment_label'):
@@ -1043,23 +1116,25 @@ class LinkedChatWindow(DesktopTools):
         self.attach_button.state(['disabled'])
         self.status.set(tr('Enviando...'))
         reply_to = self.reply_to or self.thread_id
+        from .attachments import photo_quality_for
+        quality=photo_quality_for(self) if paths else None
         if self.topic_id and not self.app.demo:
             single = paths[0] if len(paths) == 1 else None
             operation = self.backend.forum_send(
                 self.peer, self.topic_id, text, self.snapshot_formats(), self.editor.snapshot_custom(),
                 paths=tuple(paths), reply_to=self.reply_to,
-                as_photo=bool(single and single.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')))
+                as_photo=bool(single and single.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')),**({'photo_quality':quality} if quality else {}))
         elif self.app.demo:
             path = paths[0] if paths else None
             operation = self.backend.send_attachment(self.peer, path, caption=text) if path else self.backend.send(self.peer, text)
         else:
             if len(paths) > 1:
-                operation = self.backend.send_batch(self.peer, paths, text, self.snapshot_formats(), self.editor.snapshot_custom(), reply_to=reply_to)
+                operation = self.backend.send_batch(self.peer, paths, text, self.snapshot_formats(), self.editor.snapshot_custom(), reply_to=reply_to,**({'photo_quality':quality} if quality else {}))
             else:
                 path = paths[0] if paths else None
                 as_photo = bool(path and path.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp'))
                 operation = self.backend.send_formatted(self.peer, text, self.snapshot_formats(), self.editor.snapshot_custom(), path=path,
-                    reply_to=reply_to, as_photo=as_photo)
+                    reply_to=reply_to, as_photo=as_photo,**({'photo_quality':quality} if quality else {}))
         def release():
             self.busy = False
             self.editor.configure(state='normal')
@@ -1128,12 +1203,14 @@ class LinkedChatWindow(DesktopTools):
             return 'break'
 
     def react(self, message):
-        if self.valid() and not self.app.demo:
-            self.call(self.backend.react(self.peer, message.id, self.app.preferences.values['quick_reaction']), lambda _: self.refresh())
+        self.send_reaction(message, self.app.preferences.values['quick_reaction'])
 
     def save_media(self, message):
         if not self.valid() or self.app.demo:
             return
+        from .desktop_media_lifetime import export_blocked
+        if export_blocked(message,self,self.peer):
+            self.status.set(tr('Protected content'));return
         from .app_dialogs import filedialog
         name = message.filename.replace('\\', '/').split('/')[-1] or 'attachment'
         target = filedialog.asksaveasfilename(parent=self.window, initialfile=name)

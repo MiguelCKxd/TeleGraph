@@ -1,4 +1,4 @@
-"""Bounded local notification diagnostics, without message text or raw identities."""
+"""Bounded notification diagnostics and policy-checked text of displayed notices."""
 from collections import deque
 from datetime import datetime,timezone
 import asyncio,hashlib,sqlite3,threading,time
@@ -24,6 +24,9 @@ class NotificationHistory:
                     self.db.execute('ALTER TABLE history ADD COLUMN content TEXT')
                 except sqlite3.OperationalError:
                     pass
+                # Older versions saved text before checking lock/mute/preview.
+                # Retain their diagnostics, but remove those unvetted summaries.
+                self.db.execute("UPDATE history SET content='' WHERE phase NOT IN ('in_app','submitted') AND content!=''")
                 self.db.commit();self.path.chmod(0o600)
             except (OSError,sqlite3.Error):self._fallback()
         return self.db
@@ -36,7 +39,7 @@ class NotificationHistory:
         if phase not in PHASES or source not in SOURCES:raise ValueError('Invalid notification history event')
         # Only a fixed digest of the opaque event key is retained.
         digest=hashlib.sha256(str(event).encode()).hexdigest()[:16] if event else ''
-        text_content=str(content)[:256] if content else ''
+        text_content=str(content)[:256] if content and phase in ('in_app','submitted') else ''
         row=(self.clock(),phase,source,digest,text_content)
         with self.lock:
             if self.closed:return
@@ -77,7 +80,6 @@ def open_history(app):
     if journal is None:return
     window,frame=app.dialog('Notification history','800x480')
     footer=ttk.Frame(frame);footer.pack(side='bottom',fill='x')
-    ttk.Label(frame,text=tr('Up to 500 events from the last 7 days. Message contents and account names are not stored.'),wraplength=760).pack(fill='x',pady=5)
     table=ttk.Treeview(frame,columns=('time','event','source','content','key'),show='headings')
     columns_config = [
         ('time', 'Date', 150),

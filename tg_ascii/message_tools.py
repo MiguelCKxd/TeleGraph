@@ -4,6 +4,7 @@ from telethon import functions, types
 from .i18n import tr
 from .telegram_extras import custom_entities
 from .transfers import transfer_timeout, tracked_transfer
+from .media_quality import photo_paths, is_photo_path, is_video_path, is_media_path
 
 STYLES = {'bold': types.MessageEntityBold, 'italic': types.MessageEntityItalic,
           'underline': types.MessageEntityUnderline, 'strike': types.MessageEntityStrike,
@@ -76,61 +77,71 @@ def display_segments(message):
 
 class MessageTools:
     @tracked_transfer
-    async def send_batch(self,peer,paths,text='',spans=(),emojis=(),progress=None,reply_to=None,silent=False,schedule=None):
+    async def send_batch(self,peer,paths,text='',spans=(),emojis=(),progress=None,reply_to=None,silent=False,schedule=None,*,photo_quality=None):
         from contextlib import ExitStack
         from .backend import attachment_path
         from .secret_chats import is_secret_peer
         paths=[attachment_path(path) for path in paths]
         if not 2<=len(paths)<=10:raise ValueError(tr('Choose up to 10 files for one album.'))
-        if is_secret_peer(peer):
-            import secrets
-            gid = secrets.randbits(62) or 1
-            results = []
-            async with transfer_timeout(progress) as report:
-                for idx, path in enumerate(paths):
-                    msg = await self.secret_chats.send_file(
-                        peer, path, progress=report,
-                        caption=text if idx == 0 else '',
-                        spans=spans if idx == 0 else (),
-                        emojis=emojis if idx == 0 else (),
-                        reply_to=reply_to, silent=silent, grouped_id=gid,
-                    )
-                    results.append(msg)
-            return results
-        entities=formatted_entities(text,spans,emojis)
-        from .emoji_usage import note
-        note(self,emojis,text)
-        photos=all(path.suffix.lower() in ('.jpg','.jpeg','.png','.webp') for path in paths)
-        # Open every source before the request: missing/unreadable files cannot cause a partial upload batch.
-        with ExitStack() as stack:
-            streams=[stack.enter_context(path.open('rb')) for path in paths]
-            async with transfer_timeout(progress) as report:
-                messages=await self.client.send_file(peer,streams,caption=[text]+['']*(len(paths)-1),
-                    formatting_entities=[entities]+[[] for _ in paths[1:]],parse_mode=None,force_document=not photos,
-                    reply_to=reply_to,silent=silent,schedule=schedule,progress_callback=report)
-        return [self.message(message) for message in messages]
+        photos=all(is_photo_path(path) for path in paths)
+        media=photos or (photo_quality is not None and all(is_media_path(path) for path in paths))
+        async with photo_paths(paths,photo_quality,photos=media) as paths:
+            if is_secret_peer(peer):
+                import secrets
+                gid = secrets.randbits(62) or 1
+                results = []
+                async with transfer_timeout(progress) as report:
+                    for idx, path in enumerate(paths):
+                        msg = await self.secret_chats.send_file(
+                            peer, path, progress=report,
+                            caption=text if idx == 0 else '',
+                            spans=spans if idx == 0 else (),
+                            emojis=emojis if idx == 0 else (),
+                            reply_to=reply_to, silent=silent, grouped_id=gid,
+                        **({'as_photo':is_photo_path(path) and photo_quality!='original'} if photo_quality else {}),
+                        )
+                        results.append(msg)
+                return results
+            entities=formatted_entities(text,spans,emojis)
+            from .emoji_usage import note
+            note(self,emojis,text)
+            media=media and photo_quality!='original'
+            # Open every source before the request: missing/unreadable files cannot cause a partial upload batch.
+            with ExitStack() as stack:
+                streams=[stack.enter_context(path.open('rb')) for path in paths]
+                async with transfer_timeout(progress) as report:
+                    messages=await self.client.send_file(peer,streams,caption=[text]+['']*(len(paths)-1),
+                        formatting_entities=[entities]+[[] for _ in paths[1:]],parse_mode=None,force_document=not media,
+                        reply_to=reply_to,silent=silent,schedule=schedule,progress_callback=report)
+            return [self.message(message) for message in messages]
 
     @tracked_transfer
-    async def send_formatted(self, peer, text, spans, emojis=(), path=None, progress=None, reply_to=None, as_photo=False, silent=False, schedule=None):
-        from .secret_chats import is_secret_peer
-        if is_secret_peer(peer):
-            async with transfer_timeout(progress) as report:
-                return await self.secret_chats.send_formatted(
-                    peer, text, spans, emojis, path=path, progress=report,
-                    reply_to=reply_to, as_photo=as_photo, silent=silent, schedule=schedule
-                )
-        entities = formatted_entities(text, spans, emojis)
-        from .emoji_usage import note
-        note(self, emojis, text)
-        if path:
-            from .backend import attachment_path
-            with attachment_path(path).open('rb') as stream:
+    async def send_formatted(self, peer, text, spans, emojis=(), path=None, progress=None, reply_to=None, as_photo=False, silent=False, schedule=None, *, photo_quality=None):
+        from .backend import attachment_path
+        files=[attachment_path(path)] if path else []
+        async with photo_paths(files,photo_quality,photos=as_photo) as prepared:
+            path=prepared[0] if prepared else None
+            as_photo=as_photo and photo_quality!='original'
+            as_video=bool(path and is_video_path(path) and photo_quality not in (None,'original'))
+            from .secret_chats import is_secret_peer
+            if is_secret_peer(peer):
                 async with transfer_timeout(progress) as report:
-                    result = await self.client.send_file(peer, stream, caption=text, formatting_entities=entities,
-                                                         parse_mode=None, force_document=not as_photo, progress_callback=report, reply_to=reply_to, silent=silent, schedule=schedule)
-        else:
-            result = await self.client.send_message(peer, text, formatting_entities=entities, parse_mode=None, reply_to=reply_to, silent=silent, schedule=schedule)
-        return self.message(result)
+                    return await self.secret_chats.send_formatted(
+                        peer, text, spans, emojis, path=path, progress=report,
+                        reply_to=reply_to, as_photo=as_photo, silent=silent, schedule=schedule
+                    )
+            entities = formatted_entities(text, spans, emojis)
+            from .emoji_usage import note
+            note(self, emojis, text)
+            if path:
+                from .backend import attachment_path
+                with attachment_path(path).open('rb') as stream:
+                    async with transfer_timeout(progress) as report:
+                        result = await self.client.send_file(peer, stream, caption=text, formatting_entities=entities,
+                                                             parse_mode=None, force_document=not (as_photo or as_video), progress_callback=report, reply_to=reply_to, silent=silent, schedule=schedule)
+            else:
+                result = await self.client.send_message(peer, text, formatting_entities=entities, parse_mode=None, reply_to=reply_to, silent=silent, schedule=schedule)
+            return self.message(result)
 
     @tracked_transfer
     async def send_audio(self, peer, path, voice=False, duration=0, reply_to=None):

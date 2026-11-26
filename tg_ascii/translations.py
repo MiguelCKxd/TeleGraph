@@ -552,6 +552,8 @@ from .translations_v3002 import extend as extend_v3002
 extend_v3002(CATALOGUES)
 from .translations_forums import extend as extend_forums
 extend_forums(CATALOGUES)
+from .translations_v34 import extend as extend_v34
+extend_v34(CATALOGUES)
 for _code, _message in {
     'es': 'La llamada continúa en segundo plano.', 'ca': 'La trucada continua en segon pla.',
     'ca-valencia': 'La telefonada continua en segon pla.', 'ru': 'Звонок продолжается в фоновом режиме.',

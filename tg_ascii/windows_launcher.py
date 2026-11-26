@@ -85,7 +85,7 @@ class _Variant(C.Structure):
     _fields_ = [('vt', C.c_ushort), ('reserved', C.c_ushort * 3), ('value', _VariantValue)]
 
 
-def _update_link(path, executable, icon):
+def _update_link(path, executable, icon, *, check_only=False):
     """Change only a plain shortcut to this exact executable."""
     link = C.c_void_p()
     _check(C.windll.ole32.CoCreateInstance(C.byref(_guid('00021401-0000-0000-c000-000000000046')),
@@ -100,6 +100,8 @@ def _update_link(path, executable, icon):
         _check(_method(link, 10, C.c_wchar_p, C.c_int)(link, buffer, len(buffer)))
         if buffer.value:
             return False
+        if check_only:
+            return True
         index = C.c_int()
         _check(_method(link, 16, C.c_wchar_p, C.c_int, C.c_void_p)(link, buffer, len(buffer), C.byref(index)))
         changed = buffer.value != str(icon) or index.value != 0
@@ -153,7 +155,14 @@ def update_shortcuts(executable, icon, name=None, state_root=None):
                 folders.append(Path(path.value))
         pins = Path(os.environ['APPDATA']) / 'Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar'
         # 3.2: TeleGraph's own Start and desktop links carry the chosen name.
-        renamed = apply_renames(plan_renames(folders, name, previous))
+        moves = []
+        for source, target in plan_renames(folders, name, previous):
+            try:
+                if _update_link(source, executable, icon, check_only=True):
+                    moves.append((source, target))
+            except OSError:
+                continue
+        renamed = apply_renames(moves)
         if state_root:
             remember(state_root, name)
         shortcuts = [d / file for d in folders for file in shortcut_names(name, previous)]

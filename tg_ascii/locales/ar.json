@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "لم يُرجع تيليجرام الموضوع الجديد. حدّث قائمة المواضيع.",
   "This group must be upgraded to enable topics.": "حوّل هذه المجموعة إلى مجموعة فائقة لتفعيل المواضيع.",
   "Reopen this group to check its topic settings.": "أعد فتح المجموعة للتحقق من إعدادات المواضيع.",
-  "The call continues in the background.": "تستمر المكالمة في الخلفية."
+  "The call continues in the background.": "تستمر المكالمة في الخلفية.",
+  "Original media in the viewer": "الوسائط الأصلية في العارض",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "عرض الصور بأعلى جودة متاحة في تيليجرام دون إعادة ضغط. تظل المعاينات صغيرة. يستخدم مزيدًا من البيانات والذاكرة.",
+  "Photos and videos": "الصور والفيديوهات",
+  "SD · Standard": "SD · قياسية",
+  "HD · High quality": "HD · جودة عالية",
+  "Original as file": "الأصل كملف",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "يُرفق الوصف بالملف الأول. تشكّل الصور والفيديوهات ألبومًا؛ وتُرسل الملفات المختلطة الأخرى كمستندات."
 }

@@ -171,7 +171,8 @@ def _unfold(text):
 
 def read_vcard(path, limit=20000):
     """Contacts from a .vcf export (any OS, Google, Outlook…). FN/N and TEL only."""
-    data = Path(path).read_bytes()[:16 * 1024 * 1024].decode('utf-8', 'replace')
+    with Path(path).open('rb') as stream:
+        data = stream.read(16 * 1024 * 1024).decode('utf-8', 'replace')
     contacts = []
     for block in re.findall(r'BEGIN:VCARD(.*?)END:VCARD', _unfold(data), flags=re.S | re.I):
         first = last = full = ''

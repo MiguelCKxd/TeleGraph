@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "Telegram n’a pas renvoyé le nouveau sujet. Actualisez la liste des sujets.",
   "This group must be upgraded to enable topics.": "Convertissez ce groupe en supergroupe pour activer les sujets.",
   "Reopen this group to check its topic settings.": "Rouvrez le groupe pour vérifier les paramètres des sujets.",
-  "The call continues in the background.": "L’appel se poursuit en arrière-plan."
+  "The call continues in the background.": "L’appel se poursuit en arrière-plan.",
+  "Original media in the viewer": "Originaux dans la visionneuse",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "Afficher les photos dans la meilleure qualité disponible sur Telegram, sans recompression. Les aperçus restent petits. Utilise davantage de données et de mémoire.",
+  "Photos and videos": "Photos et vidéos",
+  "SD · Standard": "SD · Standard",
+  "HD · High quality": "HD · Haute qualité",
+  "Original as file": "Original comme fichier",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "La légende est jointe au premier fichier. Les photos et vidéos forment un album ; les autres fichiers mixtes sont envoyés comme documents."
 }
