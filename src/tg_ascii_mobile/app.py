@@ -276,6 +276,14 @@ class TgAsciiMobile(toga.App):
             return 0, 0
 
     def adapt_chrome(self, system):
+        if system == 'iOS':
+            # Push must not depend on an optional font, icon, biometric or
+            # presentation bridge succeeding earlier in the setup sequence.
+            try:
+                from . import notify_native
+                notify_native.install_ios(self)
+            except Exception as exc:
+                print('notifications:', type(exc).__name__)
         try:
             if system == 'iOS':
                 from rubicon.objc import ObjCClass
@@ -296,14 +304,14 @@ class TgAsciiMobile(toga.App):
                     pinch.enabled = False
                 web.setOpaque_(False)
                 web.backgroundColor = color
+                from . import ios_liquid_glass
+                ios_liquid_glass.install(self)
                 self.install_ios_opener()
                 self.install_ios_icon_switcher()
                 self.install_ios_biometric()
                 self.install_watch_bridge()
                 from . import qr_native
                 qr_native.install_ios(self)
-                from . import notify_native
-                notify_native.install_ios(self)
                 from . import voice_native
                 voice_native.install_ios(self)
                 from . import ios_calls
@@ -544,8 +552,7 @@ class TgAsciiMobile(toga.App):
 
 
     def install_android_opener(self, activity):
-        """Links in the browser; files: open (the app chosen by the person),
-        save (Downloads/TG-ASCII) or share."""
+        """Copy files away from the UI thread; launch Android activities on it."""
         from android.content import ClipData, ContentValues, Intent
         from android.net import Uri
         from android.os import Build
@@ -553,6 +560,7 @@ class TgAsciiMobile(toga.App):
         from androidx.core.content import FileProvider
         import mimetypes
         import shutil
+        import threading
         from pathlib import Path
         shared = Path(str(activity.getCacheDir().getAbsolutePath())) / 'shared'
         shutil.rmtree(shared, ignore_errors=True)  # copies from the last session
@@ -562,43 +570,74 @@ class TgAsciiMobile(toga.App):
             from tempfile import mkdtemp
 
             shared.mkdir(parents=True, exist_ok=True)
-            copy = Path(mkdtemp(dir=shared)) / Path(target).name
-            shutil.copyfile(target, copy)
-            uri = FileProvider.getUriForFile(activity, activity.getPackageName() + '.fileprovider', File(str(copy)))
-            return uri, mimetypes.guess_type(copy.name)[0] or 'application/octet-stream'
+            directory = Path(mkdtemp(dir=shared))
+            copy = directory / Path(target).name
+            try:
+                shutil.copyfile(target, copy)
+                uri = FileProvider.getUriForFile(activity, activity.getPackageName() + '.fileprovider', File(str(copy)))
+                return uri, mimetypes.guess_type(copy.name)[0] or 'application/octet-stream', directory
+            except Exception:
+                shutil.rmtree(directory, ignore_errors=True)
+                raise
 
-        def save(target):
-            """Android 10+: MediaStore Downloads (no storage permission needed)."""
+        def save(target, active):
+            """MediaStore publishes only a complete copy; failures remove its row."""
             from android.provider import MediaStore
             name, mime = Path(target).name, mimetypes.guess_type(target)[0] or 'application/octet-stream'
             values = ContentValues()
             values.put(MediaStore.MediaColumns.DISPLAY_NAME, name)
             values.put(MediaStore.MediaColumns.MIME_TYPE, mime)
             values.put(MediaStore.MediaColumns.RELATIVE_PATH, 'Download/TG-ASCII')
+            values.put(MediaStore.MediaColumns.IS_PENDING, 1)
             resolver = activity.getContentResolver()
             uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            stream = resolver.openOutputStream(uri)
+            if uri is None:
+                raise OSError('Could not create the downloaded file')
             try:
-                with open(target, 'rb') as source:
-                    while True:
-                        chunk = source.read(1 << 16)
-                        if not chunk:
-                            break
-                        stream.write(chunk)
-            finally:
-                stream.close()
+                stream = resolver.openOutputStream(uri)
+                if stream is None:
+                    raise OSError('Could not open the downloaded file')
+                try:
+                    with open(target, 'rb') as source:
+                        while True:
+                            if not active():
+                                raise PermissionError('The active account changed.')
+                            chunk = source.read(1 << 16)
+                            if not chunk:
+                                break
+                            stream.write(chunk)
+                finally:
+                    stream.close()
+                if not active():
+                    raise PermissionError('The active account changed.')
+                values = ContentValues()
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                resolver.update(uri, values, None, None)
+            except Exception:
+                resolver.delete(uri, None, None)
+                raise
 
         def opener(kind, target, done):
-            def run():
+            owner, backend = app.core.account, app.core.backend
+
+            def active():
+                return (not app.core.locked and app.core.account == owner
+                        and app.core.backend is backend)
+
+            def present(prepared=None, error=None):
+                directory = prepared[2] if prepared else None
                 try:
+                    if error is not None:
+                        raise error
+                    if not active():
+                        raise PermissionError('The active account changed.')
                     if kind == 'url':
                         intent = Intent(Intent.ACTION_VIEW, Uri.parse(target))
                     elif kind == 'save' and Build.VERSION.SDK_INT >= 29:
-                        save(target)
                         done(True)
                         return
                     else:
-                        uri, mime = provided(target)
+                        uri, mime, directory = prepared
                         if kind == 'file':
                             intent = Intent(Intent.ACTION_VIEW)
                             intent.setDataAndType(uri, mime)
@@ -606,18 +645,37 @@ class TgAsciiMobile(toga.App):
                             intent = Intent(Intent.ACTION_SEND)
                             intent.setType(mime)
                             intent.putExtra(Intent.EXTRA_STREAM, uri)
-                        # The grant travels with the ClipData, also through the chooser.
                         intent.setClipData(ClipData.newRawUri('', uri))
                         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         intent = Intent.createChooser(intent, None)
                         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     activity.startActivity(intent)
-                    done(True)
                 except Exception as exc:
+                    if directory is not None:
+                        shutil.rmtree(directory, ignore_errors=True)
                     print('open:', exc)
                     done(False)
-            app.loop.call_soon_threadsafe(run)
+                else:
+                    done(True)
+
+            def prepare():
+                prepared, error = None, None
+                try:
+                    if not active():
+                        raise PermissionError('The active account changed.')
+                    if kind == 'save' and Build.VERSION.SDK_INT >= 29:
+                        save(target, active)
+                    else:
+                        prepared = provided(target)
+                except Exception as exc:
+                    error = exc
+                app.loop.call_soon_threadsafe(present, prepared, error)
+
+            if kind == 'url':
+                app.loop.call_soon_threadsafe(present)
+            else:
+                threading.Thread(target=prepare, name='tg-file-export', daemon=True).start()
         self.core.native_open = opener
 
     def install_ios_opener(self):

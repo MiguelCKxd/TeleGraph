@@ -9,6 +9,10 @@ reducedMotion.addEventListener('change', event => { if (event.matches) stopInter
 
 // Move only the live surface. Input, focus and the Telegram view change immediately.
 function animateSurface(node, kind, leaving = false, done) {
+  // Keep the viewport, fixed controls and bar geometry stationary. Transforming
+  // #app makes fixed descendants use it as their containing block mid-transition.
+  if (node?.id === 'app' || node?.classList.contains('pane'))
+    node = node.querySelector(':scope > .scroll, :scope > .center') || node;
   interfaceAnimations.get(node)?.cancel();
   if (!node?.animate || reducedMotion.matches || state.settings?.reduce_animations || state.locked) {
     done?.();
@@ -94,30 +98,59 @@ function swipeChatRow(row, chat) {
 
 function installEdgeBack() {
   if (PLATFORM === 'Android') return;
-  let start = null;
+  let gesture = null, blockClickUntil = 0;
+  const context = () => [state.accountRevision, state.view, state.open?.peer, state.open?.topic?.id,
+    state.open?.thread?.root, state.locked].join('|');
+  const available = () => !state.locked && !window.tgNativeAccessibility?.voiceOver && !unavailableWindow() &&
+    (state.stage === 'qr' || (state.stage === 'ready' &&
+      (!document.getElementById('sheet-layer').hidden || state.view !== 'chats'))) &&
+    !(WINDOW_CHAT !== null && state.view === 'chat' && !state.open?.thread);
+  const excluded = 'dialog, input, textarea, select, video, audio, canvas, [contenteditable=true], ' +
+    '[role=slider], .tabs, .photo-album, .stage, .swatches, .gallery-strip, .swipe-chat, .divider, .grip';
   document.addEventListener('touchstart', event => {
+    gesture = null;
     const point = event.touches[0], target = event.target;
-    start = event.touches.length === 1 && point.clientX <= 28 &&
-      !target.closest('dialog, input, textarea, select, video, .tabs, .photo-album, .stage, .swatches') ?
-      {x: point.clientX, y: point.clientY} : null;
+    // A comfortable leading area, including message text, rather than a 28 px
+    // edge. Vertical scrolling, selection, horizontal widgets and row actions
+    // retain their own gestures. In RTL, a rightward message swipe means Reply.
+    if (event.touches.length !== 1 || !available() || point.clientX > Math.min(140, innerWidth * .36) ||
+        target.closest(excluded) || (state.rtl && target.closest('.msg')) ||
+        state.selection?.size || !window.getSelection()?.isCollapsed) return;
+    gesture = {id: point.identifier, x: point.clientX, y: point.clientY,
+      at: performance.now(), context: context(), claimed: false};
   }, {passive: true});
   document.addEventListener('touchmove', event => {
-    if (!start) return;
-    if (event.touches.length !== 1 || Math.abs(event.touches[0].clientY - start.y) > 46) {
-      start = null;
-    } else if (event.cancelable && event.touches[0].clientX - start.x > 12 &&
-               event.touches[0].clientX - start.x > 1.75 * Math.abs(event.touches[0].clientY - start.y)) {
-      event.preventDefault();
+    if (!gesture) return;
+    const point = [...event.touches].find(touch => touch.identifier === gesture.id);
+    if (!point || event.touches.length !== 1 || gesture.context !== context() || !available()) {
+      gesture = null; return;
     }
+    const dx = point.clientX - gesture.x, dy = Math.abs(point.clientY - gesture.y);
+    if (!gesture.claimed && (dx < -8 || (dy > 10 && dy > Math.abs(dx) * .75))) {
+      gesture = null; return;
+    }
+    if (dx > 12 && dx > dy * 1.4) gesture.claimed = true;
+    if (gesture.claimed && event.cancelable) event.preventDefault();
   }, {passive: false});
-  document.addEventListener('touchcancel', () => { start = null; });
+  document.addEventListener('touchcancel', () => { gesture = null; });
   document.addEventListener('touchend', event => {
-    const origin = start;
-    start = null;
-    if (!origin || event.touches.length) return;
-    const dx = event.changedTouches[0].clientX - origin.x, dy = event.changedTouches[0].clientY - origin.y;
-    if (dx >= 65 && dx > Math.abs(dy) * 1.75) window.tgBack();
-  });
+    const origin = gesture;
+    gesture = null;
+    if (!origin || event.touches.length || !available() || origin.context !== context()) return;
+    const point = [...event.changedTouches].find(touch => touch.identifier === origin.id);
+    if (!point) return;
+    const dx = point.clientX - origin.x, dy = Math.abs(point.clientY - origin.y);
+    const velocity = dx / Math.max(1, performance.now() - origin.at);
+    if (!origin.claimed || dx < 36 || dx <= dy * 1.4 || (dx < 64 && velocity < .35)) return;
+    blockClickUntil = performance.now() + 450;
+    event.preventDefault();
+    window.tgBack();
+  }, {passive: false});
+  // Safari may synthesize a click after a completed drag. Never activate the
+  // control that happens to appear underneath after navigating back.
+  document.addEventListener('click', event => {
+    if (performance.now() < blockClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); }
+  }, true);
 }
 
 function numericSlider(label, value, min, max, save, sliderMax = max) {

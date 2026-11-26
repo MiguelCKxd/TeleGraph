@@ -183,13 +183,19 @@ def frame_jpeg_bytes(frame, size=480):
     from PIL import Image
 
     width, height, data = frame['width'], frame['height'], frame['data']
+    if not (0 < width <= 4096 and 0 < height <= 4096 and 0 < size <= 4096):
+        raise ValueError('Invalid video dimensions')
     chroma = (width + 1) // 2, (height + 1) // 2
     luma_size, chroma_size = width * height, chroma[0] * chroma[1]
+    if len(data) != luma_size + 2 * chroma_size:
+        raise ValueError('Invalid video frame size')
     y = Image.frombytes('L', (width, height), data[:luma_size])
+    # Calls/PiP need a small preview. Resize the planes before RGB conversion:
+    # a 1080p source must not allocate three full-size RGB/YCbCr intermediates.
+    y.thumbnail((size, size))
     cb = Image.frombytes('L', chroma, data[luma_size:luma_size + chroma_size]).resize(y.size)
     cr = Image.frombytes('L', chroma, data[luma_size + chroma_size:]).resize(y.size)
     image = Image.merge('YCbCr', (y, cb, cr)).convert('RGB')
-    image.thumbnail((size, size))
     if frame['rotation']:
         image = image.rotate(-frame['rotation'], expand=True)
     output = io.BytesIO()

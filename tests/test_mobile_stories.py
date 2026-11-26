@@ -58,3 +58,12 @@ class MobileStoryTests(IsolatedAsyncioTestCase):
             await self.core.call('publish_story', params)
         self.assertTrue(path.exists())
         self.backend.publish_story.assert_not_called()
+
+    async def test_switch_during_own_identity_lookup_does_not_mark_story_seen(self):
+        async def changed(*args):
+            self.core.accounts.current = 'other'
+            return 99
+        self.backend.client.get_peer_id.side_effect = changed
+        with self.assertRaises(PermissionError):
+            await self.core.api_story_read('qa', 14, 2)
+        self.backend.view_story.assert_not_awaited()

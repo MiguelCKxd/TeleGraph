@@ -4,10 +4,12 @@
 # Also writes the publisher's app credentials (never printed, never committed).
 set -euo pipefail
 here=${0:A:h:h}
-desktop=${TG_ASCII_DESKTOP:-$here/../escritorio}
-ref=${TG_ASCII_CORE_REF:-fcefec4b5789724f57f1afc6fe05e5d434173268}
+desktop=${TG_ASCII_DESKTOP:-$here/../desktop}
+[[ -d "$desktop" ]] || desktop=${TG_ASCII_DESKTOP:-$here/../escritorio}
+ref=${TG_ASCII_CORE_REF:-2a672f6dac6915083f9081e844f2b0c1478649c7}
+repository=$(git -C "$desktop" rev-parse --show-toplevel)
 rm -rf "$here/src/tg_ascii"
-git -C "$desktop" archive "$ref" tg_ascii | tar -x -C "$here/src"
+git -C "$repository" archive "$ref" tg_ascii | tar -x -C "$here/src"
 git -C "$desktop" rev-parse --short "$ref" > "$here/src/tg_ascii/CORE_REVISION"
 # Tk modules cannot run on Android, iOS or the watches: leave them out (3.0.0.2).
 /usr/bin/python3 "$here/tools/prune_core.py" "$here/src/tg_ascii"

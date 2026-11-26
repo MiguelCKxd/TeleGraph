@@ -151,7 +151,7 @@ def watch_listener(app, activity, did_read):
             app.loop.call_soon_threadsafe(read)
 
     listener = Changed()
-    active = registered = False
+    active = registered = reading = dirty = False
     session = request = failures = 0
     retry = None
 
@@ -169,8 +169,13 @@ def watch_listener(app, activity, did_read):
             failures += 1
 
     def on_read(sequence, success, result):
-        nonlocal failures
+        nonlocal failures, reading, dirty
         if not active or sequence != request:
+            return
+        reading = False
+        if dirty:
+            dirty = False
+            read()
             return
         if success:
             failures = 0
@@ -179,13 +184,18 @@ def watch_listener(app, activity, did_read):
             try_later(read)
 
     def read():
-        nonlocal request
+        nonlocal request, reading, dirty
         if active and registered:
             clear_retry()
+            if reading:
+                dirty = True
+                return
+            reading = True
             request += 1
             try:
                 client.getDataItems(uri, DataClient.FILTER_LITERAL).addOnCompleteListener(Read(request))
             except Exception:
+                reading = False
                 try_later(read)
 
     def on_registered(epoch, success):
@@ -217,9 +227,9 @@ def watch_listener(app, activity, did_read):
             read()
 
     def stop(*args, **kwargs):
-        nonlocal active, registered, request
+        nonlocal active, registered, request, reading, dirty
         if active:
-            active = registered = False
+            active = registered = reading = dirty = False
             request += 1
             clear_retry()
             client.removeListener(listener)
