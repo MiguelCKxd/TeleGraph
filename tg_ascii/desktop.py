@@ -1033,11 +1033,13 @@ class Desktop(DesktopFeatures):
             # first unread before reading anything (released in loaded/failed).
             self._read_hold_until = time.monotonic() + 8.0
         self.active, self.messages = chat_id, list(cached) if cached else []
+        request_token = self._history_request_token = object()
         self._history_key, self._history_changes = (self.ui_account, chat_id), []
         self.restore_draft()
         self.render_messages()
         def loaded(messages):
-            if self.active != chat_id or self.ui_account != account:
+            if (self.active != chat_id or self.ui_account != account
+                    or getattr(self, '_history_request_token', None) is not request_token):
                 return  # The user moved on while this chat was loading.
             merged = {m.id: m for m in messages + [m for m in self.messages if not cached or m.id > max((c.id for c in messages), default=0)]}
             from .telegram_extras import reconcile_history
@@ -1078,6 +1080,9 @@ class Desktop(DesktopFeatures):
                 schedule_read(self, 300)
             self.editor.focus_set()
         def failed(exc):
+            if (self.active != chat_id or self.ui_account != account
+                    or getattr(self, '_history_request_token', None) is not request_token):
+                return
             self._history_key, self._history_changes = None, []
             self._read_hold_until = 0
             if cached and self.active == chat_id and self.ui_account == account:
@@ -1385,6 +1390,8 @@ class Desktop(DesktopFeatures):
             self.draft_manager.changed()
         from .attachments import paths_in
         paths=paths_in(self.attachment)
+        from .attachments import update_quality_control
+        update_quality_control(self,paths)
         self.attachment_text.set((tr('[Archivo] ')+single_line(paths[0].name)) if len(paths)==1 else tr('Attachments')+f' ({len(paths)})' if paths else '')
         if self.attachment:
             if hasattr(self, 'attachment_bar'): self.attachment_bar.pack(fill='x', before=self.editor, pady=2)
@@ -1425,6 +1432,8 @@ class Desktop(DesktopFeatures):
             return
         from .attachments import paths_in
         paths=paths_in(path)
+        from .attachments import photo_quality_for
+        quality=photo_quality_for(self) if paths else None
         from .attachments import attachments_allowed
         if paths and not attachments_allowed(self,paths):return
         if getattr(self, 'outbox', None) is not None:
@@ -1440,14 +1449,14 @@ class Desktop(DesktopFeatures):
                 if value != self.progress_value:
                     self.progress_value = value
                     self.worker.events.put((self.upload_progress, value))
-            operation = self.service.backend.send_batch(chat_id,paths,text,format_spans,custom_spans,progress,reply_to=getattr(self,'reply_drafts',{}).get((self.ui_account,chat_id)),silent=silent,schedule=schedule) if len(paths)>1 else self.service.backend.send_custom(chat_id, text, custom_spans, path, progress) if custom_spans else self.service.backend.send_attachment(chat_id, path, progress, caption=text)
+            operation = self.service.backend.send_batch(chat_id,paths,text,format_spans,custom_spans,progress,reply_to=getattr(self,'reply_drafts',{}).get((self.ui_account,chat_id)),silent=silent,schedule=schedule,photo_quality=quality) if len(paths)>1 else self.service.backend.send_custom(chat_id, text, custom_spans, path, progress) if custom_spans else self.service.backend.send_attachment(chat_id, path, progress, caption=text)
         else:
             operation = self.service.backend.send_custom(chat_id, text, custom_spans) if custom_spans else self.service.backend.send(chat_id, text)
         reply_to = getattr(self, 'reply_drafts', {}).get((getattr(self, 'ui_account', None), chat_id))
         photo = len(paths)==1 and paths[0].suffix.lower() in ('.jpg','.jpeg','.png','.webp')
         if len(paths)<=1 and (format_spans or reply_to or photo or silent or schedule) and not self.demo:
             operation.close()
-            operation = self.service.backend.send_formatted(chat_id, text, format_spans, custom_spans, path, progress if path else None, reply_to=reply_to, as_photo=bool(photo), silent=silent, schedule=schedule)
+            operation = self.service.backend.send_formatted(chat_id, text, format_spans, custom_spans, path, progress if path else None, reply_to=reply_to, as_photo=bool(photo), silent=silent, schedule=schedule,photo_quality=quality)
         def done(message):
             if getattr(self,'ui_account',None)!=account:
                 self.progress.pack_forget();return
@@ -1482,11 +1491,18 @@ class Desktop(DesktopFeatures):
 
     def queue_send(self, account, chat_id, text, paths, format_spans, custom_spans, silent=False, schedule=None):
         from .outbox import Pending
+        from .attachments import photo_quality_for
         reply_to = getattr(self, 'reply_drafts', {}).get((account, chat_id))
         item = Pending(account=account, peer=chat_id, text=text, paths=[str(value) for value in paths],
                        format_spans=[list(span) for span in format_spans],
                        custom_spans=[list(span) for span in custom_spans], reply_to=reply_to,
-                       silent=bool(silent), schedule=schedule.isoformat() if schedule is not None else None)
+                       silent=bool(silent), schedule=schedule.isoformat() if schedule is not None else None,
+                       photo_quality=photo_quality_for(self) if paths else None)
+        try:
+            self.outbox.add(item, require_persistence=True)
+        except (OSError, TypeError, ValueError) as exc:
+            self.status.set(error_message(exc))
+            return  # Keep the composer and its draft when disk persistence failed.
         # Same composer reset a successful send performed before 1.4.1.
         self.stop_typing()
         getattr(self, 'reply_drafts', {}).pop((account, chat_id), None)
@@ -1504,7 +1520,6 @@ class Desktop(DesktopFeatures):
             self.draft_manager.sent(account, chat_id)
         if hasattr(self, "rich_drafts"): self.rich_drafts.pop((account, chat_id), None)
         self.custom_tags = {}
-        self.outbox.add(item)
         self.status.set(tr('Sin conexion') + ' · ' + tr('Pending: it will be sent when the connection returns.') if self.connection_offline() else tr('Enviando...'))
         try:self.history.see('end')
         except (tk.TclError, AttributeError):pass
@@ -1600,6 +1615,8 @@ class Desktop(DesktopFeatures):
             from .offline_store import save_now
             save_now(self, wait=True)
         self.closing = True
+        from .preload import stop as stop_preload
+        stop_preload(self)
         self._close_started = time.monotonic()
         if getattr(self, 'outbox', None) is not None:
             self.outbox.unsubscribe(self.outbox_changed)

@@ -21,6 +21,20 @@ ENTITLEMENT_KEYS = (
 )
 
 
+def complete_on_loop(loop, future, result=None, error=None):
+    """OS callbacks may race timeout/cancellation; inspect the future on its loop."""
+    def complete():
+        if not future.done():
+            if error is not None:
+                future.set_exception(error)
+            else:
+                future.set_result(result)
+    try:
+        loop.call_soon_threadsafe(complete)
+    except RuntimeError:
+        pass  # The application may already have closed its worker.
+
+
 def valid_apns_token(token):
     return isinstance(token, str) and bool(re.fullmatch(r'[0-9a-fA-F]{64,512}', token))
 
@@ -128,16 +142,13 @@ class MacPushChannel:
             try:
                 raw_bytes = bytes(token_data)
                 token_hex = raw_bytes.hex()
-                if not future.done():
-                    loop.call_soon_threadsafe(future.set_result, token_hex)
+                complete_on_loop(loop, future, result=token_hex)
             except Exception as e:
-                if not future.done():
-                    loop.call_soon_threadsafe(future.set_exception, PushUnavailable(str(e)))
+                complete_on_loop(loop, future, error=PushUnavailable(str(e)))
 
         def did_fail(s, application, error):
             desc = str(error.localizedDescription()) if error else 'Fallo al registrar APNs'
-            if not future.done():
-                loop.call_soon_threadsafe(future.set_exception, PushUnavailable(desc))
+            complete_on_loop(loop, future, error=PushUnavailable(desc))
 
         def did_receive(s, application, user_info):
             try:
@@ -175,8 +186,7 @@ class MacPushChannel:
                     pass
                 app.registerForRemoteNotifications()
             except BaseException as e:
-                if not future.done():
-                    loop.call_soon_threadsafe(future.set_exception, PushUnavailable(str(e)))
+                complete_on_loop(loop, future, error=PushUnavailable(str(e)))
 
         try:
             from Foundation import NSObject

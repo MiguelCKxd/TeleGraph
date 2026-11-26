@@ -17,6 +17,7 @@ import threading
 import time
 
 from .tl_codec import decode, decode_record, encode, encode_record, Unsupported
+from .media_cache import has_expiry
 
 DIRECTORY = 'offline-cache'
 VERSION = 1
@@ -25,6 +26,16 @@ MAX_MESSAGES = 200
 SAVE_DELAY_MS = 4000
 
 _write_lock = threading.Lock()
+_write_versions = {}
+
+
+def reserve_write(root, account):
+    """Order snapshots at their source, before background encoding can race."""
+    key = path(root, account).resolve()
+    version = object()
+    with _write_lock:
+        _write_versions[key] = version
+    return version
 
 
 def folder(root):
@@ -38,13 +49,20 @@ def path(root, account):
 def purge(root, account=None):
     """Delete one account's copy, or every copy when account is None."""
     import shutil
-    try:
+    with _write_lock:
         if account is None:
-            shutil.rmtree(folder(root), ignore_errors=True)
+            directory = folder(root).resolve()
+            for key in [key for key in _write_versions if key.parent == directory]:
+                _write_versions.pop(key, None)
         else:
-            path(root, account).unlink(missing_ok=True)
-    except OSError:
-        pass
+            _write_versions.pop(path(root, account).resolve(), None)
+        try:
+            if account is None:
+                shutil.rmtree(folder(root), ignore_errors=True)
+            else:
+                path(root, account).unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _encode_chats(chats):
@@ -63,12 +81,19 @@ def message_limit():
 
 
 def _encode_messages(messages):
-    return [encode_record(message) for message in messages[-message_limit():]]
+    return [encode_record(message) for message in messages[-message_limit():] if not has_expiry(message)]
 
 
-def write(root, account, chats, folders, histories):
+def write(root, account, chats, folders, histories, *, version=None):
     """Blocking write (background thread). Values are snapshots."""
     from .secret_chats import is_secret_peer
+    target = path(root, account)
+    key = target.resolve()
+    if version is None:
+        version = reserve_write(root, account)
+    with _write_lock:
+        if _write_versions.get(key) is not version:
+            return
     cloud_chats = [c for c in chats if not is_secret_peer(getattr(c, 'id', 0)) and getattr(c, 'kind', '') != 'secret']
     data = {'version': VERSION, 'saved_at': time.time(), 'chats': _encode_chats(cloud_chats)}
     try:
@@ -80,8 +105,9 @@ def write(root, account, chats, folders, histories):
         for peer, messages in histories.items()
         if messages and not is_secret_peer(peer)
     }
-    target = path(root, account)
     with _write_lock:
+        if _write_versions.get(key) is not version:
+            return  # A newer snapshot or logout won while this one encoded.
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         temporary = target.with_suffix('.tmp')
         descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -116,7 +142,9 @@ def read(root, account):
         messages = []
         for record in records:
             try:
-                messages.append(decode_record(Message, record))
+                message = decode_record(Message, record)
+                if not has_expiry(message):
+                    messages.append(message)
             except Exception:
                 continue
         try:
@@ -172,12 +200,15 @@ def save_now(app, wait=False):
             return
         account, chats, folders, histories = snapshot(app)
         root = app.service.root
+        if account in getattr(app.service, '_leaving_accounts', ()):
+            return
+        version = reserve_write(root, account)
     except Exception:
         return  # Saving the copy must never stop the app from closing.
 
     def work():
         try:
-            write(root, account, chats, folders, histories)
+            write(root, account, chats, folders, histories, version=version)
         except Exception as exc:
             from .recovery import record_failure
             record_failure(root, 'offline_store', exc)

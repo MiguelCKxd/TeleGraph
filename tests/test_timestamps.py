@@ -37,3 +37,12 @@ class TimestampTests(unittest.TestCase):
         self.assertTrue(sig2[4].endswith(':37'))
         self.assertFalse(sig1[4].endswith(':37'))
 
+
+    def test_edit_timestamp_invalidates_bubble_even_when_text_is_identical(self):
+        from dataclasses import replace
+        from tg_ascii.backend import Message
+        from tg_ascii.bubbles import message_signature, time_and_status
+        original = Message(1, 'Ana', 'Revisión', '12:30')
+        changed = replace(original, edited_at=datetime(2026, 11, 26, 12, 31, tzinfo=timezone.utc))
+        self.assertNotEqual(time_and_status('12:30', original), time_and_status('12:30', changed))
+        self.assertNotEqual(message_signature(original), message_signature(changed))

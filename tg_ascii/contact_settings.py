@@ -26,6 +26,7 @@ LABELS = {
     'files': ('Files', 'Archivos'), 'audio': ('Music', 'Música'),
     'voice': ('Voice messages', 'Mensajes de voz'), 'links': ('Links', 'Enlaces'),
     'settings': ('Settings', 'Ajustes'), 'message': ('Message', 'Mensaje'),
+    'share': ('Share contact', 'Compartir contacto'),
     'notifications': ('Notifications', 'Notificaciones'), 'edit_contact': ('Edit contact', 'Editar contacto'),
     'add_username': ('Add by username', 'Añadir por usuario'), 'refresh': ('Refresh', 'Actualizar'),
     'manage': ('Manage / settings', 'Gestionar / ajustes'),

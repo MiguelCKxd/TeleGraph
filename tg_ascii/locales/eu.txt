@@ -674,3 +674,10 @@
 673|Gaiak gaitzeko, bihurtu talde hau supertalde.
 674|Ireki berriro taldea gaien ezarpenak egiaztatzeko.
 675|Deiak atzeko planoan jarraitzen du.
+676|Jatorrizkoak ikustailean
+677|Erakutsi argazkiak Telegramen eskuragarri dagoen kalitate handienean, berriro konprimitu gabe. Aurrebistak txikiak dira oraindik. Datu eta memoria gehiago erabiltzen ditu.
+678|Argazkiak eta bideoak
+679|SD · Estandarra
+680|HD · Kalitate handia
+681|Jatorrizkoa fitxategi gisa
+682|Testua lehen fitxategiari eransten zaio. Argazkiek eta bideoek album bat osatzen dute; bestelako fitxategi nahasiak dokumentu gisa bidaltzen dira.

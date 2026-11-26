@@ -59,6 +59,14 @@ REKEY_MESSAGE_LIMIT = 100
 REKEY_AGE_SECONDS = 7 * 86400
 MAX_STORED_SENT_LAYERS = 120
 
+
+def outgoing_random_id():
+    # Offline retries already own stable IDs. Service/rekey actions deliberately
+    # keep their independent randomness rather than consuming a user's queue.
+    from .outbox import _IDS
+    pending = _IDS.get()
+    return pending.next() if pending is not None else secrets.randbits(63) or 1
+
 TTL_CHOICES = (
     (0, 'Off'),
     (1, '1s'),
@@ -239,12 +247,17 @@ class SecretStore:
 
     @staticmethod
     def _atomic_write(path: Path, data: bytes):
+        SecretStore._atomic_write_parts(path, (data,))
+
+    @staticmethod
+    def _atomic_write_parts(path: Path, parts):
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         tmp = path.with_name(f'.{path.name}.{uuid.uuid4().hex}.tmp')
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         try:
             with os.fdopen(fd, 'wb') as stream:
-                stream.write(data)
+                for part in parts:
+                    stream.write(part)
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(tmp, path)
@@ -310,7 +323,18 @@ class SecretStore:
         if self.files_dir is None:
             return ''
         target = self.files_dir / f'{token}.bin'
-        self._atomic_write(target, self.encrypt_blob(data))
+        # Same authenticated on-disk format as encrypt_blob, without joining
+        # the encrypted attachment into several additional full-size copies.
+        enc_key, mac_key = self._ensure_keys()
+        iv = secrets.token_bytes(32)
+        padding = secrets.token_bytes(-(4 + len(data)) % 16)
+        framed = b''.join((struct.pack('<I', len(data)), data, padding))
+        ciphertext = AES.encrypt_ige(framed, enc_key, iv)
+        del framed
+        header = self.MAGIC + iv
+        tag = hmac.new(mac_key, header, hashlib.sha256)
+        tag.update(ciphertext)
+        self._atomic_write_parts(target, (header, ciphertext, tag.digest()))
         return token
 
     def load_file(self, token: str) -> bytes | None:
@@ -394,6 +418,8 @@ class SecretChatSession:
     # may still contain the peer's original, pre-negotiation messages.
     mtproto2_from: int | None = None
     pending_v2: set[int] = field(default_factory=set)
+    pending_outgoing: dict = field(default_factory=dict)
+    pending_metadata: dict[int, dict] = field(default_factory=dict)
 
     @property
     def peer_id(self) -> int:
@@ -431,6 +457,7 @@ class SecretChatSession:
             for pending in list(self.pending_in):
                 if pending >= first_v2 and pending not in self.pending_v2:
                     del self.pending_in[pending]
+                    self.pending_metadata.pop(pending, None)
         return True
 
     def keys_by_fingerprint(self) -> dict[int, bytes]:
@@ -477,6 +504,8 @@ class SecretChatSession:
             'out_seq_no': self.out_seq_no,
             'sent_layers': {str(seq): base64.b64encode(raw).decode('ascii') for seq, raw in self.sent_layers.items()},
             'pending_in': {str(seq): base64.b64encode(raw).decode('ascii') for seq, raw in self.pending_in.items()},
+            'pending_outgoing': self.pending_outgoing,
+            'pending_metadata': self.pending_metadata,
             'messages': self.messages,
             'next_msg_id': self.next_msg_id,
             'unread': self.unread,
@@ -527,6 +556,8 @@ class SecretChatSession:
             pinned=bool(data.get('pinned', False)),
             archived=bool(data.get('archived', False)),
             muted=bool(data.get('muted', False)),
+            pending_outgoing=dict(data.get('pending_outgoing') or {}),
+            pending_metadata={int(seq): item for seq, item in (data.get('pending_metadata') or {}).items()},
         )
         if 'mtproto2_from' in data:
             cutoff = data['mtproto2_from']
@@ -538,6 +569,7 @@ class SecretChatSession:
             # fresh copies instead of delivering unknown versions across it.
             session.mtproto2_from = session.in_seq_no
             session.pending_in.clear()
+            session.pending_metadata.clear()
         if 'visual_hash' in data:
             try:
                 saved_hash = bytes.fromhex(data['visual_hash'])
@@ -611,9 +643,12 @@ class SecretChatManager:
             except Exception as exc:
                 log.warning('Skipping damaged secret chat entry: %s', type(exc).__name__)
         self._prune_expired_sync()
+        self._schedule_ttl_timer()
 
-    def _save(self):
+    def _save(self, *, required=False):
         if self._closed:
+            if required:
+                raise ConnectionError('Secret chat service closed')
             return
         state = {
             'dh_version': self.dh_version,
@@ -625,6 +660,8 @@ class SecretChatManager:
             self.store.save_state(state)
         except Exception as exc:
             log.warning('Failed to persist secret chat state: %s', type(exc).__name__)
+            if required:
+                raise
 
     def _spawn(self, coro):
         if self._closed:
@@ -795,6 +832,7 @@ class SecretChatManager:
         if sess is None or (sess.state == 'discarded' and not delete_history):
             return
         self.store.delete_file(f'draft-{chat_id}')
+        self._clear_pending_outgoing(sess)
         self._wipe_session_keys(sess)
         if delete_history:
             for msg in sess.messages:
@@ -830,10 +868,13 @@ class SecretChatManager:
         if session is None or session.state == 'discarded':
             return
         token = f'draft-{chat_id}'
-        if record.get('text') or record.get('reply'):
+        quality=record.get('photo_quality')
+        if quality not in (None,'sd','hd','original'):quality=None
+        if record.get('text') or record.get('reply') or quality is not None:
             # Keep this separate from the conversation log so edits do not
             # rewrite every secret message and its metadata.
             local = {name: record[name] for name in ('text', 'formats', 'custom', 'reply') if name in record}
+            if quality is not None:local['photo_quality']=quality
             self.store.save_file(json.dumps(local, ensure_ascii=False).encode('utf-8'), token)
         else:
             self.store.delete_file(token)
@@ -849,6 +890,14 @@ class SecretChatManager:
         sess.sent_layers.clear()
         sess.pending_in.clear()
         sess.pending_v2.clear()
+        sess.pending_metadata.clear()
+
+    def _clear_pending_outgoing(self, sess):
+        for pending in sess.pending_outgoing.values():
+            media = pending.get('record', {}).get('media')
+            if isinstance(media, dict) and media.get('local_token'):
+                self.store.delete_file(media['local_token'])
+        sess.pending_outgoing.clear()
 
     # -- Incoming Updates (UpdateEncryption, UpdateNewEncryptedMessage, etc.) --
 
@@ -982,7 +1031,11 @@ class SecretChatManager:
         if sequenced:
             if peer_raw_seq > sess.in_seq_no:
                 # Gap detected: buffer and request resend
+                from .tl_codec import encode
                 sess.pending_in[peer_raw_seq] = payload
+                pending_date = getattr(enc_msg, 'date', None) or datetime.now(timezone.utc)
+                sess.pending_metadata[peer_raw_seq] = {
+                    'date': pending_date.timestamp(), 'file': encode(getattr(enc_msg, 'file', None))}
                 if version == 2:
                     sess.pending_v2.add(peer_raw_seq)
                 else:
@@ -1001,11 +1054,14 @@ class SecretChatManager:
         # Drain any contiguous buffered packets
         while sess.in_seq_no in sess.pending_in:
             buffered_bytes = sess.pending_in.pop(sess.in_seq_no)
+            metadata = sess.pending_metadata.pop(sess.in_seq_no, {})
             sess.pending_v2.discard(sess.in_seq_no)
             sess.in_seq_no += 1
             try:
                 buffered_pkt = SecretLayerPacket.from_bytes(buffered_bytes)
-                await self._apply_decrypted_packet(sess, buffered_pkt, msg_date, None)
+                from .tl_codec import decode
+                buffered_date = datetime.fromtimestamp(metadata.get('date', msg_date.timestamp()), timezone.utc)
+                await self._apply_decrypted_packet(sess, buffered_pkt, buffered_date, decode(metadata.get('file')))
             except Exception:
                 break
         self._save()
@@ -1200,6 +1256,7 @@ class SecretChatManager:
                 if isinstance(meta, dict) and meta.get('local_token'):
                     self.store.delete_file(meta['local_token'])
             sess.messages.clear()
+            self._clear_pending_outgoing(sess)
             sess.unread = 0
             self._save()
             if deleted_ids and self.backend.on_change:
@@ -1376,13 +1433,83 @@ class SecretChatManager:
                 layer_bytes = pkt.to_bytes()
             encrypted = mtproto2_encrypt(sess.key, sess.key_fingerprint, sess.is_admin, layer_bytes)
             try:
-                await self.client(f.messages.SendEncryptedServiceRequest(
-                    peer=input_chat, random_id=secrets.randbits(63) or 1, data=encrypted
-                ))
+                message = SecretLayerPacket.from_bytes(layer_bytes).message
+                record = next((row for row in sess.messages if row.get('outgoing')
+                               and row.get('random_id') == message.random_id), {})
+                media = record.get('media') or {}
+                args = dict(peer=input_chat, random_id=secrets.randbits(63) or 1, data=encrypted)
+                if media.get('file_id') and media.get('access_hash') and not media.get('external'):
+                    request = f.messages.SendEncryptedFileRequest(
+                        file=t.InputEncryptedFile(media['file_id'], media['access_hash']), **args)
+                elif message.action is None:
+                    request = f.messages.SendEncryptedRequest(**args)
+                else:
+                    request = f.messages.SendEncryptedServiceRequest(**args)
+                await self.client(request)
             except Exception:
                 break
 
     # -- Sending Encrypted Messages, Media & Service Actions -----------------
+
+    async def _resume_outgoing(self, sess, random_id):
+        """A transport retry reuses the exact encrypted layer and uploaded file."""
+        saved = sess.pending_outgoing.get(str(random_id))
+        previous = next((row for row in sess.messages if row.get('random_id') == random_id
+                         and row.get('outgoing')), None)
+        if previous is not None:
+            sess.pending_outgoing.pop(str(random_id), None)
+            self._save(required=True)
+            return self._record_to_message(sess, previous)
+        if saved is None:
+            return None
+        self._save(required=True)
+        from .tl_codec import decode
+        input_file = decode(saved.get('file'))
+        peer = t.InputEncryptedChat(sess.chat_id, sess.access_hash)
+        common = dict(peer=peer, random_id=random_id, data=base64.b64decode(saved['data']),
+                      silent=True if saved.get('silent') else None)
+        request = (f.messages.SendEncryptedFileRequest(file=input_file, **common) if input_file is not None
+                   else f.messages.SendEncryptedRequest(**common))
+        sent = await self.client(request)
+        if self._closed or sess.state != 'active' or sess.pending_outgoing.get(str(random_id)) is not saved:
+            # A concurrent discard/clear must not recreate private content
+            # after its RPC has already left the device.
+            raise asyncio.CancelledError
+        record = dict(saved['record'])
+        date = getattr(sent, 'date', None) or datetime.now(timezone.utc)
+        stamp = date.astimezone() if date.tzinfo else date.replace(tzinfo=timezone.utc).astimezone()
+        record.update(date=stamp.timestamp(), time=stamp.strftime('%H:%M'))
+        if input_file is not None and isinstance(record.get('media'), dict):
+            file = getattr(sent, 'file', None)
+            record['media'] = {**record['media'], 'file_id': int(getattr(file, 'id', 0) or 0),
+                               'access_hash': int(getattr(file, 'access_hash', 0) or 0),
+                               'dc_id': int(getattr(file, 'dc_id', 0) or 0)}
+        sess.messages.append(record)
+        sess.messages = sess.messages[-500:]
+        sess.pending_outgoing.pop(str(random_id), None)
+        self._save(required=True)
+        if self._needs_rekey(sess):
+            self._spawn(self.request_rekey(sess.chat_id))
+        self._emit_dialogs()
+        return self._record_to_message(sess, record)
+
+    async def _send_record(self, sess, msg_data, record, *, input_file=None):
+        from .tl_codec import encode
+        _, _, encrypted = self._pack_layer(sess, msg_data)
+        sess.pending_outgoing[str(msg_data.random_id)] = {
+            'data': base64.b64encode(encrypted).decode('ascii'), 'file': encode(input_file),
+            'record': record, 'silent': msg_data.silent,
+        }
+        # Match the bounded retransmission window; abandoned requests must not
+        # retain their encrypted local attachments forever.
+        while len(sess.pending_outgoing) > MAX_STORED_SENT_LAYERS:
+            oldest = sess.pending_outgoing.pop(next(iter(sess.pending_outgoing)))
+            media = oldest.get('record', {}).get('media')
+            if isinstance(media, dict) and media.get('local_token'):
+                self.store.delete_file(media['local_token'])
+        # Persist the sequence, exact envelope and encrypted-file reference in
+        # the encrypted store BEFORE a send can reach Telegram.
+        return await self._resume_outgoing(sess, msg_data.random_id)
 
     def _pack_layer(self, sess: SecretChatSession, msg_data: SecretMessageData) -> tuple[int, bytes, bytes]:
         wire_in = sess.wire_in_seq()
@@ -1410,7 +1537,7 @@ class SecretChatManager:
         random_id = secrets.randbits(63) or 1
         msg_data = SecretMessageData(random_id=random_id, action=action)
         _, _, encrypted = self._pack_layer(sess, msg_data)
-        self._save()
+        self._save(required=True)
         input_chat = t.InputEncryptedChat(sess.chat_id, sess.access_hash)
         try:
             await self.client(f.messages.SendEncryptedServiceRequest(
@@ -1435,6 +1562,10 @@ class SecretChatManager:
         sess = self.session_for_peer(peer_or_chat_id)
         if sess.state != 'active' or not sess.key:
             raise ValueError(tr('El chat secreto aún no está activo. Espera a que la otra persona se conecte.'))
+        random_id = outgoing_random_id()
+        resumed = await self._resume_outgoing(sess, random_id)
+        if resumed is not None:
+            return resumed
         from .message_tools import formatted_entities
         from .emoji_usage import note
         entities = formatted_entities(text, spans, emojis) if (spans or emojis) else []
@@ -1444,7 +1575,6 @@ class SecretChatManager:
             target = next((m for m in sess.messages if m['id'] == reply_to), None)
             if target is not None:
                 reply_random_id = target.get('random_id')
-        random_id = secrets.randbits(63) or 1
         msg_data = SecretMessageData(
             random_id=random_id,
             ttl=sess.ttl,
@@ -1453,13 +1583,7 @@ class SecretChatManager:
             reply_to_random_id=reply_random_id,
             silent=bool(silent),
         )
-        _, _, encrypted = self._pack_layer(sess, msg_data)
-        input_chat = t.InputEncryptedChat(sess.chat_id, sess.access_hash)
-        sent = await self.client(f.messages.SendEncryptedRequest(
-            peer=input_chat, random_id=random_id, data=encrypted, silent=True if silent else None
-        ))
-        sent_date = getattr(sent, 'date', None) or datetime.now(timezone.utc)
-        stamp = sent_date.astimezone() if sent_date.tzinfo else sent_date.replace(tzinfo=timezone.utc).astimezone()
+        stamp = datetime.now(timezone.utc).astimezone()
         msg_id = sess.next_msg_id
         sess.next_msg_id += 1
         entities_serialized = [
@@ -1490,13 +1614,7 @@ class SecretChatManager:
             'reply_to_id': reply_to,
             'reply_to_random_id': reply_random_id,
         }
-        sess.messages.append(record)
-        sess.messages = sess.messages[-500:]
-        self._save()
-        if self._needs_rekey(sess):
-            self._spawn(self.request_rekey(sess.chat_id))
-        self._emit_dialogs()
-        return self._record_to_message(sess, record)
+        return await self._send_record(sess, msg_data, record)
 
     async def send_file(self, peer_or_chat_id: int, path, progress=None, caption: str = '',
                         spans=(), emojis=(), voice: bool = False, duration: float = 0,
@@ -1506,16 +1624,20 @@ class SecretChatManager:
         sess = self.session_for_peer(peer_or_chat_id)
         if sess.state != 'active' or not sess.key:
             raise ValueError(tr('El chat secreto aún no está activo. Espera a que la otra persona se conecte.'))
+        random_id = outgoing_random_id()
+        resumed = await self._resume_outgoing(sess, random_id)
+        if resumed is not None:
+            return resumed
         file_path = attachment_path(path)
         raw_bytes = await asyncio.to_thread(file_path.read_bytes)
         size = len(raw_bytes)
         encrypted_bytes, key, iv, fp, md5_hex = await asyncio.to_thread(encrypt_file_bytes, raw_bytes)
-        local_token = await asyncio.to_thread(self.store.save_file, raw_bytes)
         mime, _ = mimetypes.guess_type(file_path.name)
         mime = 'audio/ogg' if voice else (mime or 'application/octet-stream')
         uploaded = await self.client.upload_file(
             encrypted_bytes, file_name=file_path.name, progress_callback=progress
         )
+        del encrypted_bytes
         if isinstance(uploaded, t.InputFileBig):
             input_enc_file = t.InputEncryptedFileBigUploaded(
                 id=uploaded.id, parts=uploaded.parts, key_fingerprint=fp
@@ -1531,11 +1653,11 @@ class SecretChatManager:
                 import io
                 with Image.open(io.BytesIO(raw_bytes)) as img:
                     w, h = img.size
-                    thumb_img = img.copy()
-                    thumb_img.thumbnail((90, 90))
-                    tw, th = thumb_img.size
+                    img.draft('RGB', (90, 90))
+                    img.thumbnail((90, 90))
+                    tw, th = img.size
                     buf = io.BytesIO()
-                    thumb_img.convert('RGB').save(buf, format='JPEG', quality=65)
+                    img.convert('RGB').save(buf, format='JPEG', quality=65)
                     thumb_bytes = buf.getvalue()
             except Exception:
                 pass
@@ -1595,7 +1717,6 @@ class SecretChatManager:
             target = next((m for m in sess.messages if m['id'] == reply_to), None)
             if target is not None:
                 reply_random_id = target.get('random_id')
-        random_id = secrets.randbits(63) or 1
         msg_data = SecretMessageData(
             random_id=random_id,
             ttl=sess.ttl,
@@ -1606,18 +1727,8 @@ class SecretChatManager:
             grouped_id=grouped_id,
             silent=bool(silent),
         )
-        _, _, encrypted_msg = self._pack_layer(sess, msg_data)
-        input_chat = t.InputEncryptedChat(sess.chat_id, sess.access_hash)
-        sent = await self.client(f.messages.SendEncryptedFileRequest(
-            peer=input_chat,
-            random_id=random_id,
-            data=encrypted_msg,
-            file=input_enc_file,
-            silent=True if silent else None,
-        ))
-        sent_file = getattr(sent, 'file', None)
-        sent_date = getattr(sent, 'date', None) or datetime.now(timezone.utc)
-        stamp = sent_date.astimezone() if sent_date.tzinfo else sent_date.replace(tzinfo=timezone.utc).astimezone()
+        local_token = await asyncio.to_thread(self.store.save_file, raw_bytes)
+        stamp = datetime.now(timezone.utc).astimezone()
         msg_id = sess.next_msg_id
         sess.next_msg_id += 1
         media_obj = SecretMedia(
@@ -1633,9 +1744,6 @@ class SecretChatManager:
             h=h,
             voice=bool(voice),
             local_token=local_token,
-            file_id=int(getattr(sent_file, 'id', 0) or 0),
-            access_hash=int(getattr(sent_file, 'access_hash', 0) or 0),
-            dc_id=int(getattr(sent_file, 'dc_id', 0) or 0),
             key=key,
             iv=iv,
             key_fingerprint=fp,
@@ -1669,18 +1777,16 @@ class SecretChatManager:
             'reply_to_id': reply_to,
             'reply_to_random_id': reply_random_id,
         }
-        sess.messages.append(record)
-        sess.messages = sess.messages[-500:]
-        self._save()
-        if self._needs_rekey(sess):
-            self._spawn(self.request_rekey(sess.chat_id))
-        self._emit_dialogs()
-        return self._record_to_message(sess, record)
+        return await self._send_record(sess, msg_data, record, input_file=input_enc_file)
 
     async def send_sticker(self, peer_or_chat_id: int, document, reply_to=None) -> object:
         sess = self.session_for_peer(peer_or_chat_id)
         if sess.state != 'active' or not sess.key:
             raise ValueError(tr('El chat secreto aún no está activo.'))
+        random_id = outgoing_random_id()
+        resumed = await self._resume_outgoing(sess, random_id)
+        if resumed is not None:
+            return resumed
         alt = '◈'
         short_name = ''
         for attr in getattr(document, 'attributes', ()):
@@ -1706,7 +1812,6 @@ class SecretChatManager:
             target = next((m for m in sess.messages if m['id'] == reply_to), None)
             if target is not None:
                 reply_random_id = target.get('random_id')
-        random_id = secrets.randbits(63) or 1
         msg_data = SecretMessageData(
             random_id=random_id,
             ttl=sess.ttl,
@@ -1714,13 +1819,7 @@ class SecretChatManager:
             media=media_payload,
             reply_to_random_id=reply_random_id,
         )
-        _, _, encrypted = self._pack_layer(sess, msg_data)
-        input_chat = t.InputEncryptedChat(sess.chat_id, sess.access_hash)
-        sent = await self.client(f.messages.SendEncryptedRequest(
-            peer=input_chat, random_id=random_id, data=encrypted
-        ))
-        sent_date = getattr(sent, 'date', None) or datetime.now(timezone.utc)
-        stamp = sent_date.astimezone() if sent_date.tzinfo else sent_date.replace(tzinfo=timezone.utc).astimezone()
+        stamp = datetime.now(timezone.utc).astimezone()
         msg_id = sess.next_msg_id
         sess.next_msg_id += 1
         media_obj = SecretMedia(
@@ -1759,10 +1858,7 @@ class SecretChatManager:
             'reply_to_id': reply_to,
             'reply_to_random_id': reply_random_id,
         }
-        sess.messages.append(record)
-        sess.messages = sess.messages[-500:]
-        self._save()
-        return self._record_to_message(sess, record)
+        return await self._send_record(sess, msg_data, record)
 
     async def download_media(self, media: SecretMedia, destination, progress=None, thumbnail: bool = False) -> str | None:
         target = Path(destination)
@@ -1794,6 +1890,7 @@ class SecretChatManager:
         decrypted = await asyncio.to_thread(
             decrypt_file_bytes, encrypted_bytes, media.key, media.iv, media.size, media.key_fingerprint or None
         )
+        del encrypted_bytes
         token = await asyncio.to_thread(self.store.save_file, decrypted, media.local_token)
         if token and not media.local_token:
             media.local_token = token
@@ -1905,6 +2002,7 @@ class SecretChatManager:
             if isinstance(meta, dict) and meta.get('local_token'):
                 self.store.delete_file(meta['local_token'])
         sess.messages.clear()
+        self._clear_pending_outgoing(sess)
         sess.unread = 0
         self._save()
         if sess.state == 'active':
@@ -1946,6 +2044,7 @@ class SecretChatManager:
         return [self._record_to_message(sess, r) for r in window]
 
     def reply_contexts(self, peer_or_chat_id: int, ids) -> dict:
+        self._prune_expired_sync()
         sess = self.sessions.get(secret_chat_id(peer_or_chat_id))
         if sess is None:
             return {}
@@ -1965,6 +2064,10 @@ class SecretChatManager:
                 continue
             mk = r.get('media_kind', '')
             if kind == 'photos' and mk != 'image':
+                continue
+            if kind == 'videos' and mk != 'video':
+                continue
+            if kind == 'media' and mk not in ('image', 'video'):
                 continue
             if kind == 'files' and mk != 'file':
                 continue

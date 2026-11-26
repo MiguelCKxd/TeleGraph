@@ -14,7 +14,7 @@ Graphics animated emoji/stickers playing at once, their frame budget and
          frame rate (limited plays at 15 fps). Tk draws with the OS 2-D
          compositor: there is no direct GPU switch, so this setting controls
          the graphics *workload* the app gives the GPU/compositor.
-Network  parallel downloads, avatar and emoji fetches.
+Network  parallel downloads, avatar and emoji fetches, and queued chat sends.
 
 Values are plain module globals so the asyncio worker can read them without
 touching Tk. ``configure`` is called at start and after every settings save.

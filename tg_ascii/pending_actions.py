@@ -124,6 +124,16 @@ class Record:
     persist: bool = True
     callbacks: list = field(default_factory=list, repr=False)
 
+    def reserve_ids(self):
+        if self.method not in CREATES_MESSAGES:
+            return False
+        values = self.args[1] if len(self.args) > 1 else self.kwargs.get('identifiers', ())
+        count = max(1, len(values)) if self.method == 'forward_selected_messages' else 1
+        changed = len(self.random_ids) < count
+        while len(self.random_ids) < count:
+            self.random_ids.append(int.from_bytes(os.urandom(8), 'big', signed=True))
+        return changed
+
     def scope(self):
         width = DEFERRABLE.get(self.method)
         if width is None:
@@ -228,7 +238,9 @@ class PendingActions:
         return not connected or recovery.state != 'online'
 
     def add(self, method, args, kwargs, random_ids=None):
+        previous = list(self.records)
         record = Record(method, list(args), dict(kwargs), list(random_ids or []))
+        record.reserve_ids()
         scope = record.scope()
         if scope is not None:
             for old in [item for item in self.records if item.scope() == scope]:
@@ -240,7 +252,11 @@ class PendingActions:
         except Unsupported:
             record.persist = False
         self.records.append(record)
-        self.save()
+        try:
+            self.save(require_persistence=record.persist)
+        except Exception:
+            self.records = previous
+            raise
         self.notify()
         return record
 
@@ -282,7 +298,7 @@ class PendingActions:
             except Exception:
                 continue
 
-    def save(self):
+    def save(self, *, require_persistence=False):
         records = []
         for record in self.records:
             if not record.persist:
@@ -305,6 +321,8 @@ class PendingActions:
         except (OSError, TypeError, ValueError) as exc:
             from .recovery import record_failure
             record_failure(self.service.root, 'pending_actions', exc)
+            if require_persistence:
+                raise
 
     # -- replay ---------------------------------------------------------------
     async def flush(self):
@@ -324,6 +342,9 @@ class PendingActions:
                     continue
                 token = _REPLAYING.set(True)
                 try:
+                    if record.method in CREATES_MESSAGES:
+                        record.reserve_ids()
+                        self.save(require_persistence=True)
                     operation = original(backend, *record.args, **record.kwargs)
                     if record.method in CREATES_MESSAGES:
                         operation = with_random_ids(record.random_ids, operation)
@@ -342,15 +363,18 @@ class PendingActions:
                     if transport_failure(error):
                         break
                     from .auth import error_message
-                    self.records.pop(0)
+                    if record not in self.records:
+                        continue  # Cancelled/replaced while this RPC was running.
+                    self.records.remove(record)
                     self.save()
                     self._answer(record, error, failed=True)
                     self.notify(failed=(record.method, error_message(error)))
                     continue
                 finally:
                     _REPLAYING.reset(token)
-                if self.records and self.records[0] is record:
-                    self.records.pop(0)
+                if record not in self.records:
+                    continue  # Replacement owns the transferred callbacks.
+                self.records.remove(record)
                 self.save()
                 self._answer(record, result)
                 self.notify(done=record.method)

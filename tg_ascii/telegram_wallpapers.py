@@ -40,6 +40,9 @@ def open_gallery(app, on_choose=None, enabled=None):
         ttk.Label(frame,text=tr('Connect a Telegram account to load backgrounds.'),wraplength=540).pack(fill='x');return
     account,backend=app.ui_account,app.service.backend
     def valid():return window.winfo_exists() and account==app.ui_account and backend is app.service.backend
+    from .contact_profile import ProfileRequests
+    requests=ProfileRequests(app,window,account,backend)
+    window.bind('<Destroy>',lambda event:requests.close() if event.widget is window else None,add='+')
     status=tk.StringVar(value=tr('Loading...'));ttk.Label(frame,textvariable=status,wraplength=540).pack(fill='x')
     body=scrollable(frame);grid=FlowFrame(body);grid.pack(fill='x')
     footer=FlowFrame(frame);footer.pack(fill='x',pady=5)
@@ -64,6 +67,7 @@ def open_gallery(app, on_choose=None, enabled=None):
         ttk.Button(content,text=tr('Apply'),command=apply).pack(fill='x',pady=8)
     def render():
         if not valid():return
+        requests.reset()  # Retire downloads of the page the user just left.
         generation[0]+=1;epoch=generation[0]
         for child in grid.winfo_children():child.destroy()
         for record in records[page[0]:page[0]+12]:
@@ -76,7 +80,7 @@ def open_gallery(app, on_choose=None, enabled=None):
             def failed(exc,button=button,epoch=epoch):
                 if valid() and epoch==generation[0] and button.winfo_exists():
                     button.configure(text=tr('Unavailable'));status.set(str(exc))
-            app.worker.submit(fetch(),loaded,failed)
+            requests.submit(('wallpaper',record.id),fetch(),loaded,failed,timeout=None)
         previous.configure(state='normal' if page[0]>0 else 'disabled');following.configure(state='normal' if page[0]+12<len(records) else 'disabled')
         status.set(f'{page[0]+1}–{min(page[0]+12,len(records))} / {len(records)}' if records else tr('No backgrounds available'))
     def move(delta):page[0]=max(0,page[0]+delta);render()
@@ -84,4 +88,4 @@ def open_gallery(app, on_choose=None, enabled=None):
     following=ttk.Button(footer,text='›',command=lambda:move(12));following.pack(side='left')
     def loaded(items):
         if valid():records.extend(items);render()
-    app.worker.submit(catalog(backend),loaded,lambda exc:status.set(str(exc)) if valid() else None)
+    requests.submit('catalog',catalog(backend),loaded,lambda exc:status.set(str(exc)) if valid() else None)

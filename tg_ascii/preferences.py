@@ -141,7 +141,7 @@ class Preferences:
         result['advanced_features'] = validated_features(values.get('advanced_features'))
         from .advanced_features import FEATURES
         mobile = values.get('mobile_features')
-        result['mobile_features'] = ({key: value for key, value in mobile.items() if (key in FEATURES or key == "preload_startup") and type(value) is bool}
+        result['mobile_features'] = ({key: value for key, value in mobile.items() if (key in FEATURES or key in ('preload_startup', 'native_liquid_glass')) and type(value) is bool}
                                      if isinstance(mobile, dict) else {})
         from .i18n import LANGUAGES
         if isinstance(values.get('language'), str) and values['language'] in LANGUAGES:

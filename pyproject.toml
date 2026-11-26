@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tg-ascii"
-version = "3.3.0"
+version = "3.4.0"
 description = "Lightweight green-on-black Telegram desktop client"
 requires-python = ">=3.11"
 dependencies = ["Telethon>=1.45,<2", "Pillow==13.0.0", "tkinterdnd2==0.6.4", "sounddevice==0.5.6", "soundfile==0.14.0", "pystray==0.19.5", "qrcode==8.2", "pyphen==0.18.1", "pyobjc-framework-UserNotifications>=10; sys_platform == 'darwin'", "pyobjc-framework-LocalAuthentication>=10; sys_platform == 'darwin'", "winrt-Windows.UI.Notifications>=2,<4; sys_platform == 'win32'", "winrt-Windows.Data.Xml.Dom>=2,<4; sys_platform == 'win32'", "winrt-Windows.Foundation>=2,<4; sys_platform == 'win32'", "winrt-Windows.Foundation.Collections>=2,<4; sys_platform == 'win32'"]

@@ -231,15 +231,18 @@ def encrypt_file_bytes(raw: bytes) -> tuple[bytes, bytes, bytes, int, str]:
 
 def decrypt_file_bytes(encrypted: bytes, key: bytes, iv: bytes, size: int,
                        expected_fingerprint: int | None = None) -> bytes:
+    size = int(size)
+    if size < 0 or len(encrypted) != (size + 15) // 16 * 16:
+        raise ValueError('Incomplete or invalid encrypted file length')
+    # AES-IGE is not authenticated. Never manufacture missing ciphertext or
+    # present a truncated download as a successfully decrypted attachment.
+    file_key_fingerprint(key, iv)
     if expected_fingerprint is not None and file_key_fingerprint(key, iv) != expected_fingerprint:
         raise ValueError('Encrypted file key fingerprint mismatch')
     if not encrypted:
         return b''
-    rem = len(encrypted) % 16
-    if rem:
-        encrypted = encrypted + b'\x00' * (16 - rem)
     decrypted = AES.decrypt_ige(encrypted, bytes(key), bytes(iv))
-    return decrypted[:max(0, int(size))]
+    return decrypted[:size]
 
 
 # ---------------------------------------------------------------------------

@@ -49,6 +49,40 @@ class PinnedIconNoticeTest(unittest.TestCase):
         self.assertEqual(notices, [(0x08000000, 0x1000, None), (0x2000, 0x2005, str(pins / 'TeleGraph.lnk'))])
 
 
+class ShortcutRenameTest(unittest.TestCase):
+    def test_matching_filename_never_authorizes_renaming_another_program(self):
+        from tg_ascii import windows_launcher as shell
+        for owned in (False, True):
+            with self.subTest(owned=owned), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                desktop = root / 'Desktop'
+                desktop.mkdir()
+                source = desktop / 'TeleGraph.lnk'
+                source.write_bytes(b'original shortcut')
+                windll = mock.MagicMock()
+                windll.ole32.CoInitializeEx.return_value = 0
+                def get_folder(handle, csidl, token, flags, buffer):
+                    if csidl != 16:
+                        return -1
+                    buffer.value = str(desktop)
+                    return 0
+                windll.shell32.SHGetFolderPathW.side_effect = get_folder
+                checked = []
+                def update(path, executable, icon, *, check_only=False):
+                    if check_only:
+                        checked.append(path)
+                        return owned
+                    return False
+                with mock.patch.object(shell.C, 'windll', windll, create=True), \
+                     mock.patch.dict(os.environ, {'APPDATA': str(root)}), \
+                     mock.patch.object(shell, '_update_link', side_effect=update):
+                    shell.update_shortcuts(Path('TeleGraph.exe'), Path('icon.ico'), 'Mi Telegram')
+                self.assertEqual(checked, [source])
+                expected = desktop / ('Mi Telegram.lnk' if owned else 'TeleGraph.lnk')
+                self.assertEqual(expected.read_bytes(), b'original shortcut')
+                self.assertEqual(len(list(desktop.iterdir())), 1)
+
+
 @unittest.skipUnless(sys.platform == 'win32', 'requires the real Windows Shell')
 class WindowsLauncherTest(unittest.TestCase):
     def test_native_icon_variant_and_targeted_shortcut(self):
@@ -114,6 +148,7 @@ class WindowsLauncherTest(unittest.TestCase):
                 shortcut('$w=(New-Object -ComObject WScript.Shell).CreateShortcut($env:TG_TEST_SHORTCUT);'
                          '$w.Arguments="--demo"; $w.Save()')
                 self.assertFalse(shell._update_link(link, executable, files[1]))
+                self.assertFalse(shell._update_link(link, executable, files[1], check_only=True))
             finally:
                 root.destroy()
                 if status >= 0:

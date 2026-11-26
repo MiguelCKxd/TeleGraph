@@ -1424,5 +1424,12 @@
   "Telegram did not return the new topic. Refresh the topic list.": "Telegram returnerte ikke det nye emnet. Oppdater emnelisten.",
   "This group must be upgraded to enable topics.": "Gjør gruppen om til en supergruppe for å aktivere emner.",
   "Reopen this group to check its topic settings.": "Åpne gruppen på nytt for å sjekke emneinnstillingene.",
-  "The call continues in the background.": "Samtalen fortsetter i bakgrunnen."
+  "The call continues in the background.": "Samtalen fortsetter i bakgrunnen.",
+  "Original media in the viewer": "Originaler i visningen",
+  "Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.": "Vis bilder med høyeste tilgjengelige kvalitet på Telegram, uten ny komprimering. Forhåndsvisninger forblir små. Bruker mer data og minne.",
+  "Photos and videos": "Bilder og videoer",
+  "SD · Standard": "SD · Standard",
+  "HD · High quality": "HD · Høy kvalitet",
+  "Original as file": "Original som fil",
+  "The caption is attached to the first file. Photos and videos form an album; other mixed files are sent as documents.": "Bildeteksten legges ved den første filen. Bilder og videoer danner et album; andre blandede filer sendes som dokumenter."
 }

@@ -27,6 +27,52 @@ class AccountPhotoTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as root:
             client = NS(download_profile_photo=mock.AsyncMock(side_effect=ConnectionError))
             self.assertFalse(await photos.remember(root, 'abc', client, NS(photo=t.UserProfilePhoto(photo_id=1, dc_id=2))))
+            self.assertEqual(list((Path(root) / photos.FOLDER).iterdir()), [])
+
+    async def test_cancelled_download_removes_partial_file(self):
+        with tempfile.TemporaryDirectory() as root:
+            started = asyncio.Event()
+            async def download(user, file, download_big):
+                Path(file).write_bytes(b'partial')
+                started.set()
+                await asyncio.Event().wait()
+            task = asyncio.create_task(photos.remember(root, 'abc', NS(download_profile_photo=download),
+                                       NS(photo=t.UserProfilePhoto(photo_id=1, dc_id=2))))
+            await started.wait()
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+            self.assertEqual(list((Path(root) / photos.FOLDER).iterdir()), [])
+
+    async def test_repeated_registration_coalesces_photo_and_close_cancels_it(self):
+        from tg_ascii.accounts import Accounts, AccountsView
+        with tempfile.TemporaryDirectory() as root:
+            accounts = Accounts(root=root)
+            view = AccountsView(accounts)
+            started, finish = asyncio.Event(), asyncio.Event()
+            async def download(user, file, download_big):
+                started.set()
+                await finish.wait()
+                Path(file).write_bytes(b'photo')
+                return file
+            client = NS(download_profile_photo=mock.AsyncMock(side_effect=download))
+            me = NS(id=7, photo=t.UserProfilePhoto(photo_id=1, dc_id=2))
+            accounts._remember_photo('account', client, me)
+            await started.wait()
+            view._remember_photo('account', client, me)
+            self.assertEqual(client.download_profile_photo.await_count, 1)
+            finish.set()
+            await asyncio.gather(*(value[1] for value in accounts._photo_tasks.values()))
+            await asyncio.sleep(0)
+            view._remember_photo('account', client, me)
+            self.assertEqual(client.download_profile_photo.await_count, 1)
+            finish.clear(); started.clear()
+            me.photo = t.UserProfilePhoto(photo_id=2, dc_id=2)
+            view._remember_photo('account', client, me)
+            await started.wait()
+            await accounts.close()
+            self.assertFalse(accounts._photo_tasks)
+            self.assertEqual([path.name for path in (Path(root) / photos.FOLDER).iterdir()], ['account.jpg'])
 
     def test_chooser_uses_placeholder_without_own_photo(self):
         with tempfile.TemporaryDirectory() as root:

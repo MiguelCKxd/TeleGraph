@@ -103,8 +103,8 @@ def article_media(rich):
     """Deduplicated Telegram objects available for explicit open/download."""
     result = []
     for item in getattr(rich, 'photos', None) or ():
-        result.append((tr('Photo') + f' · {len(result) + 1}', t.MessageMediaPhoto(item)))
+        result.append((tr('Photo') + f' · {len(result) + 1}', t.MessageMediaPhoto(photo=item)))
     for item in getattr(rich, 'documents', None) or ():
         filename = next((entry.file_name for entry in item.attributes if isinstance(entry, t.DocumentAttributeFilename)), None)
-        result.append((filename or tr('Document') + f' · {len(result) + 1}', t.MessageMediaDocument(item)))
+        result.append((filename or tr('Document') + f' · {len(result) + 1}', t.MessageMediaDocument(document=item)))
     return result

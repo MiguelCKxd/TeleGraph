@@ -4,6 +4,7 @@ from .i18n import tr
 
 
 FEATURES = {
+    'media_originals': ('Original media in the viewer', 'Show photos at the highest quality available from Telegram, without recompression. Previews stay small. Uses more data and memory.'),
     'polls': ('Encuestas y cuestionarios', 'Crear, votar y consultar resultados.'),
     'checklists': ('Listas de tareas', 'Crear y editar listas compartidas; requiere Premium para crearlas.'),
     'locations': ('Ubicaciones', 'Compartir coordenadas y lugares elegidos explícitamente.'),

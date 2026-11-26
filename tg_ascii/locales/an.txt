@@ -674,3 +674,10 @@
 673|Convierte iste grupo en un supergrupo pa activar os temas.
 674|Torna a ubrir o grupo pa comprebar os achustes d’os temas.
 675|A clamada contina en segundo plano.
+676|Orichinals en o visor
+677|Amostrar as fotos con a maxima calidat disponible en Telegram, sin recomprimir. As vistas previas siguen reducidas. Usa más datos y memoria.
+678|Fotos y vídeos
+679|SD · Estándar
+680|HD · Alta calidat
+681|Orichinal como fichero
+682|O texto s’adchunta a o primer fichero. As fotos y os vídeos forman un álbum; as demás mezclas de fichers se ninvian como documentos.

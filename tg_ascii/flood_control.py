@@ -53,13 +53,20 @@ class FloodGate:
         self.resume_at = max(self.resume_at, time.monotonic() + seconds + MARGIN)
 
     async def passage(self, limit=MAX_AUTOMATIC_WAIT):
-        delay = self.remaining()
-        if delay <= 0:
-            return
-        if delay > limit:
-            raise errors.FloodWaitError(request=None, capture=int(delay + 0.999))
-        # Jitter avoids every queued preview waking in the same millisecond.
-        await asyncio.sleep(delay + random.uniform(0, 0.25))
+        deadline = time.monotonic() + limit
+        while True:
+            resume_at = self.resume_at
+            delay = self.remaining()
+            if delay <= 0:
+                return
+            if delay > max(0, deadline - time.monotonic()):
+                raise errors.FloodWaitError(request=None, capture=int(delay + 0.999))
+            # Jitter avoids every queued preview waking in the same millisecond.
+            await asyncio.sleep(delay + random.uniform(0, 0.25))
+            if self.resume_at <= resume_at:
+                return
+            # Another read extended this category's wait while we slept.
+            # Respect it without silently extending the caller's total budget.
 
 
 def gate(owner, category):

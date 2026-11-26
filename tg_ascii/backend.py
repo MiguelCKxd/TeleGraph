@@ -93,6 +93,7 @@ class Message:
     webpage: object = None  # a link preview (types.WebPage), not an attachment
     grouped_id: int | None = None
     topic_id: int | None = None
+    ttl_period: int = 0
 
 
 class DemoBackend(DemoFeatures):
@@ -321,7 +322,7 @@ class TelegramBackend(ForumTopics, CommunityManagement, AdvancedMessagingMixin, 
                        thread_id=getattr(getattr(msg, 'reply_to', None), 'reply_to_top_id', None)
                            or getattr(getattr(msg, 'reply_to', None), 'reply_to_msg_id', None),
                        webpage=preview, grouped_id=getattr(msg, 'grouped_id', None),
-                       topic_id=self.forum_message_topic(msg))
+                       topic_id=self.forum_message_topic(msg), ttl_period=getattr(msg, 'ttl_period', 0) or 0)
 
     async def resolve_missing_senders(self,messages):
         from .sender_identity import resolve
@@ -409,6 +410,9 @@ class TelegramBackend(ForumTopics, CommunityManagement, AdvancedMessagingMixin, 
         from .sticker_search import cancel_pending
         from .sender_identity import cancel_pending as cancel_senders
         try:
+            # Calls can take time (or fail) to close. File streams must stop
+            # before that wait, including when the outer shutdown times out.
+            await cancel_transfers(self)
             secret = getattr(self, 'secret_chats', None)
             if secret is not None:
                 try:
@@ -429,7 +433,6 @@ class TelegramBackend(ForumTopics, CommunityManagement, AdvancedMessagingMixin, 
                     await asyncio.wait_for(manager.close(), 5)
                 finally:
                     self.call_manager = None
-            await cancel_transfers(self)
             await asyncio.wait_for(self.presence(False),3)
         except Exception: pass  # Disconnection must still complete if status RPC fails.
         finally:

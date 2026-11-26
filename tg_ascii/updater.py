@@ -111,6 +111,8 @@ def validate_archive(archive, target=None):
             names.add(name.casefold())
             mode = info.external_attr >> 16
             if stat.S_ISLNK(mode):
+                if info.file_size > 4096:
+                    raise ValueError(tr('Unsafe update archive.'))
                 destination = bundle.read(info).decode('utf-8')
                 if destination.startswith('/') or '\\' in destination or ':' in destination: raise ValueError(tr('Unsafe update archive.'))
                 normalized = os.path.normpath(str(path.parent / destination)).replace('\\', '/')

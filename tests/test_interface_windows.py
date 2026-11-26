@@ -32,6 +32,134 @@ def window_model():
 
 
 class WindowModelTests(unittest.TestCase):
+    def test_real_poll_inspector_reads_its_pinned_backend(self):
+        import tkinter as tk
+        from tkinter import ttk
+        from concurrent.futures import Future
+        root = tk.Tk()
+        root.withdraw()
+        window = window_model()
+        window.app.demo = window.demo = False
+        window.app.ui_account = 'b'
+        window.app.preferences = NS(values={'advanced_features': {'polls': True}})
+        window.service = NS(backend=window.backend)
+        window.root = root
+        window.backend.poll_state = AsyncMock()
+        window.popups = []
+        def dialog(*_):
+            popup = tk.Toplevel(root)
+            frame = ttk.Frame(popup)
+            frame.pack()
+            window.popups.append(popup)
+            return popup, frame
+        def submit(operation, *_):
+            operation.close()
+            return Future()
+        window.dialog = dialog
+        window.worker = NS(submit=submit)
+        try:
+            message = Message(7, 'Author', '', '', media_kind='poll')
+            window.view_message_media(message)
+            window.backend.poll_state.assert_called_once_with(41, 7)
+            self.assertEqual(len(window.popups), 1)
+            inspector = next(iter(window._advanced_inspectors))
+            self.assertEqual(inspector.account, 'a')
+            self.assertIs(inspector.backend, window.backend)
+        finally:
+            root.destroy()
+
+    def test_advanced_and_conference_messages_keep_the_linked_context(self):
+        window = window_model()
+        window.app.ui_account = 'b'
+        window.open_advanced_message = Mock()
+        for kind in ('poll', 'checklist', 'location', 'contact', 'gift', 'article'):
+            message = Message(7, 'Author', '', '', media_kind=kind)
+            window.view_message_media(message)
+            window.open_advanced_message.assert_called_with(message, 41)
+        message = Message(7, 'Author', '', '', media_kind='conference')
+        with patch('tg_ascii.desktop_calls.DesktopCalls.join_conference_message') as opened:
+            window.view_message_media(message)
+        opened.assert_called_once_with(window, message, 41)
+
+    def test_reaction_uses_selected_value_and_pinned_account(self):
+        window = window_model()
+        window.app.demo = False
+        window.app.ui_account = 'b'
+        window.app.send_reaction = Mock()
+        message = Message(7, 'Author', 'text', '')
+        result = Message(7, 'Author', 'text', '', reactions='chosen')
+        window.messages = [message]
+        operation = object()
+        window.backend.react = Mock(return_value=operation)
+        window.call = Mock()
+        with patch('tg_ascii.chat_capabilities.chat_capabilities') as caps:
+            caps.return_value.allows_message.return_value = True
+            window.send_reaction(message, '👍')
+        window.backend.react.assert_called_once_with(41, 7, '👍')
+        window.app.send_reaction.assert_not_called()
+        window.call.call_args.args[1](result)
+        self.assertEqual(window.messages, [result])
+        window.request_render.assert_called_once()
+
+    def test_gallery_keeps_linked_account_after_main_window_switch(self):
+        window = window_model()
+        window.app.ui_account = 'b'
+        window.ui_account, window.active = 'a', 41
+        window.service = NS(backend=window.backend)
+        for kind in ('image', 'video'):
+            message = Message(7, 'Author', 'caption', '', media=object(), media_kind=kind)
+            with patch('tg_ascii.custom_menus.handled', return_value=False), \
+                 patch('tg_ascii.menu_style.uses_system', return_value=False), \
+                 patch('tg_ascii.media_gallery.open_chat_gallery') as opened:
+                window.view_message_media(message)
+            opened.assert_called_once_with(window, message, 41)
+            self.assertEqual(opened.call_args.args[0].ui_account, 'a')
+            self.assertIs(opened.call_args.args[0].service.backend, window.backend)
+
+    def test_canvas_previews_receive_linked_context(self):
+        window = window_model()
+        canvas, message = object(), object()
+        with patch('tg_ascii.desktop_modern.DesktopModern.canvas_media') as media, \
+             patch('tg_ascii.desktop_modern.DesktopModern.canvas_emoji') as emoji:
+            window.canvas_media(canvas, 5, message, 4, 64)
+            window.canvas_emoji(canvas, 5, 123, 4, 64)
+        media.assert_called_once_with(window, canvas, 5, message, 4, 64)
+        emoji.assert_called_once_with(window, canvas, 5, 123, 4, 64, keep_text=False)
+
+    def test_file_viewer_receives_linked_backend_instead_of_main(self):
+        window = window_model()
+        window.service = NS(backend=window.backend)
+        window.call = Mock()
+        window.backend.media_message = AsyncMock(return_value='fresh media')
+        message = Message(7, 'Author', 'caption', '', media=object(), media_kind='file')
+        with patch('tg_ascii.custom_menus.handled', return_value=False), \
+             patch('tg_ascii.menu_style.uses_system', return_value=False), \
+             patch('tg_ascii.desktop_features.DesktopFeatures.media_dialog') as shown:
+            window.view_message_media(message)
+            operation, ready, _ = window.call.call_args.args
+            ready(asyncio.run(operation))
+        window.backend.media_message.assert_awaited_once_with(41, 7)
+        self.assertIs(shown.call_args.args[0], window)
+        self.assertEqual(shown.call_args.args[1], 'fresh media')
+
+    def test_gallery_jump_loads_the_message_in_its_pinned_peer(self):
+        window = window_model()
+        window.reveal_message = Mock()
+        window.jump_message(7, 41)
+        window.reveal_message.assert_called_once_with(7)
+        self.assertFalse(window.jump_message(8, 99))
+
+    def test_new_linked_draft_inherits_quality_with_its_main_attachments(self):
+        from tg_ascii.attachments import photo_quality_for
+        with tempfile.TemporaryDirectory() as folder:
+            store = DraftStore(Path(folder))
+            store.put('a', 41, {'text': 'caption', 'files': ['photo.jpg'], 'photo_quality': 'hd'})
+            window = window_model()
+            window.draft_store, window.draft_account = store, 'linked:a'
+            self.assertEqual(photo_quality_for(window), 'hd')
+            store.put('linked:a', 41, {'text': 'local', 'photo_quality': 'original'})
+            self.assertEqual(photo_quality_for(window), 'original')
+
     def test_pinned_backend_does_not_follow_account_switch_or_create_sessions(self):
         backend = object()
         app = NS(service=NS(current='b', services={'a': NS(backend=backend), 'b': NS(backend=object())}))
@@ -238,6 +366,22 @@ class WindowRequestTests(unittest.IsolatedAsyncioTestCase):
         window.remote_draft({'text': 'remote', 'formats': [(0, 6, 'bold', '')]})
         window.editor.insert.assert_called_once_with('1.0', 'remote')
         window.restore_formats.assert_called_once_with([(0, 6, 'bold', '')])
+
+    async def test_remote_text_draft_keeps_local_album_paths_and_quality(self):
+        with tempfile.TemporaryDirectory() as directory:
+            window = window_model()
+            window.editor = Mock()
+            window.editor.edit_modified.return_value = False
+            window.composer_focused = Mock(return_value=False)
+            window.restore_formats, window.reply_label = Mock(), Mock()
+            window.draft_store, window.draft_account = DraftStore(directory), 'linked:a'
+            window.attachment = (Path(directory)/'one.jpg', Path(directory)/'two.mp4')
+            window._photo_qualities = {('a', 41, None, None): 'hd'}
+            window.remote_draft({'text': 'From another device'})
+            record = window.draft_store.get('linked:a', 41)
+            self.assertEqual(record['files'], [str(p) for p in window.attachment])
+            self.assertEqual(record['photo_quality'], 'hd')
+            self.assertFalse(record['pending'])
 
     async def test_send_stays_on_original_account_and_peer_after_main_switch(self):
         window = window_model()
