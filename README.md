@@ -1,6 +1,6 @@
 # TeleGraph 3.4 para móviles, relojes y Apple TV
 
-Las aplicaciones de teléfono y reloj comparten el núcleo de escritorio de TeleGraph. El proyecto tvOS muestra los chats que se eligen en un iPhone o iPad vinculado. Esta rama corresponde a la versión 3.4.0, compilación 1.
+Las aplicaciones de teléfono y reloj comparten el núcleo de escritorio de TeleGraph. El proyecto tvOS muestra los chats que se eligen en un iPhone o iPad vinculado. Esta rama corresponde a la versión 3.4.0: compilación 2 para iPhone, iPad y Apple Watch, y compilación 1 para Android, Wear OS y Apple TV.
 
 ## Preparar el código
 
