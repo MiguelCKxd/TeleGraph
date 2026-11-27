@@ -13,6 +13,8 @@ def add_notification_target(xcode, version, build, bundle):
     folder = xcode / name
     folder.mkdir(exist_ok=True)
     shutil.copy2(source, folder / source.name)
+    presentation = source.with_name('TGNotificationPresentation.m')
+    shutil.copy2(presentation, folder / presentation.name)
     group = f'group.{bundle}'
     capabilities = {'com.apple.security.application-groups': [group]}
     phone = xcode / 'TeleGraphPush.entitlements'
@@ -28,6 +30,7 @@ def add_notification_target(xcode, version, build, bundle):
         'CFBundlePackageType': 'XPC!', 'CFBundleInfoDictionaryVersion': '6.0',
         'TeleGraphCarPlayEnabled': bool(entitlements.get('com.apple.developer.carplay-communication')),
         'CFBundleShortVersionString': str(version), 'CFBundleVersion': str(build),
+        'NSUserActivityTypes': ['INSendMessageIntent'],
         'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.usernotifications.service',
                         'NSExtensionPrincipalClass': name}}))
 
@@ -59,7 +62,7 @@ def add_notification_target(xcode, version, build, bundle):
     settings += ('SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; '
                  'TARGETED_DEVICE_FAMILY = "1,2"; IPHONEOS_DEPLOYMENT_TARGET = 15.0; '
                  'SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; CLANG_ENABLE_OBJC_ARC = YES; '
-                 'CODE_SIGN_STYLE = Automatic; OTHER_LDFLAGS = ("-framework", UserNotifications, "-framework", Intents, );')
+                 'CODE_SIGN_STYLE = Automatic; OTHER_LDFLAGS = ("-framework", UserNotifications, "-framework", Intents, "-framework", UIKit, "-framework", ImageIO, );')
     for number, config in ((9, 'Debug'), (10, 'Release')):
         obj(number, 'XCBuildConfiguration', f'buildSettings = {{{settings}}}; name = {config};')
     obj(11, 'XCConfigurationList', f'buildConfigurations = ({uid(9)}, {uid(10)}, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;')

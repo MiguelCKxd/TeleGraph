@@ -1,8 +1,8 @@
 # TeleGraph 3.4.1 para móviles, relojes y Apple TV
 
-Las aplicaciones de teléfono y reloj comparten el núcleo de escritorio de TeleGraph. El proyecto tvOS muestra los chats que se eligen en un iPhone o iPad vinculado. Esta rama corresponde al candidato 3.4.1: compilación 2 para iOS, iPadOS, Apple Watch y la extensión de notificaciones; compilación 1 para Android, Wear OS y tvOS.
+Las aplicaciones de teléfono y reloj comparten el núcleo de escritorio de TeleGraph. El proyecto tvOS muestra los chats que se eligen en un iPhone o iPad vinculado. Esta rama corresponde al candidato 3.4.1: compilación 3 para iOS, iPadOS, Apple Watch y la extensión de notificaciones; compilación 1 para Android, Wear OS y tvOS.
 
-**Candidato local retenido:** no se ha publicado la 3.4.1 y sigue pendiente confirmar push real con la aplicación cerrada. El build 2 corrige la inicialización de los puentes Siri/TV y la recuperación del servidor de la interfaz; esto no acredita por sí solo la recepción de notificaciones. La IPA diagnóstica interna no se distribuye desde esta rama.
+**Candidato local retenido:** no se ha publicado la 3.4.1. Se observó una entrega con la aplicación cerrada en un iPhone físico con build 2 y la configuración de prueba; el build 3 incorpora la cabecera y el avatar del emisor en notificaciones y necesita repetir esa comprobación. Este resultado previo no identifica una causa concreta del proveedor ni garantiza todas las entregas. Las IPA diagnósticas internas no se distribuyen desde esta rama.
 
 ## Preparar el código
 
@@ -10,7 +10,7 @@ Desde una misma carpeta, clona el escritorio y esta rama. El sincronizador selec
 
 ```sh
 git clone --branch escritorio-v3.4.1 https://github.com/MiguelCKxd/TeleGraph escritorio
-git clone --branch apple-v3.4.1-build2 https://github.com/MiguelCKxd/TeleGraph movil
+git clone --branch apple-v3.4.1-build3 https://github.com/MiguelCKxd/TeleGraph movil
 cd movil
 export TG_ASCII_DESKTOP="$PWD/../escritorio"
 ```
