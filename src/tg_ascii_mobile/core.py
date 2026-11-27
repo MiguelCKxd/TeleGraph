@@ -458,6 +458,8 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
         self._push_stopped = True
         self._push_generation = getattr(self, '_push_generation', 0) + 1
         self._push_privacy_warnings = {}
+        if getattr(self, 'ios_notice_cache', None):
+            self.ios_notice_cache.close()
         if getattr(self, '_push_check', None) is not None:
             self._push_check.cancel()
             self._push_check = None
@@ -965,9 +967,12 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
                 # An avatar must belong to the same Telegram account as the message.
                 path = self.root / 'mobile-avatars' / key / f'{int(sender_id)}.jpg'
                 try:
-                    if path.is_file() and time.time() - path.stat().st_mtime < 3 * 86400:
+                    cache = getattr(self, 'ios_notice_cache', None)
+                    if self.system == 'iOS' and cache:
+                        picture = await cache.picture(self, key, int(sender_id), backend)
+                    elif path.is_file() and time.time() - path.stat().st_mtime < 3 * 86400:
                         picture = await asyncio.to_thread(path.read_bytes)
-                    else:
+                    elif self.system != 'iOS':
                         picture = await asyncio.wait_for(backend.client.download_profile_photo(
                             int(sender_id), file=bytes, download_big=False), 2)
                 except Exception:
@@ -981,12 +986,6 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
             if protected:
                 title = 'TeleGraph'
             private = protected or not values.get('notify_preview', True) or not policy['preview']
-            cache = getattr(self, 'ios_notice_cache', None)
-            if cache and picture and not private:
-                try:
-                    cache.thumbnail(self.accounts.identities.get(key), sender_id, picture)
-                except OSError:
-                    pass
             body = tr('New message') if private else (self.text(preview_text(message)) or tr('New message'))
             count = self.notify_counts.get((key, peer), 0) + 1
             if banner:
@@ -3682,6 +3681,9 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
         for name in (f'{int(peer)}.jpg', f'{int(peer)}.none', f'{int(peer)}-big.jpg', f'{int(peer)}-big.none'):
             (folder / name).unlink(missing_ok=True)
         self.__dict__.setdefault('fresh_avatars', set()).add(int(peer))
+        cache = getattr(self, 'ios_notice_cache', None)
+        if cache and self.accounts:
+            cache.forget(self.accounts.identities.get(self.account), int(peer))
 
     async def avatar_file(self, peer, big=False):
         account = self.account
@@ -3689,7 +3691,10 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
         cache = getattr(self, 'ios_notice_cache', None)
         if cache and not big and self.accounts and self.account == account:
             try:
-                cache.thumbnail(self.accounts.identities.get(account), peer, result)
+                if self.photo_id(peer) == 0:
+                    cache.forget(self.accounts.identities.get(account), peer)
+                else:
+                    cache.thumbnail(self.accounts.identities.get(account), peer, result)
             except OSError:
                 pass
         return result

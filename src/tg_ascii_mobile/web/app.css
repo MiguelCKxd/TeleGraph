@@ -547,7 +547,7 @@ html[style*="--fx-menu-border:"] .sheet, html[style*="--fx-menu-border:"] .compo
 .msg .media img, .webpage img { background: var(--panel); }
 
 /* bars: the same height everywhere, everything centred on one line */
-.bar { min-height: calc(var(--control) + .5em); padding-inline: calc(var(--inset) - .35em); gap: .35em; }
+.bar { min-height: calc(var(--control) + .5em); padding-inline: calc(var(--inset) - .35em); --bar-gap: .35em; gap: var(--bar-gap); }
 .bar .title { line-height: 1.25; }
 .bar .title .names { gap: .05em; }
 .bar .sub { line-height: 1.2; }
@@ -658,8 +658,27 @@ html[style*="--fx-menu-border:"] .sheet, html[style*="--fx-menu-border:"] .compo
   margin: 0; padding: 0; border: 0; border-radius: 50%; color: var(--danger); background: transparent; }
 #connection-alert:active { background: var(--selected); }
 #connection-alert svg { width: 23px; height: 23px; }
-.connection-slot { display: grid; place-items: center; flex: none; width: var(--control); height: var(--control); }
-.status.connection-placeholder { visibility: hidden; }
+/* One connection cell, no reserved slot. --bar-control is the bar's control
+   size (--control with the bar's font, which is the global --size) written in
+   font-independent units, so it is the same length wherever it is used: in the
+   smaller status text, in the title's font, and without @property or :has()
+   (iOS 15.0). */
+.bar, .winbar { --bar-control: max(var(--ui-button-height, 44px), calc(var(--size, 15px) * 2.6)); }
+.bar > .status { box-sizing: content-box; min-inline-size: var(--bar-control); min-block-size: var(--bar-control);
+  justify-content: center; }
+.status.connection-host { display: inline-grid; place-items: center; }
+.status.connection-host > * { grid-area: 1 / 1; }
+.status.connection-host > .connection-label { display: inline-flex; align-items: center; gap: .25em; visibility: hidden; }
+/* Without a visible status the alert lives in the title's own end padding: a
+   zero-width cell (its flex gap cancelled with the same token) end-aligns the
+   alert so it extends back over that padding. The title box keeps its size and
+   no control moves or is covered. Present only while the alert is shown. */
+.bar > .connection-cell { flex: none; position: relative; inline-size: 0; block-size: 0; align-self: center;
+  margin-inline-end: calc(-1 * var(--bar-gap)); }
+.bar > .connection-cell > #connection-alert { position: absolute; inset-block-start: 50%; inset-inline-end: 0;
+  transform: translateY(-50%); }
+.bar.connection-in-title > .title { padding-inline-end: var(--bar-control); }
+:is(.status, .connection-cell) > #connection-alert { width: var(--bar-control); height: var(--bar-control); }
 body > #connection-alert { position: fixed; z-index: 8; top: calc(var(--viewport-top, 0px) + var(--top) + .45em); right: calc(var(--safe-right) + var(--inset) - .35em); }
 :root[dir=rtl] body > #connection-alert { right: auto; left: calc(var(--safe-left) + var(--inset) - .35em); }
 #connection-alert[hidden], .msg .who[hidden], .settings-tabs[hidden], #settings-scroll [hidden] { display: none; }
