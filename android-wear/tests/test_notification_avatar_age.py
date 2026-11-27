@@ -8,7 +8,7 @@ from types import SimpleNamespace as NS
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from tg_ascii_mobile.core import Core
+from tg_ascii_mobile.core import AVATAR_ERROR_PAUSE, Core
 from tg_ascii_mobile.ios_notice_cache import NoticeCache, PHOTO_LIFETIME
 
 
@@ -44,6 +44,11 @@ class NotificationAvatarAgeTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         self.cache.close()
         await self.finish()
+
+    def after_pause(self):
+        """A later request, once the bounded failure pause has elapsed."""
+        later = time.monotonic() + AVATAR_ERROR_PAUSE + 1
+        return patch('tg_ascii_mobile.core.avatar_clock', return_value=later)
 
     async def finish(self):
         await asyncio.gather(*tuple(self.cache.jobs.values()), return_exceptions=True)
@@ -133,7 +138,8 @@ class NotificationAvatarAgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.source.with_suffix('.none').exists())
         self.assertEqual(self.shared.read_bytes(), b'recent shared photo')
         self.client.download_profile_photo.side_effect = actual
-        await self.core.avatar_file(42)
+        with self.after_pause():
+            await self.core.avatar_file(42)
         self.assertEqual(self.shared.read_bytes(), b'new real photo')
         self.assertEqual(self.client.download_profile_photo.await_count, 2)
 
@@ -145,7 +151,8 @@ class NotificationAvatarAgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.source.with_suffix('.none').exists())
         self.assertFalse(list(self.source.parent.glob('*.part')))
         self.assertEqual(self.shared.read_bytes(), b'recent shared photo')
-        await self.core.avatar_file(42)
+        with self.after_pause():
+            await self.core.avatar_file(42)
         self.assertEqual(self.shared.read_bytes(), b'new real photo')
 
     async def test_backend_replaced_while_viewer_loads_cannot_publish_to_shared_cache(self):
@@ -166,7 +173,8 @@ class NotificationAvatarAgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await self.core.avatar_file(42))
         self.assertFalse(self.source.with_suffix('.none').exists())
         self.client.download_profile_photo.side_effect = download
-        self.assertEqual(await self.core.avatar_file(42), self.source)
+        with self.after_pause():
+            self.assertEqual(await self.core.avatar_file(42), self.source)
         self.assertEqual(self.source.read_bytes(), b'new real photo')
 
     async def test_success_without_photo_still_marks_absence_and_clears_shared_copy(self):

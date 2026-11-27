@@ -1,14 +1,14 @@
-# TeleGraph 3.4.1 — candidato local
+# TeleGraph 3.4.2 — candidato local
 
 TeleGraph es un cliente independiente de Telegram para ordenadores, teléfonos, tabletas y relojes. En Apple TV puedes leer las conversaciones que elijas compartir desde el iPhone.
 
-**La 3.4.1 está retenida y no se ha publicado.** Se confirmó una entrega real con la aplicación cerrada en un iPhone físico con build 2 y la configuración de prueba. La compilación 4 conserva los cambios de cabecera y avatar, corrige la reutilización de fotos antiguas en la caché de avisos y debe repetir esa prueba antes de la entrega final. No se atribuye una causa concreta al proveedor ni una garantía general. Las IPA de diagnóstico interno no se ofrecen como descarga ni como distribución externa.
+**La 3.4.2 está retenida y no se ha publicado.** Se confirmó una entrega real con la aplicación cerrada en un iPhone físico con 3.4.1(2) y la configuración de prueba. La 3.4.2(1) incluye las correcciones posteriores de cabecera, caché y descarga de avatares, y debe superar su propia prueba física antes de la entrega. El resultado previo no identifica una causa concreta del proveedor ni garantiza todas las entregas. Las IPA diagnósticas de 3.4.1 no se ofrecen como descarga de esta versión.
 
-Las fuentes Apple usan la compilación **4** para iOS, iPadOS, Apple Watch y la extensión de notificaciones. Android, Wear OS y tvOS conservan la compilación **1**. Las ramas Apple de los builds 1, 2 y 3 se conservan como referencia; las fuentes vigentes están en `apple-v3.4.1-build4`. Esta numeración no significa que los paquetes nuevos estén distribuidos.
+Las fuentes Apple usan la compilación **1** de 3.4.2 para iOS, iPadOS, Apple Watch y la extensión de notificaciones. Android, Wear OS y tvOS usan también la compilación **1**. Las ramas y los recibos de 3.4.1 se conservan como referencia histórica; las fuentes Apple vigentes están en `apple-v3.4.2-build1`. Esta numeración no significa que los paquetes estén distribuidos.
 
-## Novedades del candidato 3.4.1
+## Novedades del candidato 3.4.2
 
-Se corrige una carrera de inicialización de los puentes Siri/TV que podía impedir el arranque en iOS. Al volver a la aplicación, la recuperación del servidor de la interfaz se serializa para evitar escuchas simultáneas. La entrega cerrada observada en build 2 deberá repetirse con el candidato final.
+Se corrige una carrera de inicialización de los puentes Siri/TV que podía impedir el arranque en iOS. Al volver a la aplicación, la recuperación del servidor de la interfaz se serializa para evitar escuchas simultáneas. La entrega cerrada observada con 3.4.1(2) debe repetirse con 3.4.2(1).
 
 El gestor de descargas muestra progreso y estados, permite cancelar y reintentar, y ofrece las acciones de abrir, guardar o compartir que admite cada plataforma. Limita las transferencias simultáneas y las colas, comprueba el contexto de la cuenta y respeta las restricciones de los archivos. Los reintentos empiezan desde cero; no se anuncia reanudación por bloques ni continuidad garantizada cuando el sistema suspende la aplicación.
 
@@ -18,7 +18,7 @@ En iOS 26 o posterior, Liquid Glass nativo se amplía a más controles del compo
 
 El indicador de desconexión se integra en la cabecera sin reservar un hueco permanente y permite reintentar la conexión. Representa la conexión de la cuenta a Telegram, no el estado de APNs. La interfaz conserva mejor el texto, el foco y el desplazamiento durante las actualizaciones. En Android se corrige la reserva del espacio del teclado, tanto en la ventana principal como en las ventanas de chat.
 
-Las notificaciones de iOS pueden incluir el avatar del emisor cuando está disponible. La preparación renueva fotos antiguas de la caché sin sustituir una miniatura más reciente por una copia caducada. Si falta la foto o su preparación falla, el aviso conserva su entrega; no se inventa una foto para usuarios que no tienen una.
+Las notificaciones de iOS pueden incluir el avatar del emisor cuando está disponible. La preparación renueva fotos antiguas sin sustituir una miniatura más reciente por una copia caducada. Una pausa acotada tras errores evita repetir la misma descarga fallida con cada actualización del chat; un cambio de foto invalida esa pausa. Si falta la foto o su preparación falla, el aviso conserva su entrega y no se inventa una foto para usuarios que no tienen una.
 
 La revisión reduce trabajo repetido en consultas, actualizaciones de geometría y progreso. Estas mejoras se han comprobado en recorridos y pruebas concretos; no equivalen a una reducción global medida de batería, CPU, memoria o tráfico de red.
 
@@ -28,7 +28,7 @@ Se mantienen los filtros de fotos/vídeos, originales opcionales, envío SD/HD o
 
 ## Instalación e inicio de sesión
 
-Los candidatos 3.4.1 de este snapshot todavía no se distribuyen. Las instrucciones siguientes sirven para una distribución compilada y firmada con la configuración correspondiente. Las versiones ya publicadas se consultan en las [descargas del proyecto](https://github.com/MiguelCKxd/TeleGraph/releases).
+Los candidatos 3.4.2 de este snapshot todavía no se distribuyen. Las instrucciones siguientes sirven para una distribución compilada y firmada con la configuración correspondiente. Las versiones ya publicadas se consultan en las [descargas del proyecto](https://github.com/MiguelCKxd/TeleGraph/releases).
 
 Abre la aplicación, introduce tu número con prefijo internacional y escribe el código que te envíe Telegram. Si tienes activada la verificación en dos pasos, introduce también tu contraseña. Cada dispositivo mantiene su propia sesión.
 
@@ -36,7 +36,7 @@ Abre la aplicación, introduce tu número con prefijo internacional y escribe el
 | --- | --- |
 | Windows x64 | Ejecuta el instalador Setup o extrae el ZIP portátil completo y abre `TG-ASCII.exe`. El candidato actual carece de firma Authenticode. |
 | Mac con Apple Silicon | Extrae el ZIP `darwin-arm64` y copia la aplicación a Aplicaciones. El candidato actual lleva firma ad hoc. |
-| Linux | Para Debian y Ubuntu, instala el DEB de tu arquitectura con `sudo apt install ./TeleGraph-3.4.1-linux-amd64.deb` o `sudo apt install ./TeleGraph-3.4.1-linux-arm64.deb`. También se puede generar un ZIP portátil para cada arquitectura. |
+| Linux | Para Debian y Ubuntu, instala el DEB de tu arquitectura con `sudo apt install ./TeleGraph-3.4.2-linux-amd64.deb` o `sudo apt install ./TeleGraph-3.4.2-linux-arm64.deb`. También se puede generar un ZIP portátil para cada arquitectura. |
 | Android | Instala el APK de teléfono o tableta que hayas compilado. Las actualizaciones requieren conservar la firma y el identificador de la aplicación. |
 | Wear OS | Instala el APK de reloj correspondiente. La edición Legacy permite actualizar una instalación anterior con el identificador `org.tgas.wear`, conservando su firma. |
 | iPhone, iPad y Apple Watch | El proyecto incluye la aplicación de reloj. Para instalar tu propia compilación necesitas firma y perfiles de Apple válidos para tus dispositivos. La configuración de firma y de APNs afecta a las notificaciones y a las extensiones. No se ofrece la IPA diagnóstica interna. |

@@ -40,6 +40,12 @@ STAGING_FOLDER = 'mobile-outgoing'
 STAGING_DAYS = 14
 PREVIEW_LIMIT = 160
 ACTION_TIMEOUT = 90
+# A failed avatar fetch (network, Telegram or local write error, never a
+# confirmed absence) is not asked again for this long; FLOOD_WAIT extends it.
+AVATAR_ERROR_PAUSE = 60
+AVATAR_PAUSE_LIMIT = 256
+AVATAR_FLOOD_LIMIT = 86400
+avatar_clock = time.monotonic  # Separate name: tests move it without touching asyncio's clock.
 
 
 def _install_window_shim(core):
@@ -3680,6 +3686,19 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
         folder = self.root / 'mobile-avatars' / self.account
         for name in (f'{int(peer)}.jpg', f'{int(peer)}.none', f'{int(peer)}-big.jpg', f'{int(peer)}-big.none'):
             (folder / name).unlink(missing_ok=True)
+        pauses = self._avatar_pauses(self.account, self.backend)
+        for key in (str(folder / f'{int(peer)}.jpg'), str(folder / f'{int(peer)}-big.jpg'), f'notice:{int(peer)}'):
+            pauses.pop(key, None)
+        self.__dict__.get('_avatar_notice_reservations', {}).pop(f'notice:{int(peer)}', None)
+        # A download already running asked for the previous photo: its outcome
+        # must neither restore a pause nor lift one of newer work. Not cancelled,
+        # so a request waiting for it still ends normally.
+        stale = self.__dict__.setdefault('_avatar_stale_jobs', set())
+        for name in (f'{int(peer)}.jpg', f'{int(peer)}-big.jpg'):
+            job = self.__dict__.get('avatar_jobs', {}).get(folder / name)
+            if job is not None and not job.done() and job not in stale:
+                stale.add(job)
+                job.add_done_callback(stale.discard)
         self.__dict__.setdefault('fresh_avatars', set()).add(int(peer))
         cache = getattr(self, 'ios_notice_cache', None)
         if cache and self.accounts:
@@ -3695,10 +3714,22 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
                     cache.forget(self.accounts.identities.get(account), peer)
                 elif result is not None:
                     copied = cache.thumbnail(self.accounts.identities.get(account), peer, result)
-                    if not copied and self.connection == 'online':
-                        # Return the viewer's valid-by-id image immediately; the
-                        # extension needs a recent copy and prepares it separately.
-                        await cache.picture(self, account, int(peer), backend)
+                    notice = f'notice:{int(peer)}'
+                    if not copied and self.connection == 'online' and not self._avatar_paused(notice):
+                        # The viewer keeps its valid-by-id image (only local reads
+                        # here); the extension's recent copy is prepared separately,
+                        # once per pause. Reserved first: forget_avatar meanwhile
+                        # lifts the reservation and nothing restores it.
+                        reservations = self.__dict__.setdefault('_avatar_notice_reservations', {})
+                        token = reservations[notice] = object()  # this call's reservation
+                        self._avatar_failed(account, backend, notice)
+                        try:
+                            found = await cache.picture(self, account, int(peer), backend) is not None
+                            if found and reservations.get(notice) is token:
+                                self._avatar_pauses(account, backend, current=True).pop(notice, None)
+                        finally:
+                            if reservations.get(notice) is token:
+                                del reservations[notice]
                 elif cache.read_marker(self.root / 'mobile-avatars' / account / f'{int(peer)}.none'):
                     # Includes legacy negative markers: absence remains conservative.
                     cache.forget(self.accounts.identities.get(account), peer)
@@ -3710,7 +3741,8 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
 
     async def _avatar_file(self, peer, big=False):
         """Profile photo of a chat/person, small or full size (cached a few days; None if it has none)."""
-        folder = self.root / 'mobile-avatars' / self.account
+        account = self.account  # The folder's owner, even if the account changes while waiting.
+        folder = self.root / 'mobile-avatars' / account
         stem = f'{int(peer)}-big' if big else f'{int(peer)}'
         path, none = folder / f'{stem}.jpg', folder / f'{stem}.none'
         photo_id = self.photo_id(peer)
@@ -3732,7 +3764,8 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
             except OSError:
                 pass
         backend = self.backend
-        if backend is None or self.connection != 'online':
+        if backend is None or self.connection != 'online' or self._avatar_paused(path):
+            # Offline, or a recent failure: what exists, as without connection.
             return path if path.exists() else None
         if self._avatar_slots is None:
             self._avatar_slots = asyncio.Semaphore(4)
@@ -3757,32 +3790,35 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
         jobs = self.__dict__.setdefault('avatar_jobs', {})
         job = jobs.get(path)
         if job is None:
-            job = jobs[path] = self.loop.create_task(self._download_avatar(backend, target, path, none, big))
+            job = jobs[path] = self.loop.create_task(self._download_avatar(backend, target, path, none, big, account))
             job.add_done_callback(lambda done: jobs.pop(path, None) if jobs.get(path) is done else None)
         return await asyncio.shield(job)
 
-    async def _download_avatar(self, backend, target, path, none, big):
+    async def _download_avatar(self, backend, target, path, none, big, pause_account=None):
         # Written next to its place and renamed: a request arriving meanwhile
         # never reads half a picture.
         temporary = path.with_name(f'.{path.name}.{secrets.token_hex(4)}.part')
         photo_id = None if big else getattr(getattr(target, 'photo', None), 'photo_id', None)
-        failed = False
+        failure = None
         async with self._avatar_slots:
             try:
                 result = await asyncio.wait_for(backend.client.download_profile_photo(
                     target, file=str(temporary), download_big=bool(big)), 60 if big else 30)
-            except Exception:
-                failed = True
-                result = None
+            except Exception as error:
+                failure, result = error, None
         if result:
             try:
                 os.replace(result if isinstance(result, str) else temporary, path)
-            except OSError:
-                failed = True
-                result = None
+            except OSError as error:
+                failure, result = error, None
+        if pause_account is not None and asyncio.current_task() not in self.__dict__.get('_avatar_stale_jobs', ()):
+            if failure is not None:
+                self._avatar_failed(pause_account, backend, str(path), failure)
+            else:
+                self._avatar_pauses(pause_account, backend, current=True).pop(str(path), None)
         if not result:
             temporary.unlink(missing_ok=True)
-            if not failed:
+            if failure is None:
                 none.touch()  # The completed request confirmed that no photo is available.
             return None
         none.unlink(missing_ok=True)
@@ -3792,6 +3828,43 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
         else:
             marker.unlink(missing_ok=True)
         return path
+
+    def _avatar_pauses(self, account, backend, current=False):
+        """Recent avatar failures of one account and backend; any change discards them."""
+        if current and (self.account != account or self.backend is not backend):
+            return {}  # A late result of a previous account/backend changes nothing.
+        owner = self.__dict__.get('_avatar_pause_owner')
+        if owner is None or owner[0] != account or owner[1] is not backend:
+            self._avatar_pause_owner, self._avatar_pause = (account, backend), OrderedDict()
+        return self._avatar_pause
+
+    def _avatar_paused(self, key):
+        pauses = self._avatar_pauses(self.account, self.backend)
+        deadline = pauses.get(str(key))
+        if deadline is not None and avatar_clock() >= deadline:
+            pauses.pop(str(key), None)
+            deadline = None
+        return deadline is not None
+
+    def _avatar_failed(self, account, backend, key, error=None):
+        pauses = self._avatar_pauses(account, backend, current=True)
+        if not isinstance(pauses, OrderedDict):
+            return
+        delay = AVATAR_ERROR_PAUSE
+        try:
+            from telethon.errors import FloodError
+        except ImportError:
+            FloodError = ()
+        seconds = getattr(error, 'seconds', None)
+        if FloodError and isinstance(error, FloodError) and type(seconds) is int and seconds > 0:
+            delay = max(delay, min(seconds, AVATAR_FLOOD_LIMIT))  # Telegram's own wait.
+        now = avatar_clock()
+        for stale in [item for item, deadline in pauses.items() if deadline <= now]:
+            del pauses[stale]
+        pauses.pop(key, None)
+        while len(pauses) >= AVATAR_PAUSE_LIMIT:
+            pauses.popitem(last=False)
+        pauses[key] = now + delay
 
     def photo_id(self, peer):
         """The chat's current photo id from the list (0: no photo; None: unknown)."""
