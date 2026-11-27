@@ -1,8 +1,8 @@
 {
   "version": "3.4.2",
-  "status": "candidate-held-pending-3.4.2-build1-closed-app-retest",
+  "status": "release-metadata-ready-pending-publication",
   "published": false,
-  "push_closed_app_verified": false,
+  "push_closed_app_verified": true,
   "sources": {
     "desktop": "97b924afe54e040fbcdcf07cf91d61288012f46b",
     "linux": "28418014a55f5b7bd4748cebebed4d033650790f",
@@ -25,5 +25,42 @@
     "ios_build": 2,
     "closed_app_delivery_observed": true,
     "scope": "one physical iPhone and tested configuration"
-  }
+  },
+  "final_push_check": {
+    "version": "3.4.2",
+    "ios_build": 1,
+    "devices": [
+      "physical_iPhone",
+      "physical_iPad"
+    ],
+    "closed_app_delivery_observed": true,
+    "main_process_absence_samples_per_device": {
+      "before_send": 2,
+      "after_send": 1
+    },
+    "message_count": 1,
+    "observation_surface": "Notification Center",
+    "scope": "Exact final build and tested configuration; not a guarantee for all accounts, networks or system settings",
+    "banner_test_separate": false,
+    "new_background_only_test": false
+  },
+  "known_issues_deferred": [
+    {
+      "issue": "Native iOS dialog Cancel and Confirm/Continue results can be treated as unsupported and open HTML fallback",
+      "target_version": "3.4.2.1",
+      "deferral_explicitly_accepted": true
+    },
+    {
+      "issue": "Sender photo absent in final physical notifications despite profile photo preparation",
+      "target_version": "3.4.2.1",
+      "deferral_explicitly_accepted": true
+    }
+  ],
+  "verification_limits": [
+    "Physical software keyboard not observed",
+    "Final physical iPhone file export smoke not completed",
+    "Extracted Windows Setup normal exit not established; portable normal exit verified",
+    "No physical Apple TV test",
+    "No complete VoiceOver, landscape or all older OS coverage"
+  ]
 }
