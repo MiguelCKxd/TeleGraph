@@ -22,7 +22,7 @@ requires = ["toga-cocoa~=0.5.7"]
 [tool.briefcase.app.tg_ascii_mobile.iOS]
 requires = ["toga-iOS~=0.5.7"]
 # iPhone, iPad, Watch and notification extension share the candidate build.
-info."CFBundleVersion" = "2"
+info."CFBundleVersion" = "3"
 info."NSAppTransportSecurity" = { NSAllowsLocalNetworking = true }
 info."UIStatusBarStyle" = "UIStatusBarStyleLightContent"
 splash_background_color = "#08100c"

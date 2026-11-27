@@ -16,8 +16,13 @@ def configure_siri(xcode):
     main = phone / 'main.m'
     include = '#import "TeleGraphSiri.m"'
     text = main.read_text()
+    presentation = source.with_name('TGNotificationPresentation.m')
+    shutil.copyfile(presentation, phone / presentation.name)
+    if '#import "TGNotificationPresentation.m"' not in text:
+        text = '#import "TGNotificationPresentation.m"\n' + text
     if include not in text:
-        main.write_text(f'#import <UIKit/UIKit.h>\n{include}\n' + text)
+        text = f'#import <UIKit/UIKit.h>\n{include}\n' + text
+    main.write_text(text)
     plist = phone / 'TGASCII-Info.plist'
     info = plistlib.loads(plist.read_bytes())
     actions = {'INSendMessageIntent', 'INSearchForMessagesIntent', 'INSetMessageAttributeIntent'}

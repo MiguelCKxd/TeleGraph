@@ -1,16 +1,16 @@
 {
   "version": "3.4.1",
-  "status": "candidate-held-pending-physical-push-validation",
+  "status": "candidate-held-pending-build3-closed-app-retest",
   "published": false,
   "push_closed_app_verified": false,
   "sources": {
     "desktop": "1cd6c891cd9f70389aede8d3374ed494938284b6",
     "linux": "b1ac4f5b749c6f19cc69304eb0ec8efa1fb5e27e",
-    "android-wear": "187f2c6934fed3d22527dcf27f9b97e96c1d74f2",
-    "apple": "ffa14cc2926bda307cc97e68c7dcf85aea59311f"
+    "android-wear": "8bcd5da14e96e77ca72cbfbae9f70331766ed3ca",
+    "apple": "5add8a5e830de326125bd6ac61b604c84fe7dd5e"
   },
   "platform_builds": {
-    "ios_ipados_watchos_notification_extension": 2,
+    "ios_ipados_watchos_notification_extension": 3,
     "android_wearos": 1,
     "tvos": 1
   },
@@ -18,6 +18,11 @@
     "desktop": "escritorio-v3.4.1",
     "linux": "linux-v3.4.1",
     "android-wear": "movil-v3.4.1-build1",
-    "apple": "apple-v3.4.1-build2"
+    "apple": "apple-v3.4.1-build3"
+  },
+  "historical_push_check": {
+    "ios_build": 2,
+    "closed_app_delivery_observed": true,
+    "scope": "one physical iPhone and tested configuration"
   }
 }

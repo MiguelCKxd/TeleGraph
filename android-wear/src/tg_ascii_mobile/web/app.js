@@ -1043,25 +1043,45 @@ function statusNode() {
   const offline = state.connection === 'offline' || state.connection === 'reconnecting';
   const online = state.connection === 'online';
   const label = t(online || offline ? 'En linea' : 'Conectando...');
-  if (offline) return h('span', {id:'status', class:'status connection-placeholder', 'aria-hidden':'true'},
-    h('span', {}, '●'), h('span', {class:'status-word'}, label));
+  // Offline, the status keeps its own width (its wording is hidden) and hosts
+  // the connection alert stacked in the same cell: the header geometry is the
+  // same in both states and nothing is reserved while online.
+  if (offline) return h('span', {id: 'status', class: 'status connection-host'},
+    h('span', {class: 'connection-label', 'aria-hidden': 'true'}, h('span', {}, '●'), h('span', {class: 'status-word'}, label)));
   return h(online ? 'span' : 'button', {id: 'status', class: 'status', title: label,
     'aria-label': online ? label : label + ' · ' + t('Reconnect'), onclick: online ? null : reconnect},
     h('span', {'aria-hidden': 'true'}, online ? '●' : '◌'), h('span', {class: 'status-word'}, label));
 }
+function connectionHost(bar) {
+  // A visible status hosts the alert in place. Without one (a chat, or the
+  // status hidden by Presentation) a zero-width cell after the title places it
+  // in the title's own end padding: the title box and the controls never move.
+  const status = bar.querySelector(':scope > #status.connection-host');
+  if (status && status.getClientRects().length) return status;
+  const title = bar.matches('.bar') && bar.querySelector(':scope > .title');
+  if (!title) return bar;  // e.g. a floating window bar: the alert ends the bar
+  let cell = bar.querySelector(':scope > .connection-cell');
+  if (!cell) cell = h('span', {class: 'connection-cell'});
+  if (cell.previousElementSibling !== title) title.after(cell);
+  // Explicit state class (not :has(), unavailable before Safari 15.4): the title
+  // reserves its end padding only while the cell holds the alert.
+  bar.classList.add('connection-in-title');
+  return cell;
+}
 function updateConnectionIndicator() {
   const badge = connectionAlert;
   badge.hidden = state.locked || unavailableWindow() || state.stage !== 'ready' || !['offline', 'reconnecting'].includes(state.connection);
-  const pane = root.classList.contains('wide') ? root.querySelector(':scope > .pane.main') : root;
-  const bar = pane?.querySelector(':scope > .bar, :scope > .winbar');
-  // Keep one stable corner slot: connectivity changes must not squeeze the title or move controls.
-  let slot = bar?.querySelector(':scope > .connection-slot');
-  if (bar && !slot) { slot = h('span', {class:'connection-slot'}); bar.append(slot); }
-  const host = slot || document.body;
-  if (badge.parentElement !== host) host.append(badge);
   const label = t(state.connection === 'reconnecting' ? 'Conectando...' : 'Sin conexion') + ' · ' + t('Reconnect');
   badge.title = label;
   badge.setAttribute('aria-label', label);
+  const pane = root.classList.contains('wide') ? root.querySelector(':scope > .pane.main') : root;
+  const bar = !badge.hidden && pane?.querySelector(':scope > .bar, :scope > .winbar');
+  const host = bar ? connectionHost(bar) : document.body;
+  if (badge.parentElement !== host) host.append(badge);
+  // A cell exists only while it holds the alert: never an empty reserved slot.
+  for (const cell of document.querySelectorAll('.connection-cell')) if (cell !== host) cell.remove();
+  for (const other of document.querySelectorAll('.connection-in-title'))
+    if (!other.querySelector(':scope > .connection-cell')) other.classList.remove('connection-in-title');
 }
 function updateStatus() {
   document.getElementById('status')?.replaceWith(statusNode());

@@ -99,12 +99,23 @@ const server = http.createServer((req,res) => {
     assert.ok(refreshedStyle.after>refreshedStyle.before);
     checks.push('retained composer updates accessibility/localized labels and multiline height after a font change');
     const connection = await page.evaluate(() => {
-      const read=()=>{const title=document.querySelector('#app > .bar .title').getBoundingClientRect();return [title.x,title.width];};
-      const before=read();state.connection='offline';updateStatus();const after=read();
-      return {before,after,visible:!document.getElementById('connection-alert').hidden};
+      const bar=document.querySelector('#app > .bar');
+      const read=()=>{const title=bar.querySelector('.title').getBoundingClientRect();
+        const controls=[...bar.querySelectorAll(':scope > button')].map(node=>node.getBoundingClientRect().right);
+        return {title:[title.x,title.width],controls};};
+      // The usable edge: padding/safe area only, never an invisible reserved control (3.4.1 regression).
+      const style=getComputedStyle(bar), usable=bar.getBoundingClientRect().right-parseFloat(style.paddingRight);
+      const last=[...bar.children].filter(node=>node.getClientRects().length).pop().getBoundingClientRect().right;
+      const before=read();const reserved=document.querySelectorAll('.connection-cell, .connection-slot').length;
+      state.connection='offline';updateStatus();const after=read();
+      const alert=document.getElementById('connection-alert').getBoundingClientRect();
+      return {before,after,reserved,gap:usable-last,visible:!document.getElementById('connection-alert').hidden,
+        alertInHeader:bar.contains(document.getElementById('connection-alert')),alertSize:[alert.width,alert.height]};
     });
     assert.deepEqual(connection.before,connection.after);assert.equal(connection.visible,true);
-    checks.push('offline indicator occupies a stable corner without moving the chat header');
+    assert.equal(connection.reserved,0);assert.ok(Math.abs(connection.gap)<=0.5,'chat header ends at its usable edge online');
+    assert.equal(connection.alertInHeader,true);assert.ok(connection.alertSize.every(value=>value>=44));
+    checks.push('offline indicator keeps the chat header and its controls in place without reserving space online');
     if(process.env.QA_SCREENSHOT_CHAT) await page.screenshot({path:process.env.QA_SCREENSHOT_CHAT});
     await page.evaluate(() => qaViewport({offsetTop:60}));
     await page.waitForFunction(() => document.getElementById('app').getBoundingClientRect().top===60);

@@ -2,13 +2,13 @@
 
 TeleGraph es un cliente independiente de Telegram para ordenadores, teléfonos, tabletas y relojes. En Apple TV puedes leer las conversaciones que elijas compartir desde el iPhone.
 
-**La 3.4.1 está retenida y no se ha publicado.** Falta confirmar la recepción real de notificaciones push con la aplicación cerrada en el iPhone. Las mejoras del registro y del diagnóstico no demuestran por sí solas que esa recepción funcione. La compilación iOS enviada para diagnóstico interno no se ofrece aquí como descarga ni como distribución externa. Este snapshot permite revisar y compilar las fuentes; no anuncia una versión lista para entregar.
+**La 3.4.1 está retenida y no se ha publicado.** Se confirmó una entrega real con la aplicación cerrada en un iPhone físico con build 2 y la configuración de prueba. La compilación 3 incorpora los cambios de cabecera y avatar y debe repetir esa prueba antes de la entrega final. No se atribuye una causa concreta al proveedor ni una garantía general. Las IPA de diagnóstico interno no se ofrecen como descarga ni como distribución externa.
 
-Las fuentes Apple usan la compilación **2** para iOS, iPadOS, Apple Watch y la extensión de notificaciones. Android, Wear OS y tvOS conservan la compilación **1**. La rama Apple del build 1 se conserva como referencia del diagnóstico anterior; las fuentes vigentes de Apple están en `apple-v3.4.1-build2`. Esta numeración no significa que los paquetes nuevos estén distribuidos.
+Las fuentes Apple usan la compilación **3** para iOS, iPadOS, Apple Watch y la extensión de notificaciones. Android, Wear OS y tvOS conservan la compilación **1**. Las ramas Apple de los builds 1 y 2 se conservan como referencia; las fuentes vigentes están en `apple-v3.4.1-build3`. Esta numeración no significa que los paquetes nuevos estén distribuidos.
 
 ## Novedades del candidato 3.4.1
 
-Se corrige una carrera de inicialización de los puentes Siri/TV que podía impedir el arranque en iOS. Al volver a la aplicación, la recuperación del servidor de la interfaz se serializa para evitar escuchas simultáneas. La prueba push física sigue pendiente.
+Se corrige una carrera de inicialización de los puentes Siri/TV que podía impedir el arranque en iOS. Al volver a la aplicación, la recuperación del servidor de la interfaz se serializa para evitar escuchas simultáneas. La entrega cerrada observada en build 2 deberá repetirse con el candidato final.
 
 El gestor de descargas muestra progreso y estados, permite cancelar y reintentar, y ofrece las acciones de abrir, guardar o compartir que admite cada plataforma. Limita las transferencias simultáneas y las colas, comprueba el contexto de la cuenta y respeta las restricciones de los archivos. Los reintentos empiezan desde cero; no se anuncia reanudación por bloques ni continuidad garantizada cuando el sistema suspende la aplicación.
 
@@ -16,7 +16,9 @@ Apariencia y Personalización incorporan controles independientes de tamaño de 
 
 En iOS 26 o posterior, Liquid Glass nativo se amplía a más controles del compositor y de navegación. Sigue desactivado por defecto y respeta las preferencias de accesibilidad. Una opción independiente, también desactivada inicialmente, permite usar diálogos nativos compatibles en iOS y Android; los formularios que necesitan controles adicionales conservan su interfaz habitual.
 
-El indicador de desconexión ocupa un espacio estable en la cabecera y permite reintentar la conexión. Representa la conexión de la cuenta a Telegram, no el estado de APNs. La interfaz conserva mejor el texto, el foco y el desplazamiento durante las actualizaciones. En Android se corrige la reserva del espacio del teclado, tanto en la ventana principal como en las ventanas de chat.
+El indicador de desconexión se integra en la cabecera sin reservar un hueco permanente y permite reintentar la conexión. Representa la conexión de la cuenta a Telegram, no el estado de APNs. La interfaz conserva mejor el texto, el foco y el desplazamiento durante las actualizaciones. En Android se corrige la reserva del espacio del teclado, tanto en la ventana principal como en las ventanas de chat.
+
+Las notificaciones de iOS pueden incluir el avatar del emisor cuando está disponible. Si falta la foto o su preparación falla, el aviso conserva su entrega; no se inventa una foto para usuarios que no tienen una.
 
 La revisión reduce trabajo repetido en consultas, actualizaciones de geometría y progreso. Estas mejoras se han comprobado en recorridos y pruebas concretos; no equivalen a una reducción global medida de batería, CPU, memoria o tráfico de red.
 

@@ -545,12 +545,23 @@ def install_ios(app):
                 print('notify:', exc)
         app.on_main_thread(run)
 
+    # Resolve this native selector once on the main thread, like the Siri/TV bridges.
+    try:
+        decorate = ObjCClass('TGNotificationPresentation').decorateContent_account_peer_sender_photo_conversation_
+    except Exception as error:
+        # A broken/missing optional presenter must not disable ordinary local alerts.
+        decorate = None
+        print('communication presentation:', type(error).__name__)
+
     async def post(account, peer, title, body, count, sound, *, sender=None, picture=None, conversation='', message_id=None):
         import asyncio
         loop = asyncio.get_running_loop()
         accepted = loop.create_future()
+        recipient = getattr(core.accounts, 'identities', {}).get(account)
+        identity = str(recipient or account)
 
         def submitted(error):
+            keep.discard(block)
             def complete():
                 if not accepted.done():
                     if error:
@@ -559,38 +570,33 @@ def install_ios(app):
                         accepted.set_result(None)
             loop.call_soon_threadsafe(complete)
 
-        content = ObjCClass('UNMutableNotificationContent').alloc().init()
-        content.title = title
-        content.body = body
-        content.threadIdentifier = f'{account}:{peer}'
-        if carplay and sender and message_id and (recipient := core.accounts.identities.get(account)):
-            content.categoryIdentifier = 'TeleGraphMessage'
-            content.userInfo = {'TeleGraphMessageRoute': [recipient, peer, message_id]}
-        if sound:
-            content.sound = ObjCClass('UNNotificationSound').defaultSound
-        if sender:
+        def run():
             try:
-                load_library('Intents')
-                identity = f'{account}:{sender}'
-                handle = ObjCClass('INPersonHandle').alloc().initWithValue_type_(identity, 0)
-                image = ObjCClass('INImage').imageWithImageData_(picture) if picture else None
-                person = ObjCClass('INPerson').alloc().initWithPersonHandle_nameComponents_displayName_image_contactIdentifier_customIdentifier_(
-                    handle, None, title, image, None, identity)
-                group = ObjCClass('INSpeakableString').alloc().initWithSpokenPhrase_(conversation) if conversation else None
-                intent = ObjCClass('INSendMessageIntent').alloc().initWithRecipients_outgoingMessageType_content_speakableGroupName_conversationIdentifier_serviceName_sender_attachments_(
-                    None, 1, None, group, f'{account}:{peer}', 'TeleGraph', person, None)
-                interaction = ObjCClass('INInteraction').alloc().initWithIntent_response_(intent, None)
-                interaction.direction = 2  # INInteractionDirectionIncoming
-                interaction.donateInteractionWithCompletion_(None)
-                updated = content.contentByUpdatingWithProvider_error_(intent, None)
-                if updated is not None:
-                    content = updated
-            except Exception as error:
-                print('communication notification:', type(error).__name__)
-        request = ObjCClass('UNNotificationRequest').requestWithIdentifier_content_trigger_(
-            f'tgas-{notification_id(account, peer)}', content, None)
+                content = ObjCClass('UNMutableNotificationContent').alloc().init()
+                content.title = title
+                content.body = body
+                content.threadIdentifier = f'{identity}:{peer}'
+                if carplay and sender and message_id and recipient:
+                    content.categoryIdentifier = 'TeleGraphMessage'
+                    content.userInfo = {'TeleGraphMessageRoute': [recipient, peer, message_id]}
+                if sound:
+                    content.sound = ObjCClass('UNNotificationSound').defaultSound
+                if sender and decorate is not None:
+                    try:
+                        # Shared with the NSE: real sender photo, or presentation-only
+                        # initials; no network and no wait for Siri donation completion.
+                        content = decorate(content, identity, str(peer), str(sender), picture, conversation)
+                    except Exception as error:
+                        print('communication notification:', type(error).__name__)
+                request = ObjCClass('UNNotificationRequest').requestWithIdentifier_content_trigger_(
+                    f'tgas-{notification_id(account, peer)}', content, None)
+                center.addNotificationRequest_withCompletionHandler_(request, block)
+            except Exception:
+                submitted(True)
+
         block = Block(submitted, None, objc_id)
-        center.addNotificationRequest_withCompletionHandler_(request, block)
+        keep.add(block)
+        app.on_main_thread(run)
         await asyncio.wait_for(accepted, 8)
 
     def clear(account, peer):
