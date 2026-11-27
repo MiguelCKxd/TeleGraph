@@ -52,7 +52,17 @@ class NoticeCache:
 
     def thumbnail(self, account_id, sender_id, source):
         if account_id not in self.allowed or type(sender_id) is not int or not 0 < abs(sender_id) < 2 ** 53:
-            return
+            return False
+        # Keep-loaded can legitimately return an old file whose photo_id is still
+        # current. It must neither overwrite a fresh extension copy nor cancel the
+        # download preparing one. Only a recent source may refresh this cache.
+        if isinstance(source, bytes):
+            if len(source) > MAX_PHOTO_BYTES:
+                return False
+        elif source is not None:
+            metadata = source.stat()
+            if metadata.st_size > MAX_PHOTO_BYTES or not 0 <= time.time() - metadata.st_mtime < PHOTO_LIFETIME:
+                return False
         pending = self.jobs.get((account_id, sender_id))
         if pending is not None:
             try:
@@ -66,20 +76,17 @@ class NoticeCache:
         destination = folder / f'{int(sender_id)}.jpg'
         if source is None:
             destination.unlink(missing_ok=True)
-            return
+            return True
         temporary = destination.with_suffix('.tmp')
         if isinstance(source, bytes):
-            if len(source) > MAX_PHOTO_BYTES:
-                return
             temporary.write_bytes(source)
         else:
-            if source.stat().st_size > MAX_PHOTO_BYTES:
-                return
             if destination.exists() and destination.stat().st_mtime_ns == source.stat().st_mtime_ns:
-                return
+                return True
             shutil.copy2(source, temporary)
         os.replace(temporary, destination)
         destination.with_suffix('.none').unlink(missing_ok=True)
+        return True
 
     def forget(self, account_id, sender_id):
         """A removed/changed photo must not survive in the extension's copy."""
