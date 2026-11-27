@@ -1,7 +1,7 @@
 [tool.briefcase]
 project_name = "TG-ASCII"
 bundle = "org.tgas"
-version = "3.4.1"
+version = "3.4.2"
 url = "https://github.com/MiguelCKxd/TeleGraph"
 license.file = "LICENSE"
 author = "TeleGraph"
@@ -22,7 +22,7 @@ requires = ["toga-cocoa~=0.5.7"]
 [tool.briefcase.app.tg_ascii_mobile.iOS]
 requires = ["toga-iOS~=0.5.7"]
 # iPhone, iPad, Watch and notification extension share the candidate build.
-info."CFBundleVersion" = "4"
+info."CFBundleVersion" = "1"
 info."NSAppTransportSecurity" = { NSAllowsLocalNetworking = true }
 info."UIStatusBarStyle" = "UIStatusBarStyleLightContent"
 splash_background_color = "#08100c"

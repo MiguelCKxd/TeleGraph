@@ -11,4 +11,4 @@ if sys.platform == 'ios' or (sys.platform == 'darwin' and platform.system() == '
 
 from tg_ascii import __version__ as CORE_VERSION
 
-__version__ = '3.4.1'
+__version__ = '3.4.2'

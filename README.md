@@ -1,21 +1,21 @@
-# TeleGraph 3.4.1 para móviles, relojes y Apple TV
+# TeleGraph 3.4.2 para móviles, relojes y Apple TV
 
-Las aplicaciones de teléfono y reloj comparten el núcleo de escritorio de TeleGraph. El proyecto tvOS muestra los chats que se eligen en un iPhone o iPad vinculado. Esta rama corresponde al candidato 3.4.1: compilación 4 para iOS, iPadOS, Apple Watch y la extensión de notificaciones; compilación 1 para Android, Wear OS y tvOS.
+Las aplicaciones de teléfono y reloj comparten el núcleo de escritorio de TeleGraph. El proyecto tvOS muestra los chats que se eligen en un iPhone o iPad vinculado. Esta rama corresponde al candidato 3.4.2: compilación 1 para iOS, iPadOS, Apple Watch y la extensión de notificaciones; compilación 1 para Android, Wear OS y tvOS.
 
-**Candidato local retenido:** no se ha publicado la 3.4.1. Se observó una entrega con la aplicación cerrada en un iPhone físico con build 2 y la configuración de prueba. El build 4 conserva la cabecera y el avatar del emisor, corrige la reutilización de fotos antiguas en la caché de avisos y necesita repetir esa comprobación. Este resultado previo no identifica una causa concreta del proveedor ni garantiza todas las entregas. Las IPA diagnósticas internas no se distribuyen desde esta rama.
+**Candidato local retenido:** la 3.4.2 todavía no se ha publicado. Se observó una entrega con la aplicación cerrada en un iPhone físico con 3.4.1(2) y la configuración de prueba; la 3.4.2(1) debe repetir esa comprobación. Incluye las correcciones de arranque, cabecera y avatar, renovación de fotos antiguas y una pausa acotada tras fallos de descarga de avatares para evitar peticiones repetidas. El resultado previo no identifica una causa concreta del proveedor ni garantiza todas las entregas. Las IPA diagnósticas anteriores no se distribuyen desde esta rama.
 
 ## Preparar el código
 
 Desde una misma carpeta, clona el escritorio y esta rama. El sincronizador selecciona la revisión de núcleo usada por esta versión.
 
 ```sh
-git clone --branch escritorio-v3.4.1 https://github.com/MiguelCKxd/TeleGraph escritorio
-git clone --branch movil-v3.4.1-build1 https://github.com/MiguelCKxd/TeleGraph movil
+git clone --branch escritorio-v3.4.2 https://github.com/MiguelCKxd/TeleGraph escritorio
+git clone --branch movil-v3.4.2-build1 https://github.com/MiguelCKxd/TeleGraph movil
 cd movil
 export TG_ASCII_DESKTOP="$PWD/../escritorio"
 ```
 
-Prepara Briefcase en `../beeware-venv/`. Indica con `TG_ASCII_DESKTOP_PYTHON` el intérprete que contiene PyTgCalls 3.0.0. El sincronizador copia el núcleo y esa dependencia al directorio de compilación. El clon completo de `main` usa su carpeta `desktop/`; las ramas separadas admiten la carpeta hermana `escritorio/`. Para otro clon del escritorio, usa `TG_ASCII_DESKTOP`. La revisión predeterminada es `1cd6c891cd9f70389aede8d3374ed494938284b6`.
+Prepara Briefcase en `../beeware-venv/`. Indica con `TG_ASCII_DESKTOP_PYTHON` el intérprete que contiene PyTgCalls 3.0.0. El sincronizador copia el núcleo y esa dependencia al directorio de compilación. El clon completo de `main` usa su carpeta `desktop/`; las ramas separadas admiten la carpeta hermana `escritorio/`. Para otro clon del escritorio, usa `TG_ASCII_DESKTOP`. La revisión predeterminada es `97b924afe54e040fbcdcf07cf91d61288012f46b`.
 
 Para generar tu propio cliente, registra tu aplicación en Telegram y guarda los campos `id` y `hash` en un JSON privado. El sincronizador lo lee desde `TELEGRAPH_API_CONFIG` o desde `~/.tg-ascii-lite/api.json`. Para configurar otra identidad en iPhone, usa `TELEGRAPH_IOS_API_CONFIG`. Quien instala la aplicación compilada introduce su teléfono, el código de Telegram y, si procede, su contraseña de verificación en dos pasos. [Registro de aplicaciones en Telegram](https://core.telegram.org/api/obtaining_api_id)
 
