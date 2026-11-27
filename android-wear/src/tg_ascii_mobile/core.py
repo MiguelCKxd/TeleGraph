@@ -3686,15 +3686,24 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
             cache.forget(self.accounts.identities.get(self.account), int(peer))
 
     async def avatar_file(self, peer, big=False):
-        account = self.account
+        account, backend = self.account, self.backend
         result = await self._avatar_file(peer, big)
         cache = getattr(self, 'ios_notice_cache', None)
-        if cache and not big and self.accounts and self.account == account:
+        if cache and not big and self.accounts and self.account == account and self.backend is backend:
             try:
                 if self.photo_id(peer) == 0:
                     cache.forget(self.accounts.identities.get(account), peer)
-                else:
-                    cache.thumbnail(self.accounts.identities.get(account), peer, result)
+                elif result is not None:
+                    copied = cache.thumbnail(self.accounts.identities.get(account), peer, result)
+                    if not copied and self.connection == 'online':
+                        # Return the viewer's valid-by-id image immediately; the
+                        # extension needs a recent copy and prepares it separately.
+                        await cache.picture(self, account, int(peer), backend)
+                elif cache.read_marker(self.root / 'mobile-avatars' / account / f'{int(peer)}.none'):
+                    # Includes legacy negative markers: absence remains conservative.
+                    cache.forget(self.accounts.identities.get(account), peer)
+                # A failed fetch without confirmed absence must not erase a valid
+                # shared thumbnail. _download_avatar does not mark errors as empty.
             except OSError:
                 pass
         return result
@@ -3757,20 +3766,24 @@ class Core(MobileDownloads, MobileStories, ChatWallpapers, ProfileGallery, Mobil
         # never reads half a picture.
         temporary = path.with_name(f'.{path.name}.{secrets.token_hex(4)}.part')
         photo_id = None if big else getattr(getattr(target, 'photo', None), 'photo_id', None)
+        failed = False
         async with self._avatar_slots:
             try:
                 result = await asyncio.wait_for(backend.client.download_profile_photo(
                     target, file=str(temporary), download_big=bool(big)), 60 if big else 30)
             except Exception:
+                failed = True
                 result = None
         if result:
             try:
                 os.replace(result if isinstance(result, str) else temporary, path)
             except OSError:
+                failed = True
                 result = None
         if not result:
             temporary.unlink(missing_ok=True)
-            none.touch()
+            if not failed:
+                none.touch()  # The completed request confirmed that no photo is available.
             return None
         none.unlink(missing_ok=True)
         marker = path.with_suffix('.id')
